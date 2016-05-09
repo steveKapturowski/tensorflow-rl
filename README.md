@@ -44,7 +44,7 @@ You can also run [TensorBoard](https://www.tensorflow.org/versions/r0.8/how_tos/
 $ tensorboard --logdir=/tmp/summary_logs/ &
 ```
 
-(2) Go to `http://<docker-host>:6006`
+(2) Get the ip address of your docker host running inside of [VirtualBox](https://www.virtualbox.org/). Go to `http://<docker-host-ip>:6006`
 
 
 # Convergence issues (May 9, 2016)
