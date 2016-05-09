@@ -28,10 +28,7 @@ $ docker pull restrd/tensorflow-atari-cpu
 inside the container. Be sure to give a name to the container: 
 `<container-name>`
 ```shell
-$ docker run -d -p 8888:8888 -p 6006:6006 --name <container-name> 
--v ~/:/root/$usr -e DISPLAY=$(ifconfig vboxnet0 | 
-awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}'):0 
--it docker.io/restrd/tensorflow-atari-cpu
+$ docker run -d -p 8888:8888 -p 6006:6006 --name <container-name> -v ~/:/root/$usr -e DISPLAY=$(ifconfig vboxnet0 | awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}'):0 -it docker.io/restrd/tensorflow-atari-cpu
 ```
 
 (6) Shell into the container.
