@@ -3,6 +3,8 @@ A re-implementation of [Asynchronous Methods for Deep Reinforcement Learning]
 (https://arxiv.org/abs/1602.01783) using [TensorFlow r0.7]
 (https://www.tensorflow.org/).
 
+Chat about this repo on Gutter: [![Gitter](https://badges.gitter.im/traai/async-deep-rl.svg)](https://gitter.im/traai/async-deep-rl?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
 
 # How to run the algorithms (MacOSX for now)?
 (1) Clone this repo at `~/some-path`.
