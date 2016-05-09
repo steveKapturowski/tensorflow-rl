@@ -29,7 +29,7 @@ $ docker run -d -p 8888:8888 -p 6006:6006 --name <container-name> -v ~/:/root/$u
 $ docker exec -it <container-name> /bin/bash
 ```
 
-(7) Go to the algorithms folder (`/your-user-name/some-path/async-deep-rl/algorithms`) and choose which algorithm to run via the configuration options in main.py.
+(7) Go to the algorithms folder (`/your-user-name/some-path/async-deep-rl/algorithms`) and choose which algorithm to run via the configuration options in `main.py`.
 
 (8) Run the algorithms, e.g.:
 ```shell
