@@ -28,7 +28,10 @@ $ docker pull restrd/tensorflow-atari-cpu
 inside the container. Be sure to give a name to the container: 
 `<container-name>`
 ```shell
-$ docker run -d -p 8888:8888 -p 6006:6006 --name <container-name> -v ~/:/root/$usr -e DISPLAY=$(ifconfig vboxnet0 | awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}'):0 -it docker.io/restrd/tensorflow-atari-cpu
+$ docker run -d -p 8888:8888 -p 6006:6006 --name <container-name> 
+-v ~/:/root/$usr -e DISPLAY=$(ifconfig vboxnet0 | 
+awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}'):0 
+-it docker.io/restrd/tensorflow-atari-cpu
 ```
 
 (6) Shell into the container.
@@ -45,10 +48,8 @@ algorithm to run via the configuration options in `main.py`.
 $ python main.py beam_rider ../atari_roms/ 1 &
 ```
 
-# Running [TensorBoard]
-(https://www.tensorflow.org/versions/r0.8/how_tos/summaries_and_tensorboard/index.html)
-You can also run [TensorBoard]
-(https://www.tensorflow.org/versions/r0.8/how_tos/summaries_and_tensorboard/index.html) 
+# Running [TensorBoard](https://www.tensorflow.org/versions/r0.8/how_tos/summaries_and_tensorboard/index.html)
+You can also run [TensorBoard](https://www.tensorflow.org/versions/r0.8/how_tos/summaries_and_tensorboard/index.html) 
 to visualise losses and game scores. 
 
 (1) Run tensorboard from within the container:
