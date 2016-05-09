@@ -18,7 +18,7 @@ $ socat TCP-LISTEN:6000,reuseaddr,fork UNIX-CLIENT:\"$DISPLAY\"
 $ docker pull restrd/tensorflow-atari-cpu
 ```
 
-(5) Run the docker image. This will mount your home folder to /your-user-name inside the container.
+(5) Run the docker image. This will mount your home folder to /your-user-name inside the container. Give a name to the container (<container-name>).
 ```shell
 $ docker run -d -p 8888:8888 -p 6006:6006 --name <container-name> -v ~/:/root/$usr -e DISPLAY=$(ifconfig vboxnet0 | awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}'):0 -it docker.io/restrd/tensorflow-atari-cpu
 ```
