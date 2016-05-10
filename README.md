@@ -2,10 +2,7 @@
 
 [![Join the chat at https://gitter.im/traai/async-deep-rl](https://badges.gitter.im/traai/async-deep-rl.svg)](https://gitter.im/traai/async-deep-rl?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-A re-implementation of [Asynchronous Methods for Deep Reinforcement Learning]
-(https://arxiv.org/abs/1602.01783) using [TensorFlow r0.7]
-(https://www.tensorflow.org/).
-
+A [Tensorflow (r0.7)](https://www.tensorflow.org/) based implementation of [Asynchronous Methods for Deep Reinforcement Learning](https://arxiv.org/abs/1602.01783).
 
 
 # How to run the algorithms (MacOSX for now)?
