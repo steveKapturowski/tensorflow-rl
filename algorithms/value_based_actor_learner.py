@@ -124,6 +124,7 @@ class NStepQLearner(ActorLearner):
 
             for i in xrange(len(self.accumulated_grads)):
                 self.accumulated_grads[i] = 0.0
+            update_target = False
             
             # Synchronize thread-specific parameters 
             self.session.run(
@@ -158,7 +159,9 @@ class NStepQLearner(ActorLearner):
 
                 self.lock.acquire()
                 self.global_step = self.session.run(
-                    self.increase_global_step_op)            
+                    self.increase_global_step_op)
+                if self.global_step % self.q_target_update_steps == 0:
+                    update_target = True
                 self.lock.release()
 
             if self.terminal_state:
@@ -195,11 +198,12 @@ class NStepQLearner(ActorLearner):
             
             self.apply_gradients_to_shared_network()
             
-            if self.global_step % self.q_target_update_steps == 0:
+            if update_target:
                 self.session.run(
                     self.target_network.sync_parameters_w_shared_network)
                 logger.debug("Actor {} updating target at Step {}".format(
                     self.getName(), self.global_step))
+                update_target = False
 
             if self.local_step % 100 == 0:
                 self.summary_writer.add_summary(summary_str1, self.global_step)
