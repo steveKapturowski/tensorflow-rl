@@ -2,8 +2,13 @@
 
 [![Join the chat at https://gitter.im/traai/async-deep-rl](https://badges.gitter.im/traai/async-deep-rl.svg)](https://gitter.im/traai/async-deep-rl?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-A [Tensorflow (r0.7)](https://www.tensorflow.org/) based implementation of [Asynchronous Methods for Deep Reinforcement Learning](https://arxiv.org/abs/1602.01783).
+A [Tensorflow](https://www.tensorflow.org/)-based implementation of all algorithms presented in [Asynchronous Methods for Deep Reinforcement Learning](https://arxiv.org/abs/1602.01783).
 
+This implementation uses processes instead of threads to achieve real concurrency. Each process has a local replica of the network(s) used, implemented in Tensorflow, and runs its own Tensorflow session. In addition, a copy of the network parameters are kept in a shared memory space. At runtime, each process uses its own local network(s) to choose actions and compute gradients (with Tensorflow). The shared network parameters are updated periodically in an asynchronous manner, by applying the grads obtained from Tensorflow into the shared meory space. 
+
+All algorithms have been implemented and all of them work, although the 1-step Q-learning and Sarsa ones show a medium-low learning rate (more testing is needed, however). 
+
+Both [ALE](https://github.com/mgbellemare/Arcade-Learning-Environment) and [Open AI GYM](https://gym.openai.com/) are supported for the environments.
 
 # How to run the algorithms (MacOSX for now)?
 (1) Clone this repo at `~/some-path`.
@@ -59,7 +64,3 @@ $ tensorboard --logdir=/tmp/summary_logs/ &
 (https://www.virtualbox.org/). Go to `http://<docker-host-ip>:6006`
 
 
-# Convergence issues (May 9, 2016)
-The implementation is still in flux. We are still trying to get these algorithms 
-to converge. We are using Python threading, which may (or may not?) be 
-disrupting the Hogwild!ness of the algorithms.
