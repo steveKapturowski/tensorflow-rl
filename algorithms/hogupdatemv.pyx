@@ -1,8 +1,8 @@
 #from cython.parallel import prange
 import cython
 cimport cython
-import numpy as np
-cimport numpy as np
+#import numpy as np
+#cimport numpy as np
 import ctypes
 #from libc.stdlib cimport memcpy
 
@@ -34,10 +34,14 @@ cdef void c_apply_grads_mom_rmsprop(float[::1] m,
                                float e) nogil:
     
     cdef unsigned int i
-    #for i in prange(p_size): #, schedule='static', chunksize=p_size/15):
-    for i in range(p_size):
-        m[i] = alpha * m[i] + (1 - alpha) * (g[i] ** 2)
-        p[i] -= lr * g[i] / sqrt(m[i] + e)
+    if (_type == 0):  # momentum   
+        for i in range(p_size):
+            m[i] = alpha * m[i] + (1 - alpha) * g[i]
+            p[i] -= lr * m[i]
+    elif (_type == 1):  # rmsprop
+        for i in range(p_size):
+            m[i] = alpha * m[i] + (1 - alpha) * (g[i] ** 2)
+            p[i] -= lr * g[i] / sqrt(m[i] + e)
         
 
 def apply_grads_mom_rmsprop(_m, g, v, v_size, _type, lr, alpha, e):
