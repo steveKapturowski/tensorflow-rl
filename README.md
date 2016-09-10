@@ -58,7 +58,7 @@ to visualise losses and game scores.
 (1) Configure port forwarding rules in [VirtualBox]
 (https://www.virtualbox.org/). Go to your running virtual machine's `Settings>Network>Port Forwarding`, and add a new rule (see row starting with tb in pic).
 
-![Setting port forwarding in VirtualBox](https://github.com/traai/async-deep-rl/help/images/tb.png)
+![Setting port forwarding in VirtualBox](https://github.com/traai/async-deep-rl/blob/master/help/images/tb.png)
 
 (2) Run tensorboard from within the container:
 ```
