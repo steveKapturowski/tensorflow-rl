@@ -55,11 +55,17 @@ $ python main.py BeamRider-v0 --env GYM -n 16 -v 1
 You can also run [TensorBoard](https://www.tensorflow.org/versions/r0.10/how_tos/summaries_and_tensorboard/index.html) 
 to visualise losses and game scores. 
 
-(1) Run tensorboard from within the container:
+(1) Configure port forwarding rules in [VirtualBox]
+(https://www.virtualbox.org/). Go to your running virtual machine's `Settings>Network>Port Forwarding`, and add a new rule (see row starting with tb in pic).
+
+![Setting port forwarding in VirtualBox](https://github.com/traai/async-deep-rl/help/images/tb)
+
+(2) Run tensorboard from within the container:
 ```
 $ tensorboard --logdir=/tmp/summary_logs/ &
 ```
 
-(2) Get the ip address of your docker host running inside of [VirtualBox]
+(3) If not (1), get the ip address of your docker host running inside of [VirtualBox]
 (https://www.virtualbox.org/). Go to `http://<docker-host-ip>:6006`
 
+If (1), go to `http://127.0.0.1:6006`
