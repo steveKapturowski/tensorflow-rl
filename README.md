@@ -34,7 +34,7 @@ $ docker pull restrd/tensorflow-atari-cpu
 inside the container. Be sure to give a name to the container: 
 `<container-name>`
 ```shell
-$ docker run -d -p 8888:8888 -p 6006:6006 --name <container-name> -v ~/:/root/$usr -e DISPLAY=$(ifconfig vboxnet0 | awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}'):0 -it docker.io/restrd/tensorflow-atari-cpu
+$ docker run -d -p 8888:8888 -p 6006:6006 --name "<container-name>" -v ~/:/root/$usr -e DISPLAY=$(ifconfig vboxnet0 | awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}'):0 -it docker.io/restrd/tensorflow-atari-cpu
 ```
 
 (6) Shell into the container.
@@ -46,9 +46,9 @@ $ docker exec -it <container-name> /bin/bash
 (`/your-user-name/some-path/async-deep-rl/algorithms`) and choose which 
 algorithm to run via the configuration options in `main.py`.
 
-(8) Run the algorithms, e.g.:
+(8) If you want to run the algorithms using [Open AI GYM](https://gym.openai.com/) with 16 processes and visualize the games, e.g.:
 ```shell
-$ python main.py beam_rider ../atari_roms/ 1 &
+$ python main.py BeamRider-v0 --env GYM -n 16 -v 1 
 ```
 
 # Running [TensorBoard](https://www.tensorflow.org/versions/r0.8/how_tos/summaries_and_tensorboard/index.html)
@@ -62,5 +62,4 @@ $ tensorboard --logdir=/tmp/summary_logs/ &
 
 (2) Get the ip address of your docker host running inside of [VirtualBox]
 (https://www.virtualbox.org/). Go to `http://<docker-host-ip>:6006`
-
 
