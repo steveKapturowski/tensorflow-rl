@@ -59,8 +59,8 @@ class Emulator:
             logger.debug("Opening emulator window...")
             #from skimage import io
             #io.use_plugin('qt')
-            #cv2.startWindowThread()
-            #cv2.namedWindow(self.windowname)
+            cv2.startWindowThread()
+            cv2.namedWindow(self.windowname)
             logger.debug("Emulator window opened")
             
         if self.visualize_processed:
@@ -161,9 +161,9 @@ class Emulator:
         """ Show visuals for raw and processed images """
         if self.visualize:
             #io.imshow(image[:210, :], fancy=True)
-            #cv2.imshow(self.windowname, image[:210, :])
-            plt.imshow(image[:210, :])
-            plt.savefig("test.png")
+            cv2.imshow(self.windowname, image[:210, :])
+            # plt.imshow(image[:210, :])
+            # plt.savefig("test.png")
         if self.visualize_processed:
             #io.imshow(self.screen_images_processed[:, :, 3], fancy=True)
             cv2.imshow(self.windowname + "_processed", self.screen_images_processed[:, :, 3])

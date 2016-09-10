@@ -14,7 +14,8 @@ Both [ALE](https://github.com/mgbellemare/Arcade-Learning-Environment) and [Open
 (1) Clone this repo at `~/some-path`.
 
 (2) Make sure your machine has docker installed. Follow instructions [here]
-(https://docs.docker.com/engine/installation/#install-docker-engine) if not.
+(https://docs.docker.com/toolbox/toolbox_install_mac/) if not. [These] 
+(https://docs.docker.com/toolbox/toolbox_install_windows/) instructions may work for Windows.
 
 (3) Make sure you have xquartz installed in order to visualise game play. 
 Do the following in a separate terminal window:
