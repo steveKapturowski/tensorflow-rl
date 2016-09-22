@@ -179,7 +179,7 @@ class OneStepQLearner(ValueBasedLearner):
                 episode_ave_max_q = episode_ave_max_q/float(ep_t)
                 s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
                 s2 = "EPS {0:.4f}".format(self.epsilon)
-                logger.debug("T{} / STEP {} / REWARD {} / {} / {} / ACTIONS {}".format(self.actor_id, T, total_episode_reward, s1, s2, np.unique(sel_actions)))
+                logger.info("T{} / STEP {} / REWARD {} / {} / {} / ACTIONS {}".format(self.actor_id, T, total_episode_reward, s1, s2, np.unique(sel_actions)))
                 
                 if (self.actor_id == 0):
                     stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
@@ -331,7 +331,7 @@ class NStepQLearner(ValueBasedLearner):
                 episode_ave_max_q = episode_ave_max_q/float(ep_t)
                 s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
                 s2 = "EPS {0:.4f}".format(self.epsilon)
-                logger.debug("T{} / STEP {} / REWARD {} / {} / {}".format(self.actor_id, T, total_episode_reward, s1, s2))
+                logger.info("T{} / STEP {} / REWARD {} / {} / {}".format(self.actor_id, T, total_episode_reward, s1, s2))
                 
                 if (self.actor_id == 0):
                     stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
@@ -464,7 +464,7 @@ class OneStepSARSALearner(ValueBasedLearner):
                 episode_ave_max_q = episode_ave_max_q/float(ep_t)
                 s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
                 s2 = "EPS {0:.4f}".format(self.epsilon)
-                logger.debug("T{} / STEP {} / REWARD {} / {} / {} / ACTIONS {}".format(self.actor_id, T, total_episode_reward, s1, s2, np.unique(sel_actions)))
+                logger.info("T{} / STEP {} / REWARD {} / {} / {} / ACTIONS {}".format(self.actor_id, T, total_episode_reward, s1, s2, np.unique(sel_actions)))
                 
                 if (self.actor_id == 0):
                     stats = [total_episode_reward, episode_ave_max_q, self.epsilon]

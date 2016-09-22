@@ -163,7 +163,7 @@ class A3CLearner(ActorLearner):
                 global_t = self.global_step.value()
                 steps_per_sec = global_t / elapsed_time
                 perf = "{:.0f}".format(steps_per_sec)
-                logger.debug("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
+                logger.info("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
                 if (self.actor_id == 0):
                     feed_dict = {self.summary_ph[0]: total_episode_reward}
                     res = self.session.run(self.update_ops + [self.summary_op], feed_dict = feed_dict)

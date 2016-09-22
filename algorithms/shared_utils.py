@@ -63,15 +63,30 @@ class SharedVars(object):
 
         else:
             # no lstm
-            self.var_shapes = [(8, 8, 4, 16), 
-                                (16), 
-                                (4, 4, 16, 32), 
+            if False:
+                self.var_shapes = [(8, 8, 4, 16), 
+                                    (16), 
+                                    (4, 4, 16, 32), 
+                                    (32), 
+                                    (2592, 256), #(3872, 256) 
+                                    (256), 
+                                    (256, num_actions), 
+                                    (num_actions),
+                                    (256, 1),
+                                    (1)]
+
+            else:
+                self.var_shapes = [(8, 8, 4, 32), 
                                 (32), 
-                                (2592, 256), #(3872, 256) 
-                                (256), 
-                                (256, num_actions), 
+                                (4, 4, 32, 64), 
+                                (64),
+                                (3, 3, 64, 64),
+                                (64),
+                                (3136, 512), 
+                                (512),
+                                (512, num_actions), 
                                 (num_actions),
-                                (256, 1),
+                                (512, 1),
                                 (1)]
             
             self.size = 0

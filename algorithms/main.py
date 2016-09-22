@@ -42,8 +42,19 @@ def get_num_actions(rom_path, rom_name):
     ale.loadROM(filename)
     return len(ale.getMinimalActionSet())
 
+
+def play(args):
+    ckpt_dir = 'checkpoints/{0}/q_5_steps/'.format(args.game)
+    ckpt = os.listdir(ckpt_dir)[-1].split('.meta')[0]
+
+
 def main(args):
     logger.debug("CONFIGURATION: {}".format(args))
+
+    if not args.is_train:
+        play(args)
+        return
+
     
     """ Set up the graph, the agents, and run the agents in parallel. """
     if args.env == "GYM":
@@ -102,12 +113,10 @@ def main(args):
         rng = np.random.RandomState(int(time.time()))
         args.random_seed = rng.randint(1000)
             
+        #pass in gpu name to learner here and wrap each learner in device context
         actor_learners.append(Learner(args))
         actor_learners[-1].start()
 
-    #saving.start()
-    #for t in actor_learners:
-    #    t.start()
 
     for t in actor_learners:
         t.join()
@@ -144,8 +153,9 @@ if __name__ == '__main__':
     parser.add_argument('-ea', '--epsilon_annealing_steps', default=1000000, type=int, help="Nr. of global steps during which the exploration epsilon will be annealed", dest="epsilon_annealing_steps")
     parser.add_argument('--max_local_steps', default=5, type=int, help="Number of steps to gain experience from before every update for the Q learning/A3C algorithm", dest="max_local_steps")
     parser.add_argument('--rescale_rewards', default=False, type=bool_arg, help="If True, rewards will be rescaled (dividing by the max. possible reward) to be in the range [-1, 1]. If False, rewards will be clipped to be in the range [-1, 1]", dest="rescale_rewards")  
-    parser.add_argument('--arch', default= 'NIPS', help="Which network architecture to use: from the NIPS or NATURE paper", dest="arch")
+    parser.add_argument('--arch', default='NIPS', help="Which network architecture to use: from the NIPS or NATURE paper", dest="arch")
     parser.add_argument('--single_life_episodes', default= False, type=bool_arg, help="If True, training episodes will be terminated when a life is lost (for games)", dest="single_life_episodes")
+    parser.add_argument('--train', default=True, type=bool_arg, help="if true train agents in parallel, otherwise follow optimal policy with single agent", dest="is_train")
 
     args = parser.parse_args()
     if (args.env=="ALE" and args.rom_path is None):
