@@ -36,7 +36,7 @@ class Barrier:
         self.barrier.release()
 
 class SharedVars(object):
-    def __init__(self, num_actions, alg_type, opt_type = None, lr = 0):
+    def __init__(self, num_actions, alg_type, arch='NIPS', opt_type=None, lr=0):
         # Net
         if alg_type in ['q', 'sarsa']:
             self.var_shapes = [(8, 8, 4, 16), 
@@ -52,18 +52,18 @@ class SharedVars(object):
             for shape in self.var_shapes:
                 self.size += np.prod(shape)
                 
-            if opt_type == "adam":
+            if opt_type == 'adam':
                 self.ms = self.malloc_contiguous(self.size)
                 self.vs = self.malloc_contiguous(self.size)
                 self.lr = RawValue(ctypes.c_float, lr)
-            elif opt_type == "rmsprop":
+            elif opt_type == 'rmsprop':
                 self.vars = self.malloc_contiguous(self.size, np.ones(self.size, dtype=np.float))
             else: #momentum
                 self.vars = self.malloc_contiguous(self.size)
 
         else:
             # no lstm
-            if False:
+            if arch == 'NIPS':
                 self.var_shapes = [(8, 8, 4, 16), 
                                     (16), 
                                     (4, 4, 16, 32), 
@@ -93,13 +93,13 @@ class SharedVars(object):
             for shape in self.var_shapes:
                 self.size += np.prod(shape)
             
-            if opt_type == "adam":
+            if opt_type == 'adam':
                 self.ms = self.malloc_contiguous(self.size)
                 self.vs = self.malloc_contiguous(self.size)
                 self.lr = RawValue(ctypes.c_float, lr)
-            if opt_type == "rmsprop":
+            if opt_type == 'rmsprop':
                 self.vars = self.malloc_contiguous(self.size, np.ones(self.size, dtype=np.float))
-            elif opt_type == "momentum":
+            elif opt_type == 'momentum':
                 self.vars = self.malloc_contiguous(self.size)
             else:
                 self.vars = self.malloc_contiguous(self.size)

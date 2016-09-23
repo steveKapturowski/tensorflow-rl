@@ -80,13 +80,13 @@ def main(args):
         Learner = A3CLearner
 
     T = SharedCounter(0)
-    args.learning_vars = SharedVars(num_actions, args.alg_type)
+    args.learning_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
     if args.opt_mode == "shared":
-        args.opt_state = SharedVars(num_actions, args.alg_type, opt_type = args.opt_type, lr = args.initial_lr)
+        args.opt_state = SharedVars(num_actions, args.alg_type, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr)
     else:
         args.opt_state = None
     if args.alg_type in ['q', 'sarsa']:
-        args.target_vars = SharedVars(num_actions, args.alg_type)
+        args.target_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
     
     args.barrier = Barrier(args.num_actor_learners)
@@ -149,7 +149,7 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', default=0.99, type=float, help="Discount factor", dest="gamma")
     parser.add_argument('--q_target_update_steps', default=10000, type=int, help="Interval (in nr. of global steps) at which the parameters of the Q target network are updated (obs! 1 step = 4 video frames) (needed for Q-learning and Sarsa)", dest="q_target_update_steps") 
     parser.add_argument('--grads_update_steps', default=5, type=int, help="Nr. of local steps during which grads are accumulated before applying them to the shared network parameters (needed for 1-step Q/Sarsa learning)", dest="grads_update_steps")
-    parser.add_argument('--max_global_steps', default=80000000, type=int, help="Max. number of training steps", dest="max_global_steps")
+    parser.add_argument('--max_global_steps', default=500000000, type=int, help="Max. number of training steps", dest="max_global_steps")
     parser.add_argument('-ea', '--epsilon_annealing_steps', default=1000000, type=int, help="Nr. of global steps during which the exploration epsilon will be annealed", dest="epsilon_annealing_steps")
     parser.add_argument('--max_local_steps', default=5, type=int, help="Number of steps to gain experience from before every update for the Q learning/A3C algorithm", dest="max_local_steps")
     parser.add_argument('--rescale_rewards', default=False, type=bool_arg, help="If True, rewards will be rescaled (dividing by the max. possible reward) to be in the range [-1, 1]. If False, rewards will be clipped to be in the range [-1, 1]", dest="rescale_rewards")  
