@@ -105,11 +105,11 @@ class OneStepQLearner(ValueBasedLearner):
             # Choose next action and execute it
             a, readout_t = self.choose_next_action(s)
             s_prime, reward, episode_over = self.emulator.next(a)
+            total_episode_reward += reward
             
             # Rescale or clip immediate reward
             reward = self.rescale_reward(reward)
             
-            total_episode_reward += reward
             ep_t += 1
             episode_ave_max_q += np.max(readout_t)
             
@@ -256,11 +256,11 @@ class NStepQLearner(ValueBasedLearner):
 #                     return #sys.exit()
                 
                 new_s, reward, episode_over = self.emulator.next(a)
-                
+                total_episode_reward += reward
+
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(reward)
 
-                total_episode_reward += reward
                 ep_t += 1
                 
                 rewards.append(reward)
@@ -388,8 +388,8 @@ class OneStepSARSALearner(ValueBasedLearner):
         
         while (self.global_step.value() < self.max_global_steps):
             s_prime, reward, episode_over = self.emulator.next(a)
-
             total_episode_reward += reward
+            
             ep_t += 1
             episode_ave_max_q += np.max(readout_t)
 

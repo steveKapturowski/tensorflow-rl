@@ -13,13 +13,13 @@ class PolicyVNetwork(Network):
         self.entropy_regularisation_strength = \
                 conf['args'].entropy_regularisation_strength
         
-        # Toggle additional recurrent layer
-        recurrent_layer = False
+
+        use_recurrent = conf['args'].use_recurrent
                 
         with tf.name_scope(self.name):
 
             self.critic_target_ph = tf.placeholder(
-                "float32", [None], name = 'target')
+                'float32', [None], name = 'target')
             self.adv_actor_ph = tf.placeholder("float", [None], name = 'advantage')
 
             # LSTM layer with 256 cells
@@ -31,8 +31,10 @@ class PolicyVNetwork(Network):
             # h = o * tan C
             # state = C
             # o4 = x
-            if recurrent_layer:
-                layer_name = 'lstm_layer' ; hiddens = 256 ; dim = 256
+            if use_recurrent:
+                print '\n\n\n\no3 shape:', self.o3.get_shape()
+                layer_name = 'lstm_layer'
+                hiddens, dim = [256]*2
                 with tf.variable_scope(self.name+'/'+layer_name) as vs:
                     self.lstm_cell = tf.nn.rnn_cell.LSTMCell(hiddens, dim)
                     self.lstm_cell_state = tf.Variable(
@@ -43,7 +45,7 @@ class PolicyVNetwork(Network):
                     self.lstm_trainable_variables = [v for v in 
                         tf.trainable_variables() if v.name.startswith(vs.name)]
             else:
-                if self.arch == "NIPS":
+                if self.arch == 'NIPS':
                     self.ox = self.o3
                 else: #NATURE
                     self.ox = self.o4
@@ -55,19 +57,19 @@ class PolicyVNetwork(Network):
             
             # Avoiding log(0) by adding a very small quantity (1e-30) to output.
             self.log_output_layer_pi = tf.log(tf.add(self.output_layer_pi, 
-                tf.constant(1e-30)), name= layer_name + '_log_policy')
+                tf.constant(1e-30)), name=layer_name+'_log_policy')
             
             # Entropy: sum_a (-p_a ln p_a)
             self.output_layer_entropy = tf.reduce_sum(tf.mul(
                 tf.constant(-1.0), 
-                tf.mul(self.output_layer_pi, self.log_output_layer_pi)), reduction_indices = 1)
+                tf.mul(self.output_layer_pi, self.log_output_layer_pi)), reduction_indices=1)
             
             # Final critic layer
             self.wv, self.bv, self.output_layer_v = self._fc(
-                'fc_value4', self.ox, 1, activation = "linear")
+                'fc_value4', self.ox, 1, activation='linear')
 
 
-            if self.arch == "NIPS":
+            if self.arch == 'NIPS':
                 self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, 
                     self.b3, self.wpi, self.bpi, self.wv, self.bv]
             else: #NATURE
@@ -75,9 +77,12 @@ class PolicyVNetwork(Network):
                     self.b3, self.w4, self.b4, self.wpi, self.bpi, self.wv, self.bv]
                 
 
-            if recurrent_layer:
+            if use_recurrent:
                 self.params += self.lstm_trainable_variables
  
+
+            print '\n\n\n\nADV_CRITIC:', self.critic_target_ph.get_shape(), tf.reshape(self.output_layer_v, [-1]).get_shape()
+
             # Advantage critic
             self.adv_critic = tf.sub(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
             
@@ -87,14 +92,18 @@ class PolicyVNetwork(Network):
             # term for non-selected actions to be zero.
             log_output_selected_action = tf.reduce_sum(
                 tf.mul(self.log_output_layer_pi, self.selected_action_ph), 
-                reduction_indices = 1)
+                reduction_indices=1
+            )
             actor_objective_advantage_term = tf.mul(
-                log_output_selected_action, self.adv_actor_ph)
+                log_output_selected_action, self.adv_actor_ph
+            )
             actor_objective_entropy_term = tf.mul(
-                self.entropy_regularisation_strength, self.output_layer_entropy)
-            self.actor_objective = tf.reduce_sum(tf.mul(
-                tf.constant(-1.0), tf.add(actor_objective_advantage_term, 
-                    actor_objective_entropy_term)))
+                self.entropy_regularisation_strength, self.output_layer_entropy
+            )
+            self.actor_objective = -tf.reduce_sum(
+                actor_objective_advantage_term
+                + actor_objective_entropy_term
+            )
             
             # Critic loss
             if self.clip_loss_delta > 0:
@@ -143,5 +152,6 @@ class PolicyVNetwork(Network):
             for i in xrange(len(self.params)):
                 self.sync_with_shared_memory.append(
                     self.params[i].assign(self.params_ph[i]))
+
 
             

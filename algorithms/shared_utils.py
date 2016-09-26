@@ -36,14 +36,14 @@ class Barrier:
         self.barrier.release()
 
 class SharedVars(object):
-    def __init__(self, num_actions, alg_type, arch='NIPS', opt_type=None, lr=0):
+    def __init__(self, num_actions, alg_type, arch='NIPS', use_recurrent=False, opt_type=None, lr=0):
         # Net
         if alg_type in ['q', 'sarsa']:
             self.var_shapes = [(8, 8, 4, 16), 
                                 (16), 
                                 (4, 4, 16, 32), 
                                 (32), 
-                                (2592, 256), #(3872, 256) if PADDING = "SAME" 
+                                (2592, 256),
                                 (256), 
                                 (256, num_actions), 
                                 (num_actions)]
@@ -68,7 +68,7 @@ class SharedVars(object):
                                     (16), 
                                     (4, 4, 16, 32), 
                                     (32), 
-                                    (2592, 256), #(3872, 256) 
+                                    (2592, 256),
                                     (256), 
                                     (256, num_actions), 
                                     (num_actions),
@@ -88,6 +88,9 @@ class SharedVars(object):
                                 (num_actions),
                                 (512, 1),
                                 (1)]
+
+            if use_recurrent:
+                self.var_shapes += [(512, 1024), (1024)]
             
             self.size = 0
             for shape in self.var_shapes:

@@ -35,7 +35,7 @@ class ActorLearner(Process):
         self.optimizer_mode = args.opt_mode
         self.num_actions = args.num_actions
         self.initial_lr = args.initial_lr
-        self.lr_annealing_steps = args.lr_annealing_steps 
+        self.lr_annealing_steps = args.lr_annealing_steps
         
         # Shared mem vars
         self.learning_vars = args.learning_vars

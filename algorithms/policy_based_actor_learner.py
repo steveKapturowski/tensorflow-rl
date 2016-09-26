@@ -37,8 +37,7 @@ class A3CLearner(ActorLearner):
         network_output_pi = network_output_pi.reshape(-1)
         network_output_v = np.asscalar(network_output_v)
             
-#       action_index = np.random.choice(
-#                 range(self.num_actions), p=network_output_pi)
+
         action_index = self.sample_policy_action(network_output_pi)
         
         new_action[action_index] = 1
@@ -145,6 +144,7 @@ class A3CLearner(ActorLearner):
                        self.local_network.critic_target_ph: y_batch,
                        self.local_network.selected_action_ph: a_batch,
                        self.local_network.adv_actor_ph: adv_batch}
+
 
             grads = self.session.run(
                                 self.local_network.get_gradients,
