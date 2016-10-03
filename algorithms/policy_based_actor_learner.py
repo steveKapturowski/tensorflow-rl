@@ -82,6 +82,7 @@ class A3CLearner(ActorLearner):
 
             # Sync local learning net with shared mem
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+            self.save_vars()
 
             local_step_start = self.local_step 
             
