@@ -1,7 +1,9 @@
+import os
 import logging
 import logging.config
 
 
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': True,
@@ -17,12 +19,12 @@ LOGGING = {
     },
     'handlers': {
         'console': {
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'class': 'logging.StreamHandler',
             'formatter': 'verbose'
         },
         'file': {
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'class': 'logging.handlers.RotatingFileHandler',
             'formatter': 'verbose',
             'filename': 'rl.log',
@@ -33,7 +35,7 @@ LOGGING = {
     'loggers': {
         '': {
             'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
         },
     }
 }
