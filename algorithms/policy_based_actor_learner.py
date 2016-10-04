@@ -106,8 +106,10 @@ class A3CLearner(ActorLearner):
         y_batch = []
         adv_batch = []
         
+        reset_game = False
         episode_over = False
         start_time = time.time()
+        steps_at_last_reward = self.local_step
         
         while (self.global_step.value() < self.max_global_steps):
 
@@ -133,7 +135,11 @@ class A3CLearner(ActorLearner):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                 new_s, reward, episode_over = self.emulator.next(a)
-                
+
+                if reward != 0.0:
+                    steps_at_last_reward = self.local_step
+
+
                 total_episode_reward += reward
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(reward)
@@ -194,6 +200,13 @@ class A3CLearner(ActorLearner):
             y_batch = []          
             adv_batch = []
             
+            # prevent the agent from getting stuck
+            if (self.local_step - steps_at_last_reward > 5000
+                or self.emulator.env.ale.lives() == 0):
+                episode_over = True
+                reset_game = True
+
+
             # Start a new game on reaching terminal state
             if episode_over:
                 elapsed_time = time.time() - start_time
@@ -207,8 +220,9 @@ class A3CLearner(ActorLearner):
                 episode_over = False
                 total_episode_reward = 0
                 self.reset_hidden_state()
-                if self.emulator.env.ale.lives() == 0:
+                if reset_game:
                     s = self.emulator.get_initial_state()
+                    reset_game = False
 
 
     @utils.only_on_train()
