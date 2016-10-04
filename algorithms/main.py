@@ -43,18 +43,8 @@ def get_num_actions(rom_path, rom_name):
     return len(ale.getMinimalActionSet())
 
 
-def play(args):
-    ckpt_dir = 'checkpoints/{0}/q_5_steps/'.format(args.game)
-    ckpt = os.listdir(ckpt_dir)[-1].split('.meta')[0]
-
-
 def main(args):
     logger.debug('CONFIGURATION: {}'.format(args))
-
-    if not args.is_train:
-        play(args)
-        return
-
     
     """ Set up the graph, the agents, and run the agents in parallel. """
     if args.env == 'GYM':
@@ -93,14 +83,6 @@ def main(args):
     args.global_step = T
     args.num_actions = num_actions
 
-#    vars_to_save = {'global_step': T, 
-#                    'learning_vars': learning_vars,
-#                    'target_vars': target_vars,
-#                    'opt_state': opt_st}
-#
-#     saving = Process(target=save_shared_mem_vars, 
-#            args=(vars_to_save, args.game, args.alg_type, 
-#             args.max_local_steps))
 
     if (args.visualize == 2): args.visualize = 0        
     actor_learners = []
@@ -156,10 +138,19 @@ if __name__ == '__main__':
     parser.add_argument('--arch', default='NIPS', help='Which network architecture to use: from the NIPS or NATURE paper', dest='arch')
     parser.add_argument('--single_life_episodes', action='store_true', help='if true, training episodes will be terminated when a life is lost (for games)', dest='single_life_episodes')
     parser.add_argument('--use_recurrent', action='store_true', help='if true, use recurrent layer in a3c model', dest='use_recurrent')
-    parser.add_argument('--train', default=True, type=bool_arg, help='if true train agents in parallel, otherwise follow optimal policy with single agent', dest='is_train')
+    parser.add_argument('--frame_skip', default=4, type=int, nargs='+', help='number of frames to repeat action', dest='frame_skip')
+    parser.add_argument('--test', action='store_false', help='if not set train agents in parallel, otherwise follow optimal policy with single agent', dest='is_train')
 
     args = parser.parse_args()
     if (args.env=='ALE' and args.rom_path is None):
         raise argparse.ArgumentTypeError('Need to specify the directory where the game roms are located, via --rom_path')         
     
+    # fix up frame_skip depending on whether it was an int or tuple 
+    if len(args.frame_skip) == 1:
+        args.frame_skip = args.frame_skip[0]
+    elif len(args.frame_skip) > 2:
+        raise TypeError('Expected tuple of length two or int for param `frame_skip`')
+
+
     main(args)
+

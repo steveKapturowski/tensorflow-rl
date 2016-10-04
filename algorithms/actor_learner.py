@@ -36,6 +36,7 @@ class ActorLearner(Process):
         self.num_actions = args.num_actions
         self.initial_lr = args.initial_lr
         self.lr_annealing_steps = args.lr_annealing_steps
+        self.is_train = args.is_train
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
@@ -59,7 +60,12 @@ class ActorLearner(Process):
         
         if args.env == "GYM":
             from atari_environment import AtariEnvironment
-            self.emulator = AtariEnvironment(args.game, args.visualize)
+            self.emulator = AtariEnvironment(
+                args.game,
+                args.visualize,
+                frame_skip=args.frame_skip,
+                single_life_episodes=args.single_life_episodes,
+            )
         else:
             from emulator import Emulator
             self.emulator = Emulator(
@@ -150,6 +156,15 @@ class ActorLearner(Process):
                 self.epsilon -= (self.initial_epsilon - self.final_epsilon) / self.epsilon_annealing_steps
 
     
+    @utils.only_on_train(return_val=0.0)
+    def decay_lr(self):
+        if self.global_step.value() <= self.lr_annealing_steps:            
+            return self.initial_lr - (self.global_step.value() * self.initial_lr / self.lr_annealing_steps)
+        else:
+            return 0.0
+
+
+    @utils.only_on_train()
     def apply_gradients_to_shared_memory_vars(self, grads):
             #Flatten grads
             offset = 0
@@ -212,13 +227,6 @@ class ActorLearner(Process):
         
         self.session.run(dest_net.sync_with_shared_memory, 
                 feed_dict=feed_dict)
-
-
-    def decay_lr(self):
-        if self.global_step.value() <= self.lr_annealing_steps:            
-            return self.initial_lr - (self.global_step.value() * self.initial_lr / self.lr_annealing_steps)
-        else:
-            return 0.0
 
     
     def setup_summaries(self):

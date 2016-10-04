@@ -1,5 +1,6 @@
 # A3C -- in progress!
 from network import *
+from custom_lstm import CustomBasicLSTMCell
 
 class PolicyVNetwork(Network):
  
@@ -14,7 +15,7 @@ class PolicyVNetwork(Network):
                 conf['args'].entropy_regularisation_strength
         
 
-        use_recurrent = conf['args'].use_recurrent
+        self.use_recurrent = conf['args'].use_recurrent
                 
         with tf.name_scope(self.name):
 
@@ -31,16 +32,34 @@ class PolicyVNetwork(Network):
             # h = o * tan C
             # state = C
             # o4 = x
-            if use_recurrent:
+            if self.use_recurrent:
                 print '\n\n\n\no3 shape:', self.o3.get_shape()
                 layer_name = 'lstm_layer'
-                hiddens, dim = [256]*2
+                self.hidden_state_size = 256
                 with tf.variable_scope(self.name+'/'+layer_name) as vs:
-                    self.lstm_cell = tf.nn.rnn_cell.LSTMCell(hiddens, dim)
-                    self.lstm_cell_state = tf.Variable(
-                        tf.zeros([1, self.lstm_cell.state_size]))
-                    self.ox, self.lstm_cell_state = self.lstm_cell(
-                        self.o3, self.lstm_cell_state)
+                    # self.lstm_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_state_size, dim)
+                    # self.lstm_cell_state = tf.Variable(
+                    #     tf.zeros([1, self.lstm_cell.state_size]))
+                    # self.ox, self.lstm_cell_state = self.lstm_cell(
+                    #     self.o3, self.lstm_cell_state)
+
+                    self.lstm_cell = CustomBasicLSTMCell(self.hidden_state_size, forget_bias=1.0)
+
+                    self.step_size = tf.placeholder(tf.float32, [1])
+                    self.initial_lstm_state = tf.placeholder(tf.float32, [1, self.hidden_state_size])
+                    
+                    o3_reshaped = tf.reshape(self.o3, [1,-1,256])
+                    lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(
+                        self.lstm_cell,
+                        o3_reshaped,
+                        initial_state=self.initial_lstm_state,
+                        sequence_length=self.step_size,
+                        time_major=False,
+                        scope=vs)
+
+                    self.ox = tf.reshape(lstm_outputs, [-1,256])
+                    print 'lstm shapes:', lstm_outputs.get_shape(), self.ox.get_shape()
+
                     # Get all LSTM trainable params
                     self.lstm_trainable_variables = [v for v in 
                         tf.trainable_variables() if v.name.startswith(vs.name)]
@@ -77,7 +96,7 @@ class PolicyVNetwork(Network):
                     self.b3, self.w4, self.b4, self.wpi, self.bpi, self.wv, self.bv]
                 
 
-            if use_recurrent:
+            if self.use_recurrent:
                 self.params += self.lstm_trainable_variables
  
 

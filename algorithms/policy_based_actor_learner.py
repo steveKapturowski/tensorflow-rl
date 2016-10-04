@@ -2,6 +2,7 @@
 from actor_learner import *
 from policy_v_network import *
 import time
+import utils
 
 
 
@@ -20,12 +21,18 @@ class A3CLearner(ActorLearner):
                          'args': args}
         
         self.local_network = PolicyVNetwork(conf_learning)
+        self.reset_hidden_state()
             
         if self.actor_id == 0:
             var_list = self.local_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
-        
+    
+
+    def reset_hidden_state(self):
+        if self.local_network.use_recurrent:
+            self.lstm_state_out = np.zeros([1, self.local_network.hidden_state_size])
+
 
     def choose_next_action(self, state):
         new_action = np.zeros([self.num_actions])
@@ -37,12 +44,36 @@ class A3CLearner(ActorLearner):
         network_output_pi = network_output_pi.reshape(-1)
         network_output_v = np.asscalar(network_output_v)
             
-
         action_index = self.sample_policy_action(network_output_pi)
         
         new_action[action_index] = 1
 
         return new_action, network_output_v, network_output_pi
+
+
+
+        # new_action = np.zeros([self.num_actions])
+        # network_output_v, network_output_pi, self.lstm_state_out = self.session.run(
+        #         [
+        #             self.local_network.output_layer_v,
+        #             self.local_network.output_layer_pi,
+        #             # self.local_network.lstm_state,
+        #         ],
+        #         feed_dict={
+        #             self.local_network.input_ph: [state],
+        #             # self.local_network.step_size: [1],
+        #             # self.local_network.initial_lstm_state: self.lstm_state_out,
+        #         })
+            
+        # network_output_pi = network_output_pi.reshape(-1)
+        # network_output_v = np.asscalar(network_output_v)
+            
+
+        # action_index = self.sample_policy_action(network_output_pi)
+        
+        # new_action[action_index] = 1
+
+        # return new_action, network_output_v, network_output_pi
 
     def sample_policy_action(self, probs):
         """
@@ -141,10 +172,15 @@ class A3CLearner(ActorLearner):
                 
 
             # Compute gradients on the local policy/V network and apply them to shared memory  
-            feed_dict={self.local_network.input_ph: s_batch, 
-                       self.local_network.critic_target_ph: y_batch,
-                       self.local_network.selected_action_ph: a_batch,
-                       self.local_network.adv_actor_ph: adv_batch}
+
+            feed_dict={
+                self.local_network.input_ph: s_batch, 
+                self.local_network.critic_target_ph: y_batch,
+                self.local_network.selected_action_ph: a_batch,
+                self.local_network.adv_actor_ph: adv_batch,
+                # self.local_network.step_size : [len(s_batch)],
+                # self.local_network.initial_lstm_state: self.lstm_state_out,
+            }
 
 
             grads = self.session.run(
@@ -165,12 +201,20 @@ class A3CLearner(ActorLearner):
                 steps_per_sec = global_t / elapsed_time
                 perf = "{:.0f}".format(steps_per_sec)
                 logger.info("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
-                if (self.actor_id == 0):
-                    feed_dict = {self.summary_ph[0]: total_episode_reward}
-                    res = self.session.run(self.update_ops + [self.summary_op], feed_dict = feed_dict)
-                    self.summary_writer.add_summary(res[-1], self.global_step.value())
                 
-                s = self.emulator.get_initial_state()
+                self.log_summary(total_episode_reward)
+
                 episode_over = False
                 total_episode_reward = 0
+                self.reset_hidden_state()
+                if self.emulator.env.ale.lives() == 0:
+                    s = self.emulator.get_initial_state()
+
+
+    @utils.only_on_train()
+    def log_summary(self, total_episode_reward):
+        if (self.actor_id == 0):
+            feed_dict = {self.summary_ph[0]: total_episode_reward}
+            res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
+            self.summary_writer.add_summary(res[-1], self.global_step.value())
 

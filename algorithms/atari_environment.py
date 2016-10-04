@@ -54,12 +54,13 @@ class AtariEnvironment(object):
     of size agent_history_length from which environment state
     is constructed.
     """
-    def __init__(self, game, visualize=False, resized_width=84, resized_height=84, agent_history_length=4):
+    def __init__(self, game, visualize=False, resized_width=84, resized_height=84, agent_history_length=4, frame_skip=4, single_life_episodes=False):
         self.env = gym.make(game)
-        self.env.skipframe = 4
+        self.env.frameskip = 4
         self.resized_width = resized_width
         self.resized_height = resized_height
         self.agent_history_length = agent_history_length
+        self.single_life_episodes = single_life_episodes
 
         self.gym_actions = range(self.env.action_space.n)
         if (self.env.spec.id == "Pong-v0" or self.env.spec.id == "Breakout-v0"):
@@ -87,6 +88,7 @@ class AtariEnvironment(object):
         s_t = np.dstack((x_t, x_t, x_t, x_t))
         #s_t = np.stack((x_t, x_t, x_t, x_t), axis = 0)
         
+        self.current_lives = self.env.ale.lives()
         for i in range(self.agent_history_length-1):
             self.state_buffer.append(x_t)
         return s_t
@@ -126,5 +128,11 @@ class AtariEnvironment(object):
         # Pop the oldest frame, add the current frame to the queue
         self.state_buffer.popleft()
         self.state_buffer.append(x_t1)
-        
+
+        if self.single_life_episodes:
+            terminal |= self.env.ale.lives() < self.current_lives
+        self.current_lives = self.env.ale.lives()
+
         return s_t1, r_t, terminal #, info
+
+

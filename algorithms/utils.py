@@ -1,6 +1,18 @@
 import tensorflow as tf 
 import os
 
+
+def only_on_train(return_val=None):
+    def _only_on_train(func):
+        def wrapper(*args, **kwargs):
+            if args[0].is_train:
+                return func(*args, **kwargs)
+            else:
+                return return_val
+
+        return wrapper
+    return _only_on_train
+
 def restore_vars(saver, sess, game, alg_type, max_local_steps):
     """ Restore saved net, global step, and epsilons OR 
     create checkpoint directory for later storage. """
@@ -14,6 +26,7 @@ def restore_vars(saver, sess, game, alg_type, max_local_steps):
         sess.run(tf.initialize_all_variables())
         return 0
     else:
+        print 'Restoring checkpoint `{}`'.format(path)
         saver.restore(sess, path)
         global_step = int(path[path.rfind("-") + 1:])
         return global_step 

@@ -19,18 +19,7 @@ class CustomBasicLSTMCell(RNNCell):
 	For advanced models, please use the full LSTMCell that follows.
 	'''
 
-	def __init__(self, num_units, forget_bias=1.0, input_size=None):
-		'''
-		Initialize the basic LSTM cell.
-
-		Args:
-		  num_units: int, The number of units in the LSTM cell.
-		  forget_bias: float, The bias added to forget gates (see above).
-		  input_size: Deprecated and unused.
-		'''
-		if input_size is not None:
-			logging.warn("%s: The input_size parameter is deprecated." % self)
-		
+	def __init__(self, num_units, forget_bias=1.0):
 		self._num_units = num_units
 		self._forget_bias = forget_bias
 
@@ -44,6 +33,7 @@ class CustomBasicLSTMCell(RNNCell):
 
 	def __call__(self, inputs, state, scope=None):
 		'''Long short-term memory cell (LSTM).'''
+		print 'State:', state.get_shape()
 		with tf.variable_scope(scope or type(self).__name__):  # "BasicLSTMCell"
 			# Parameters of gates are concatenated into one multiply for efficiency.
 			c, h = tf.split(1, 2, state)
