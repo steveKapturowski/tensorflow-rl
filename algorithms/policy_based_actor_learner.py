@@ -219,6 +219,7 @@ class A3CLearner(ActorLearner):
 
                 episode_over = False
                 total_episode_reward = 0
+                steps_at_last_reward = self.local_step
                 self.reset_hidden_state()
                 if reset_game:
                     s = self.emulator.get_initial_state()
