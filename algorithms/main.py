@@ -66,6 +66,8 @@ def main(args):
             sys.exit()
         else:
             Learner = OneStepSARSALearner
+    elif args.use_recurrent:
+        Learner = A3CLSTMLearner
     else:
         Learner = A3CLearner
 
@@ -138,7 +140,7 @@ if __name__ == '__main__':
     parser.add_argument('--arch', default='NIPS', help='Which network architecture to use: from the NIPS or NATURE paper', dest='arch')
     parser.add_argument('--single_life_episodes', action='store_true', help='if true, training episodes will be terminated when a life is lost (for games)', dest='single_life_episodes')
     parser.add_argument('--use_recurrent', action='store_true', help='if true, use recurrent layer in a3c model', dest='use_recurrent')
-    parser.add_argument('--frame_skip', default=4, type=int, nargs='+', help='number of frames to repeat action', dest='frame_skip')
+    parser.add_argument('--frame_skip', default=[4], type=int, nargs='+', help='number of frames to repeat action', dest='frame_skip')
     parser.add_argument('--test', action='store_false', help='if not set train agents in parallel, otherwise follow optimal policy with single agent', dest='is_train')
 
     args = parser.parse_args()
