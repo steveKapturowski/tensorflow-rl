@@ -160,8 +160,6 @@ class A3CLearner(ActorLearner):
                 self.local_network.critic_target_ph: y_batch,
                 self.local_network.selected_action_ph: a_batch,
                 self.local_network.adv_actor_ph: adv_batch,
-                # self.local_network.step_size : [len(s_batch)],
-                # self.local_network.initial_lstm_state: self.lstm_state_out,
             }
 
 
@@ -208,12 +206,6 @@ class A3CLearner(ActorLearner):
             feed_dict = {self.summary_ph[0]: total_episode_reward}
             res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
             self.summary_writer.add_summary(res[-1], self.global_step.value())
-
-
-
-
-
-
 
 
 
@@ -334,7 +326,6 @@ class A3CLSTMLearner(ActorLearner):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                 new_s, reward, episode_over = self.emulator.next(a)
-
                 if reward != 0.0:
                     steps_at_last_reward = self.local_step
 

@@ -223,6 +223,8 @@ class NStepQLearner(ValueBasedLearner):
         a_batch = []
         y_batch = []
         
+        reset_game = False
+        steps_at_last_reward = self.local_step
         exec_update_target = False
         total_episode_reward = 0
         episode_ave_max_q = 0
@@ -256,8 +258,10 @@ class NStepQLearner(ValueBasedLearner):
 #                     return #sys.exit()
                 
                 new_s, reward, episode_over = self.emulator.next(a)
-                total_episode_reward += reward
+                if reward != 0.0:
+                    steps_at_last_reward = self.local_step
 
+                total_episode_reward += reward
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(reward)
 
@@ -323,6 +327,13 @@ class NStepQLearner(ValueBasedLearner):
                 #logger.debug("Actor {} syncing target at Global Step {}".format(
                 #    self.actor_id, global_step))
 
+
+            if (self.local_step - steps_at_last_reward > 5000
+                or self.emulator.env.ale.lives() == 0):
+                episode_over = True
+                reset_game = True
+
+
             # Start a new game on reaching terminal state
             if episode_over:
                 T = self.global_step.value()
@@ -332,7 +343,7 @@ class NStepQLearner(ValueBasedLearner):
                 s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
                 s2 = "EPS {0:.4f}".format(self.epsilon)
                 logger.info("T{} / STEP {} / REWARD {} / {} / {}".format(self.actor_id, T, total_episode_reward, s1, s2))
-                
+
                 if (self.actor_id == 0):
                     stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
                     feed_dict = {}
@@ -346,7 +357,10 @@ class NStepQLearner(ValueBasedLearner):
                 total_episode_reward = 0
                 episode_ave_max_q = 0
                 episode_over = False
-                s = self.emulator.get_initial_state()
+                
+                if reset_game:
+                    s = self.emulator.get_initial_state()
+                    reset_game = False
 
 
 
