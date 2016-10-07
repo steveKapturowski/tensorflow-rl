@@ -13,7 +13,7 @@ Algorithms implemented:
 - A3C-LSTM (needs more testing)
 
 On the horizon:
-- [Pseudo-count based novelty using CTS density model](https://arxiv.org/pdf/1606.01868v1.pdf)
+- Construct augmented rewards using pseudo-counts of CTS density model. From [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/pdf/1606.01868v1.pdf)
 
 Both [ALE](https://github.com/mgbellemare/Arcade-Learning-Environment) and [Open AI GYM](https://gym.openai.com/) are supported for the environments.
 
