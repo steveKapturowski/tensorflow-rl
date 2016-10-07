@@ -21,6 +21,7 @@ class A3CLearner(ActorLearner):
                          'args': args}
         
         self.local_network = PolicyVNetwork(conf_learning)
+        self.target_network = PolicyVNetwork(conf_learning)
         self.reset_hidden_state()
             
         if self.actor_id == 0:
@@ -88,9 +89,11 @@ class A3CLearner(ActorLearner):
         steps_at_last_reward = self.local_step
         
         while (self.global_step.value() < self.max_global_steps):
+            # Sync local learning net with shared mem
+            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 
-            if self.local_step % self.grads_update_steps == 0: # try to stabilize training
-                # Sync local learning net with shared mem
+            # Sync target learning net with shared mem
+            if self.local_step % self.grads_update_steps == 0:
                 self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
                 self.save_vars()
 
@@ -136,9 +139,8 @@ class A3CLearner(ActorLearner):
                 R = 0
             else:
                 R = self.session.run(
-                    self.local_network.output_layer_v, 
-                    # feed_dict={self.local_network.input_ph:[states[-1]]})[0][0]
-                    feed_dict={self.local_network.input_ph:[new_s]})[0][0]
+                    self.local_network.output_layer_v,
+                    feed_dict={self.target_network.input_ph:[new_s]})[0][0]
                             
              
             sel_actions = []
@@ -225,6 +227,7 @@ class A3CLSTMLearner(ActorLearner):
                          'args': args}
         
         self.local_network = PolicyVNetwork(conf_learning)
+        self.target_network = PolicyVNetwork(conf_learning)
         self.reset_hidden_state()
             
         if self.actor_id == 0:
@@ -301,10 +304,12 @@ class A3CLSTMLearner(ActorLearner):
         steps_at_last_reward = self.local_step
         
         while (self.global_step.value() < self.max_global_steps):
-
             # Sync local learning net with shared mem
+            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+
+            # Sync target learning net with shared mem
             if self.local_step % self.grads_update_steps == 0: # try to stabilize training
-                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+                self.sync_net_with_shared_memory(self.target_network, self.learning_vars)
                 self.save_vars()
 
             local_step_start = self.local_step
@@ -348,8 +353,9 @@ class A3CLSTMLearner(ActorLearner):
             if episode_over:
                 R = 0
             else:
+                # compute with repsect to target network
                 R = self.session.run(
-                    self.local_network.output_layer_v,
+                    self.target_network.output_layer_v,
                     feed_dict={
                         self.local_network.input_ph:[new_s],
                         self.local_network.step_size: [1],
