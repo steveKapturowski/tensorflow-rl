@@ -313,7 +313,8 @@ class A3CLSTMLearner(ActorLearner):
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
             self.save_vars()
 
-            local_step_start = self.local_step 
+            local_step_start = self.local_step
+            local_lstm_state = self.lstm_state_out
             
             rewards = []
             states = []
@@ -355,8 +356,7 @@ class A3CLSTMLearner(ActorLearner):
                 R = 0
             else:
                 R = self.session.run(
-                    self.local_network.output_layer_v, 
-                    # feed_dict={self.local_network.input_ph:[states[-1]]})[0][0]
+                    self.local_network.output_layer_v,
                     feed_dict={
                         self.local_network.input_ph:[new_s],
                         self.local_network.step_size: [1],
@@ -379,13 +379,15 @@ class A3CLSTMLearner(ActorLearner):
 
             # Compute gradients on the local policy/V network and apply them to shared memory  
 
+
+            print len(s_batch), s_batch[0].shape
             feed_dict={
                 self.local_network.input_ph: s_batch, 
                 self.local_network.critic_target_ph: y_batch,
                 self.local_network.selected_action_ph: a_batch,
                 self.local_network.adv_actor_ph: adv_batch,
                 self.local_network.step_size : [len(s_batch)],
-                self.local_network.initial_lstm_state: self.lstm_state_out,
+                self.local_network.initial_lstm_state: local_lstm_state,
             }
 
 

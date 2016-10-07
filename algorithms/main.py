@@ -113,7 +113,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('game', help='Name of game')
-    parser.add_argument('--env', default='ALE', help='Type of environment: ALE or GYM', dest='env')
+    parser.add_argument('--env', default='GYM', help='Type of environment: ALE or GYM', dest='env')
     parser.add_argument('--rom_path', help='Directory where the game roms are located (needed for ALE environment)', dest='rom_path')
     parser.add_argument('-v', '--visualize', default=0, type=int, help='0: no visualization of emulator; 1: all emulators, for all actors, are visualized; 2: only 1 emulator (for one of the actors) is visualized', dest='visualize')
     parser.add_argument('--opt_type', default='rmsprop', help='Type of optimizer: rmsprop, momentum, adam', dest='opt_type')
