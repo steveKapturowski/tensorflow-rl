@@ -89,9 +89,10 @@ class A3CLearner(ActorLearner):
         
         while (self.global_step.value() < self.max_global_steps):
 
-            # Sync local learning net with shared mem
-            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            self.save_vars()
+            if self.local_step % self.grads_update_steps == 0: # try to stabilize training
+                # Sync local learning net with shared mem
+                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+                self.save_vars()
 
             local_step_start = self.local_step 
             
@@ -310,8 +311,9 @@ class A3CLSTMLearner(ActorLearner):
         while (self.global_step.value() < self.max_global_steps):
 
             # Sync local learning net with shared mem
-            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            self.save_vars()
+            if self.local_step % self.grads_update_steps == 0: # try to stabilize training
+                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+                self.save_vars()
 
             local_step_start = self.local_step
             local_lstm_state = self.lstm_state_out
