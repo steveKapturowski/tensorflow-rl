@@ -11,11 +11,11 @@ All algorithms have been implemented and all of them converge, although the 1-st
 Both [ALE](https://github.com/mgbellemare/Arcade-Learning-Environment) and [Open AI GYM](https://gym.openai.com/) are supported for the environments.
 
 
-(7) Go to the algorithms folder 
+(1) Go to the algorithms folder 
 (`/your-user-name/some-path/async-deep-rl/algorithms`) and choose which 
 algorithm to run via the configuration options in `main.py`.
 
-(8) If you want to run the algorithms using [Open AI GYM](https://gym.openai.com/) with 16 processes and visualize the games, e.g.:
+(2) If you want to run the algorithms using [Open AI GYM](https://gym.openai.com/) with 16 processes and visualize the games, e.g.:
 ```shell
 $ python main.py BeamRider-v0 --env GYM -n 16 -v 1 
 ```
