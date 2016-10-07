@@ -16,24 +16,20 @@ class A3CLearner(ActorLearner):
         # Shared mem vars
         self.learning_vars = args.learning_vars
 
-        conf_learning = {'name': "local_learning_{}".format(self.actor_id),
+        conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
                          'num_act': self.num_actions,
                          'args': args}
-        
+
         self.local_network = PolicyVNetwork(conf_learning)
+        conf_learning['name'] = 'target_{}'.format(self.actor_id)
         self.target_network = PolicyVNetwork(conf_learning)
-        self.reset_hidden_state()
+
             
         if self.actor_id == 0:
             var_list = self.local_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
     
-
-    def reset_hidden_state(self):
-        if self.local_network.use_recurrent:
-            self.lstm_state_out = np.zeros([1, self.local_network.hidden_state_size])
-
 
     def choose_next_action(self, state):
         new_action = np.zeros([self.num_actions])
@@ -196,7 +192,7 @@ class A3CLearner(ActorLearner):
                 episode_over = False
                 total_episode_reward = 0
                 steps_at_last_reward = self.local_step
-                self.reset_hidden_state()
+                
                 if reset_game:
                     s = self.emulator.get_initial_state()
                     reset_game = False
@@ -227,6 +223,7 @@ class A3CLSTMLearner(ActorLearner):
                          'args': args}
         
         self.local_network = PolicyVNetwork(conf_learning)
+        conf_learning['name'] = 'target_{}'.format(self.actor_id)
         self.target_network = PolicyVNetwork(conf_learning)
         self.reset_hidden_state()
             
