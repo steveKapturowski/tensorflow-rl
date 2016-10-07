@@ -33,7 +33,6 @@ class PolicyVNetwork(Network):
             # state = C
             # o4 = x
             if self.use_recurrent:
-                print '\n\n\n\no3 shape:', self.o3.get_shape()
                 layer_name = 'lstm_layer'
                 self.hidden_state_size = 256
                 with tf.variable_scope(self.name+'/'+layer_name) as vs:
@@ -58,7 +57,6 @@ class PolicyVNetwork(Network):
                         scope=vs)
 
                     self.ox = tf.reshape(lstm_outputs, [-1,256])
-                    print 'lstm shapes:', lstm_outputs.get_shape(), self.ox.get_shape()
 
                     # Get all LSTM trainable params
                     self.lstm_trainable_variables = [v for v in 
@@ -99,8 +97,6 @@ class PolicyVNetwork(Network):
             if self.use_recurrent:
                 self.params += self.lstm_trainable_variables
  
-
-            print '\n\n\n\nADV_CRITIC:', self.critic_target_ph.get_shape(), tf.reshape(self.output_layer_v, [-1]).get_shape()
 
             # Advantage critic
             self.adv_critic = tf.sub(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
