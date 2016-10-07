@@ -378,9 +378,6 @@ class A3CLSTMLearner(ActorLearner):
                 
 
             # Compute gradients on the local policy/V network and apply them to shared memory  
-
-
-            print len(s_batch), s_batch[0].shape
             feed_dict={
                 self.local_network.input_ph: s_batch, 
                 self.local_network.critic_target_ph: y_batch,
