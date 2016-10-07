@@ -6,7 +6,14 @@ A [Tensorflow](https://www.tensorflow.org/)-based implementation of all algorith
 
 This implementation uses processes instead of threads to achieve real concurrency. Each process has a local replica of the network(s) used, implemented in Tensorflow, and runs its own Tensorflow session. In addition, a copy of the network parameters are kept in a shared memory space. At runtime, each process uses its own local network(s) to choose actions and compute gradients (with Tensorflow). The shared network parameters are updated periodically in an asynchronous manner, by applying the grads obtained from Tensorflow into the shared memory space. 
 
-All algorithms have been implemented and all of them converge, although the 1-step Q-learning and Sarsa ones show a medium-low learning rate (more testing is needed). 
+Algorithms implemented:
+- N-Step Q-Learning
+- SARSA
+- A3C
+- A3C-LSTM (needs more testing)
+
+On the horizon:
+- [Pseudo-count based novelty using CTS density model](https://arxiv.org/pdf/1606.01868v1.pdf)
 
 Both [ALE](https://github.com/mgbellemare/Arcade-Learning-Environment) and [Open AI GYM](https://gym.openai.com/) are supported for the environments.
 
