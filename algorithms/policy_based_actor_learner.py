@@ -139,7 +139,7 @@ class A3CLearner(ActorLearner):
                 R = 0
             else:
                 R = self.session.run(
-                    self.local_network.output_layer_v,
+                    self.target_network.output_layer_v,
                     feed_dict={self.target_network.input_ph:[new_s]})[0][0]
                             
              
@@ -357,9 +357,9 @@ class A3CLSTMLearner(ActorLearner):
                 R = self.session.run(
                     self.target_network.output_layer_v,
                     feed_dict={
-                        self.local_network.input_ph:[new_s],
-                        self.local_network.step_size: [1],
-                        self.local_network.initial_lstm_state: self.lstm_state_out,
+                        self.target_network.input_ph:[new_s],
+                        self.target_network.step_size: [1],
+                        self.target_network.initial_lstm_state: self.lstm_state_out,
                     }
                 )[0][0]
                             
