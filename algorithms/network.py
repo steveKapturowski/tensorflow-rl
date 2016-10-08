@@ -32,25 +32,25 @@ class Network(object):
                 
             if self.arch == "NIPS":
                 #conv1
-                self.w1, self.b1, self.o1 = self._conv2d('conv1', self.input_ph, 16, 8, 4, 4, init = init)
+                self.w1, self.b1, self.o1 = self._conv2d('conv1', self.input_ph, 16, 8, 4, 4, init=init)
     
                 #conv2
-                self.w2, self.b2, self.o2 = self._conv2d('conv2', self.o1, 32, 4, 16, 2, init = init)
+                self.w2, self.b2, self.o2 = self._conv2d('conv2', self.o1, 32, 4, 16, 2, init=init)
     
                 #fc3
-                self.w3, self.b3, self.o3 = self._fc('fc3', self._flatten(self.o2), 256, activation = "relu", init = init)
+                self.w3, self.b3, self.o3 = self._fc('fc3', self._flatten(self.o2), 256, activation = "relu", init=init)
             else: #NATURE
                 #conv1
-                self.w1, self.b1, self.o1 = self._conv2d('conv1', self.input_ph, 32, 8, 4, 4, init = init)
+                self.w1, self.b1, self.o1 = self._conv2d('conv1', self.input_ph, 32, 8, 4, 4, init=init)
     
                 #conv2
-                self.w2, self.b2, self.o2 = self._conv2d('conv2', self.o1, 64, 4, 32, 2, init = init)
+                self.w2, self.b2, self.o2 = self._conv2d('conv2', self.o1, 64, 4, 32, 2, init=init)
     
                 #conv3
-                self.w3, self.b3, self.o3 = self._conv2d('conv3', self.o2, 64, 3, 64, 1, init = init)
+                self.w3, self.b3, self.o3 = self._conv2d('conv3', self.o2, 64, 3, 64, 1, init=init)
     
                 #fc4
-                self.w4, self.b4, self.o4 = self._fc('fc4', self._flatten(self.o3), 512, activation = "relu", init = init)
+                self.w4, self.b4, self.o4 = self._fc('fc4', self._flatten(self.o3), 512, activation="relu", init=init)
                 
 
     
@@ -61,7 +61,7 @@ class Network(object):
         dim = shape[1]*shape[2]*shape[3] 
         return tf.reshape(_input, [-1,dim], name='_flattened')
             
-    def _conv2d(self, name, _input, filters, size, channels, stride, padding = 'VALID', init = "torch"):
+    def _conv2d(self, name, _input, filters, size, channels, stride, padding='VALID', init="torch"):
         w = self._conv_weight_variable([size,size,channels,filters], 
                                                  name + '_weights', init = init)
         b = self._conv_bias_variable([filters], size, size, channels,
@@ -91,7 +91,7 @@ class Network(object):
 
 
 
-    def _conv_bias_variable(self, shape, w, h, input_channels, name, init= "torch"):
+    def _conv_bias_variable(self, shape, w, h, input_channels, name, init="torch"):
         if init=="glorot_uniform":
             initial = tf.zeros(shape)
         else:
@@ -99,12 +99,12 @@ class Network(object):
             initial = tf.random_uniform(shape, minval=-d, maxval=d)
         return tf.Variable(initial, name=name, dtype='float32')
 
-    def _fc(self, name, _input, output_dim, activation = "relu", init = "torch"):
+    def _fc(self, name, _input, output_dim, activation="relu", init="torch"):
         input_dim = _input.get_shape().as_list()[1]
         w = self._fc_weight_variable([input_dim, output_dim], 
-                                               name + '_weights', init = init)
+                                               name + '_weights', init=init)
         b = self._fc_bias_variable([output_dim], input_dim,
-                                               '' + name + '_biases', init = init)
+                                               '' + name + '_biases', init=init)
         out = tf.add(tf.matmul(_input, w), b, name= name + '_out')
         
         if activation == "relu":

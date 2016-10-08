@@ -20,8 +20,8 @@ class PolicyVNetwork(Network):
         with tf.name_scope(self.name):
 
             self.critic_target_ph = tf.placeholder(
-                'float32', [None], name = 'target')
-            self.adv_actor_ph = tf.placeholder("float", [None], name = 'advantage')
+                'float32', [None], name='target')
+            self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')
 
             # LSTM layer with 256 cells
             # f = sigmoid(Wf * [h-, x] + bf) 
@@ -36,12 +36,6 @@ class PolicyVNetwork(Network):
                 layer_name = 'lstm_layer'
                 self.hidden_state_size = 256
                 with tf.variable_scope(self.name+'/'+layer_name) as vs:
-                    # self.lstm_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_state_size, dim)
-                    # self.lstm_cell_state = tf.Variable(
-                    #     tf.zeros([1, self.lstm_cell.state_size]))
-                    # self.ox, self.lstm_cell_state = self.lstm_cell(
-                    #     self.o3, self.lstm_cell_state)
-
                     self.lstm_cell = CustomBasicLSTMCell(self.hidden_state_size, forget_bias=1.0)
 
                     self.step_size = tf.placeholder(tf.float32, [1])

@@ -15,6 +15,7 @@ class A3CLearner(ActorLearner):
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
+        self.q_target_update_steps = q_target_update_steps
 
         conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
                          'num_act': self.num_actions,
@@ -89,8 +90,8 @@ class A3CLearner(ActorLearner):
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 
             # Sync target learning net with shared mem
-            if self.local_step % self.grads_update_steps == 0:
-                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+            if self.local_step % self.q_target_update_steps == 0:
+                self.sync_net_with_shared_memory(self.target_network, self.learning_vars)
                 self.save_vars()
 
             local_step_start = self.local_step 
@@ -192,7 +193,7 @@ class A3CLearner(ActorLearner):
                 episode_over = False
                 total_episode_reward = 0
                 steps_at_last_reward = self.local_step
-                
+
                 if reset_game:
                     s = self.emulator.get_initial_state()
                     reset_game = False
@@ -305,7 +306,7 @@ class A3CLSTMLearner(ActorLearner):
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 
             # Sync target learning net with shared mem
-            if self.local_step % self.grads_update_steps == 0: # try to stabilize training
+            if self.local_step % self.q_target_update_steps == 0: # try to stabilize training
                 self.sync_net_with_shared_memory(self.target_network, self.learning_vars)
                 self.save_vars()
 
