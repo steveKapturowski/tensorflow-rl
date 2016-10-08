@@ -36,7 +36,7 @@ class Barrier:
         self.barrier.release()
 
 class SharedVars(object):
-    def __init__(self, num_actions, alg_type, arch='NIPS', use_recurrent=False, opt_type=None, lr=0):
+    def __init__(self, num_actions, alg_type, arch='NIPS', opt_type=None, lr=0):
         # Net
         if alg_type in ['q', 'sarsa']:
             self.var_shapes = [(8, 8, 4, 16), 
@@ -47,6 +47,33 @@ class SharedVars(object):
                                 (256), 
                                 (256, num_actions), 
                                 (num_actions)]
+
+            self.size = 0
+            for shape in self.var_shapes:
+                self.size += np.prod(shape)
+                
+            if opt_type == 'adam':
+                self.ms = self.malloc_contiguous(self.size)
+                self.vs = self.malloc_contiguous(self.size)
+                self.lr = RawValue(ctypes.c_float, lr)
+            elif opt_type == 'rmsprop':
+                self.vars = self.malloc_contiguous(self.size, np.ones(self.size, dtype=np.float))
+            else: #momentum
+                self.vars = self.malloc_contiguous(self.size)
+
+        elif alg_type == 'dueling':
+            self.var_shapes = [(8, 8, 4, 32), 
+                (32), 
+                (4, 4, 32, 64), 
+                (64),
+                (3, 3, 64, 64),
+                (64),
+                (3136, 512), 
+                (512),
+                (512, num_actions), 
+                (num_actions),
+                (512, 1),
+                (1)]
 
             self.size = 0
             for shape in self.var_shapes:
@@ -89,8 +116,9 @@ class SharedVars(object):
                                 (512, 1),
                                 (1)]
 
-            if use_recurrent:
+            if alg_type == 'a3c-lstm':
                 self.var_shapes += [(512, 1024), (1024)]
+
             
             self.size = 0
             for shape in self.var_shapes:
@@ -106,6 +134,7 @@ class SharedVars(object):
                 self.vars = self.malloc_contiguous(self.size)
             else:
                 self.vars = self.malloc_contiguous(self.size)
+
             
     def malloc_contiguous(self, size, initial_val=None):
         if initial_val is None:

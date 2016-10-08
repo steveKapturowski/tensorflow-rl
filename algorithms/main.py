@@ -66,19 +66,21 @@ def main(args):
             sys.exit()
         else:
             Learner = OneStepSARSALearner
-    elif args.use_recurrent:
+    elif args.alg_type == 'dueling':
+        Learner = DuelingLearner
+    elif args.alg_type == 'a3c-lstm':
         Learner = A3CLSTMLearner
     else:
         Learner = A3CLearner
 
     T = SharedCounter(0)
-    args.learning_vars = SharedVars(num_actions, args.alg_type, arch=args.arch, use_recurrent=args.use_recurrent)
+    args.learning_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
     if args.opt_mode == 'shared':
-        args.opt_state = SharedVars(num_actions, args.alg_type, arch=args.arch, use_recurrent=args.use_recurrent, opt_type=args.opt_type, lr=args.initial_lr)
+        args.opt_state = SharedVars(num_actions, args.alg_type, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr)
     else:
         args.opt_state = None
     if args.alg_type in ['q', 'sarsa']:
-        args.target_vars = SharedVars(num_actions, args.alg_type, arch=args.arch, use_recurrent=args.use_recurrent)
+        args.target_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
     
     args.barrier = Barrier(args.num_actor_learners)
@@ -139,7 +141,6 @@ if __name__ == '__main__':
     parser.add_argument('--rescale_rewards', default=False, type=bool_arg, help='If True, rewards will be rescaled (dividing by the max. possible reward) to be in the range [-1, 1]. If False, rewards will be clipped to be in the range [-1, 1]', dest='rescale_rewards')  
     parser.add_argument('--arch', default='NIPS', help='Which network architecture to use: from the NIPS or NATURE paper', dest='arch')
     parser.add_argument('--single_life_episodes', action='store_true', help='if true, training episodes will be terminated when a life is lost (for games)', dest='single_life_episodes')
-    parser.add_argument('--use_recurrent', action='store_true', help='if true, use recurrent layer in a3c model', dest='use_recurrent')
     parser.add_argument('--frame_skip', default=[4], type=int, nargs='+', help='number of frames to repeat action', dest='frame_skip')
     parser.add_argument('--test', action='store_false', help='if not set train agents in parallel, otherwise follow optimal policy with single agent', dest='is_train')
 

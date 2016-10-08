@@ -123,7 +123,7 @@ class ActorLearner(Process):
         if self.actor_id > 0:
             logger.debug("T{}: Syncing with shared memory...".format(self.actor_id))
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)  
-            if self.alg_type <> "a3c":
+            if self.alg_type not in ['a3c', 'a3c-lstm']:
                 self.sync_net_with_shared_memory(self.target_network, self.target_vars)
 
         # Wait until all actors are ready to start 
@@ -145,7 +145,7 @@ class ActorLearner(Process):
         # Merge all param matrices into a single 1-D array
         params = np.hstack([p.reshape(-1) for p in params])
         np.frombuffer(self.learning_vars.vars, ctypes.c_float)[:] = params
-        if self.alg_type <> "a3c":
+        if self.alg_type not in ['a3c', 'a3c-lstm']:
             np.frombuffer(self.target_vars.vars, ctypes.c_float)[:] = params
         #memoryview(self.learning_vars.vars)[:] = params
         #memoryview(self.target_vars.vars)[:] = memoryview(self.learning_vars.vars)
@@ -232,7 +232,7 @@ class ActorLearner(Process):
     def setup_summaries(self):
         episode_reward = tf.Variable(0.)
         s1 = tf.scalar_summary("Episode Reward " + str(self.actor_id), episode_reward)
-        if self.alg_type == "a3c":
+        if self.alg_type in ['a3c', 'a3c-lstm']:
             summary_vars = [episode_reward]
         else:
             episode_ave_max_q = tf.Variable(0.)
@@ -240,6 +240,7 @@ class ActorLearner(Process):
             logged_epsilon = tf.Variable(0.)
             s3 = tf.scalar_summary("Epsilon " + str(self.actor_id), logged_epsilon)
             summary_vars = [episode_reward, episode_ave_max_q, logged_epsilon]
+
         summary_placeholders = [tf.placeholder("float") for _ in range(len(summary_vars))]
         update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
         with tf.control_dependencies(update_ops):

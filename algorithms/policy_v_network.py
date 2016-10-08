@@ -15,7 +15,7 @@ class PolicyVNetwork(Network):
                 conf['args'].entropy_regularisation_strength
         
 
-        self.use_recurrent = conf['args'].use_recurrent
+        self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
                 
         with tf.name_scope(self.name):
 
@@ -38,8 +38,9 @@ class PolicyVNetwork(Network):
                 with tf.variable_scope(self.name+'/'+layer_name) as vs:
                     self.lstm_cell = CustomBasicLSTMCell(self.hidden_state_size, forget_bias=1.0)
 
-                    self.step_size = tf.placeholder(tf.float32, [1])
-                    self.initial_lstm_state = tf.placeholder(tf.float32, [1, 2*self.hidden_state_size])
+                    self.step_size = tf.placeholder(tf.float32, [1], name='step_size')
+                    self.initial_lstm_state = tf.placeholder(
+                        tf.float32, [1, 2*self.hidden_state_size], name='initital_state')
                     
                     o3_reshaped = tf.reshape(self.o3, [1,-1,256])
                     lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(

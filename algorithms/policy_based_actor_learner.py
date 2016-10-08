@@ -236,8 +236,7 @@ class A3CLSTMLearner(ActorLearner):
     
 
     def reset_hidden_state(self):
-        if self.local_network.use_recurrent:
-            self.lstm_state_out = np.zeros([1, 2*self.local_network.hidden_state_size])
+        self.lstm_state_out = np.zeros([1, 2*self.local_network.hidden_state_size])
 
 
     def choose_next_action(self, state):
@@ -374,6 +373,11 @@ class A3CLSTMLearner(ActorLearner):
                 
                 sel_actions.append(np.argmax(actions[i]))
                 
+            # reverse everything so that the LSTM inputs are time-ordered
+            s_batch = list(reversed(s_batch))
+            y_batch = list(reversed(y_batch))
+            a_batch = list(reversed(a_batch))
+            adv_batch = list(reversed(adv_batch))
 
             # Compute gradients on the local policy/V network and apply them to shared memory  
             feed_dict={
@@ -384,6 +388,7 @@ class A3CLSTMLearner(ActorLearner):
                 self.local_network.step_size : [len(s_batch)],
                 self.local_network.initial_lstm_state: local_lstm_state,
             }
+
 
 
             grads = self.session.run(
