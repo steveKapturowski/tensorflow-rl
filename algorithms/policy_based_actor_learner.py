@@ -15,7 +15,7 @@ class A3CLearner(ActorLearner):
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
-        self.q_target_update_steps = q_target_update_steps
+        self.q_target_update_steps = args.q_target_update_steps
 
         conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
                          'num_act': self.num_actions,
@@ -218,6 +218,7 @@ class A3CLSTMLearner(ActorLearner):
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
+        self.q_target_update_steps = args.q_target_update_steps
 
         conf_learning = {'name': "local_learning_{}".format(self.actor_id),
                          'num_act': self.num_actions,
