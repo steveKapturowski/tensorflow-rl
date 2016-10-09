@@ -93,8 +93,6 @@ class AtariEnvironment(object):
         for i in range(self.agent_history_length-1):
             self.state_buffer.append(x_t)
 
-
-        print 'Resetting State: lives={}' % self.current_lives
         return s_t
 
     def get_preprocessed_frame(self, observation):
