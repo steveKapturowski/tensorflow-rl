@@ -405,6 +405,7 @@ class A3CLSTMLearner(ActorLearner):
             # prevent the agent from getting stuck
             if (self.local_step - steps_at_last_reward > 5000
                 or self.emulator.env.ale.lives() == 0):
+                steps_at_last_reward = self.local_step
                 episode_over = True
                 reset_game = True
 
@@ -418,20 +419,23 @@ class A3CLSTMLearner(ActorLearner):
                 logger.info("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
                 
                 self.log_summary(total_episode_reward)
-
-                episode_over = False
-                total_episode_reward = 0
-                steps_at_last_reward = self.local_step
-                self.reset_hidden_state()
+                
                 if reset_game:
                     s = self.emulator.get_initial_state()
-                    reset_game = False
+
+                self.reset_hidden_state()
+                steps_at_last_reward = self.local_step
+                total_episode_reward = 0
+                episode_over = False
+                reset_game = False
 
 
     @utils.only_on_train()
     def log_summary(self, total_episode_reward):
         if (self.actor_id == 0):
-            feed_dict = {self.summary_ph[0]: total_episode_reward}
+            feed_dict = {
+                self.summary_ph[0]: total_episode_reward
+            }
             res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
             self.summary_writer.add_summary(res[-1], self.global_step.value())
 

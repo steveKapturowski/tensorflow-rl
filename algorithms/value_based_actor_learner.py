@@ -330,6 +330,7 @@ class NStepQLearner(ValueBasedLearner):
 
             if (self.local_step - steps_at_last_reward > 5000
                 or self.emulator.env.ale.lives() == 0):
+                steps_at_last_reward = self.local_step
                 episode_over = True
                 reset_game = True
 
@@ -353,14 +354,14 @@ class NStepQLearner(ValueBasedLearner):
     
                     self.summary_writer.add_summary(res[-1], self.global_step.value())
                 
+                if reset_game:
+                    s = self.emulator.get_initial_state()
+
                 ep_t = 0
                 total_episode_reward = 0
                 episode_ave_max_q = 0
                 episode_over = False
-                
-                if reset_game:
-                    s = self.emulator.get_initial_state()
-                    reset_game = False
+                reset_game = False
 
 
 

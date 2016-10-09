@@ -84,6 +84,7 @@ class AtariEnvironment(object):
         self.state_buffer = deque()
 
         x_t = self.env.reset()
+
         x_t = self.get_preprocessed_frame(x_t)
         s_t = np.dstack((x_t, x_t, x_t, x_t))
         #s_t = np.stack((x_t, x_t, x_t, x_t), axis = 0)
@@ -91,6 +92,9 @@ class AtariEnvironment(object):
         self.current_lives = self.env.ale.lives()
         for i in range(self.agent_history_length-1):
             self.state_buffer.append(x_t)
+
+
+        print 'Resetting State: lives={}' % self.current_lives
         return s_t
 
     def get_preprocessed_frame(self, observation):
