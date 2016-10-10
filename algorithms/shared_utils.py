@@ -2,6 +2,7 @@ from multiprocessing import RawValue, RawArray, Semaphore, Lock
 import ctypes
 import numpy as np
 
+
 class SharedCounter(object):
     def __init__(self, initval=0):
         self.val = RawValue('i', initval)
@@ -39,14 +40,16 @@ class SharedVars(object):
     def __init__(self, num_actions, alg_type, arch='NIPS', opt_type=None, lr=0):
         # Net
         if alg_type in ['q', 'sarsa']:
-            self.var_shapes = [(8, 8, 4, 16), 
-                                (16), 
-                                (4, 4, 16, 32), 
-                                (32), 
-                                (2592, 256),
-                                (256), 
-                                (256, num_actions), 
-                                (num_actions)]
+            self.var_shapes = [
+                (8, 8, 4, 16), 
+                (16), 
+                (4, 4, 16, 32), 
+                (32), 
+                (2592, 256),
+                (256), 
+                (256, num_actions), 
+                (num_actions),
+            ]
 
             self.size = 0
             for shape in self.var_shapes:
@@ -62,18 +65,35 @@ class SharedVars(object):
                 self.vars = self.malloc_contiguous(self.size)
 
         elif alg_type == 'dueling':
-            self.var_shapes = [(8, 8, 4, 32), 
-                (32), 
-                (4, 4, 32, 64), 
-                (64),
-                (3, 3, 64, 64),
-                (64),
-                (3136, 512), 
-                (512),
-                (512, num_actions), 
-                (num_actions),
-                (512, 1),
-                (1)]
+            if arch == 'NIPS':
+                self.var_shapes = [
+                    (8, 8, 4, 16), 
+                    (16), 
+                    (4, 4, 16, 32), 
+                    (32), 
+                    (2592, 256),
+                    (256), 
+                    (256, 1), 
+                    (1),
+                    (256, num_actions),
+                    (num_actions),
+                ]
+            else:
+                self.var_shapes = [
+                    (8, 8, 4, 32),
+                    (32),
+                    (4, 4, 32, 64),
+                    (64),
+                    (3, 3, 64, 64),
+                    (64),
+                    (3136, 512),
+                    (512),
+                    (512, 1),
+                    (1),
+                    (512, num_actions),
+                    (num_actions),
+                ]
+
 
             self.size = 0
             for shape in self.var_shapes:
@@ -91,30 +111,34 @@ class SharedVars(object):
         else:
             # no lstm
             if arch == 'NIPS':
-                self.var_shapes = [(8, 8, 4, 16), 
-                                    (16), 
-                                    (4, 4, 16, 32), 
-                                    (32), 
-                                    (2592, 256),
-                                    (256), 
-                                    (256, num_actions), 
-                                    (num_actions),
-                                    (256, 1),
-                                    (1)]
+                self.var_shapes = [
+                    (8, 8, 4, 16), 
+                    (16), 
+                    (4, 4, 16, 32), 
+                    (32), 
+                    (2592, 256),
+                    (256), 
+                    (256, num_actions), 
+                    (num_actions),
+                    (256, 1),
+                    (1),
+                ]
 
             else:
-                self.var_shapes = [(8, 8, 4, 32), 
-                                (32), 
-                                (4, 4, 32, 64), 
-                                (64),
-                                (3, 3, 64, 64),
-                                (64),
-                                (3136, 512), 
-                                (512),
-                                (512, num_actions), 
-                                (num_actions),
-                                (512, 1),
-                                (1)]
+                self.var_shapes = [
+                    (8, 8, 4, 32), 
+                    (32), 
+                    (4, 4, 32, 64), 
+                    (64),
+                    (3, 3, 64, 64),
+                    (64),
+                    (3136, 512), 
+                    (512),
+                    (512, num_actions), 
+                    (num_actions),
+                    (512, 1),
+                    (1),
+                ]
 
             if alg_type == 'a3c-lstm':
                 self.var_shapes += [(512, 1024), (1024)]

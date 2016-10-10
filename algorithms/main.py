@@ -79,7 +79,7 @@ def main(args):
         args.opt_state = SharedVars(num_actions, args.alg_type, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr)
     else:
         args.opt_state = None
-    if args.alg_type in ['q', 'sarsa']:
+    if args.alg_type in ['q', 'sarsa', 'dueling']:
         args.target_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
     
