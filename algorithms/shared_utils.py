@@ -40,16 +40,30 @@ class SharedVars(object):
     def __init__(self, num_actions, alg_type, arch='NIPS', opt_type=None, lr=0):
         # Net
         if alg_type in ['q', 'sarsa']:
-            self.var_shapes = [
-                (8, 8, 4, 16), 
-                (16), 
-                (4, 4, 16, 32), 
-                (32), 
-                (2592, 256),
-                (256), 
-                (256, num_actions), 
-                (num_actions),
-            ]
+            if arch == 'NIPS':
+                self.var_shapes = [
+                    (8, 8, 4, 16), 
+                    (16), 
+                    (4, 4, 16, 32), 
+                    (32), 
+                    (2592, 256),
+                    (256), 
+                    (256, num_actions), 
+                    (num_actions),
+                ]
+            else:
+                self.var_shapes = [
+                    (8, 8, 4, 32),
+                    (32),
+                    (4, 4, 32, 64),
+                    (64),
+                    (3, 3, 64, 64),
+                    (64),
+                    (3136, 512),
+                    (512),
+                    (512, num_actions),
+                    (num_actions),
+                ]
 
             self.size = 0
             for shape in self.var_shapes:

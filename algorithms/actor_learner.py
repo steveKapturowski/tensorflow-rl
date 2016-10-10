@@ -36,6 +36,7 @@ class ActorLearner(Process):
         self.num_actions = args.num_actions
         self.initial_lr = args.initial_lr
         self.lr_annealing_steps = args.lr_annealing_steps
+        self.num_actor_learners = args.num_actor_learners
         self.is_train = args.is_train
         
         # Shared mem vars
@@ -99,10 +100,10 @@ class ActorLearner(Process):
         
 
     def run(self):
-        self.session = tf.Session()
-#         self.session = tf.Session(config=tf.ConfigProto(
-#              inter_op_parallelism_threads=1,
-#              intra_op_parallelism_threads=1))
+        gpu_options = tf.GPUOptions(
+            per_process_gpu_memory_fraction=0.99/self.num_actor_learners)
+        self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+
 
         if (self.actor_id==0):
             #Initizlize Tensorboard summaries
