@@ -356,7 +356,7 @@ class DuelingLearner(ValueBasedLearner):
                 s2 = "EPS {0:.4f}".format(self.epsilon)
 
                 self.scores.insert(0, total_episode_reward)
-                if len(self.scores) > 1000:
+                if len(self.scores) > 100:
                     self.scores.pop()
 
                 logger.info("T{} / STEP {} / REWARD {} / {} / {}".format(self.actor_id, T, total_episode_reward, s1, s2))
@@ -531,7 +531,7 @@ class NStepQLearner(ValueBasedLearner):
                 s2 = "EPS {0:.4f}".format(self.epsilon)
 
                 self.scores.insert(0, total_episode_reward)
-                if len(self.scores) > 1000:
+                if len(self.scores) > 100:
                     self.scores.pop()
 
                 logger.info('T{0} / STEP {1} / REWARD {2} / {3} / {4}'.format(

@@ -3,6 +3,7 @@ from actor_learner import *
 from policy_v_network import *
 import time
 import utils
+import numpy as np
 
 
 
@@ -306,12 +307,12 @@ class A3CLSTMLearner(ActorLearner):
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 
             # Sync target learning net with shared mem
-            if self.local_step % self.q_target_update_steps == 0: # try to stabilize training
-                self.sync_net_with_shared_memory(self.target_network, self.learning_vars)
-                self.save_vars()
+            # if self.local_step % self.q_target_update_steps == 0: # try to stabilize training
+            self.sync_net_with_shared_memory(self.target_network, self.learning_vars)
+            self.save_vars()
 
             local_step_start = self.local_step
-            local_lstm_state = self.lstm_state_out
+            local_lstm_state = np.copy(self.lstm_state_out)
             
             rewards = []
             states = []
@@ -378,6 +379,7 @@ class A3CLSTMLearner(ActorLearner):
             y_batch = list(reversed(y_batch))
             a_batch = list(reversed(a_batch))
             adv_batch = list(reversed(adv_batch))
+            sel_actions = list(reversed(sel_actions))
 
             # Compute gradients on the local policy/V network and apply them to shared memory  
             feed_dict={

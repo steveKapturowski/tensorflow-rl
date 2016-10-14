@@ -138,13 +138,15 @@ class Network(object):
  
         return w, b, out
     
-    def _log_softmax(self, name, _input, output_dim):
+    def _softmax_and_log_softmax(self, name, _input, output_dim):
         input_dim = _input.get_shape().as_list()[1]
         w = self._fc_weight_variable([input_dim, output_dim], name + '_weights')
         b = self._fc_bias_variable([output_dim], input_dim, name + '_biases')
-        out = tf.nn.log_softmax(tf.add(tf.matmul(_input, w), b), name= name + '_policy')
+        xformed = tf.matmul(_input, w) + b
+        out = tf.nn.softmax(xformed, name= name + '_policy')
+        log_out = tf.nn.log_softmax(xformed, name= name + '_log_policy')
  
-        return w, b, out
+        return w, b, out, log_out
  
   
         
