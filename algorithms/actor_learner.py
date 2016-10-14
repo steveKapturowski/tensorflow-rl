@@ -17,6 +17,7 @@ def generate_final_epsilon():
     epsilon = {'limits': [0.1, 0.01, 0.5], 'probs': [0.4, 0.3, 0.3]}
     return np.random.choice(epsilon['limits'], p=epsilon['probs']) 
 
+
 class ActorLearner(Process):
     
     def __init__(self, args):
@@ -154,8 +155,8 @@ class ActorLearner(Process):
     def reduce_thread_epsilon(self):
         """ Linear annealing """
         if self.epsilon > self.final_epsilon:
-                self.epsilon -= (self.initial_epsilon - self.final_epsilon) / self.epsilon_annealing_steps
-
+            self.epsilon -= (self.initial_epsilon - self.final_epsilon) / self.epsilon_annealing_steps
+            
     
     @utils.only_on_train(return_val=0.0)
     def decay_lr(self):

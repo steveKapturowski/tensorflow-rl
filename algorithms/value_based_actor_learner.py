@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 from dueling_network import DuelingNetwork
 from q_network import QNetwork
 from actor_learner import *
@@ -15,8 +16,9 @@ class ValueBasedLearner(ActorLearner):
         # Shared mem vars
         self.target_vars = args.target_vars
         self.target_update_flags = args.target_update_flags
-        self.q_target_update_steps = args.q_target_update_steps 
-        
+        self.q_target_update_steps = args.q_target_update_steps
+
+        self.scores = list()
         
         conf_learning = {'name': "local_learning_{}".format(self.actor_id),
                          'num_act': self.num_actions,
@@ -34,7 +36,7 @@ class ValueBasedLearner(ActorLearner):
             self.local_network = QNetwork(conf_learning)
             self.target_network = QNetwork(conf_target)
         
-        
+
         if self.actor_id == 0:
             var_list = self.local_network.params + self.target_network.params            
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
@@ -49,6 +51,9 @@ class ValueBasedLearner(ActorLearner):
                     self.local_network.output_layer, 
                     feed_dict={self.local_network.input_ph: [state]})[0]
             
+        if not self.is_train:
+            self.epsilon = 0.0
+
         if np.random.rand() <= self.epsilon:
             action_index = np.random.randint(0,self.num_actions)
         else:
@@ -188,7 +193,7 @@ class OneStepQLearner(ValueBasedLearner):
                 s2 = "EPS {0:.4f}".format(self.epsilon)
                 logger.info("T{} / STEP {} / REWARD {} / {} / {} / ACTIONS {}".format(self.actor_id, T, total_episode_reward, s1, s2, np.unique(sel_actions)))
                 
-                if (self.actor_id == 0):
+                if self.actor_id == 0 and self.is_train:
                     stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
                     feed_dict = {}
                     for i in range(len(stats)):
@@ -349,9 +354,20 @@ class DuelingLearner(ValueBasedLearner):
                 episode_ave_max_q = episode_ave_max_q/float(ep_t)
                 s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
                 s2 = "EPS {0:.4f}".format(self.epsilon)
-                logger.info("T{} / STEP {} / REWARD {} / {} / {}".format(self.actor_id, T, total_episode_reward, s1, s2))
 
-                if (self.actor_id == 0):
+                self.scores.insert(0, total_episode_reward)
+                if len(self.scores) > 1000:
+                    self.scores.pop()
+
+                logger.info("T{} / STEP {} / REWARD {} / {} / {}".format(self.actor_id, T, total_episode_reward, s1, s2))
+                logger.info('ID: {0} -- RUNNING AVG: {1:.0f} ± {2:.0f} -- BEST: {3:.0f}'.format(
+                    self.actor_id,
+                    np.array(self.scores).mean(),
+                    2*np.array(self.scores).std(),
+                    max(self.scores),
+                ))
+
+                if self.actor_id == 0 and self.is_train:
                     stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
                     feed_dict = {}
                     for i in range(len(stats)):
@@ -513,9 +529,21 @@ class NStepQLearner(ValueBasedLearner):
                 episode_ave_max_q = episode_ave_max_q/float(ep_t)
                 s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
                 s2 = "EPS {0:.4f}".format(self.epsilon)
-                logger.info("T{} / STEP {} / REWARD {} / {} / {}".format(self.actor_id, T, total_episode_reward, s1, s2))
 
-                if (self.actor_id == 0):
+                self.scores.insert(0, total_episode_reward)
+                if len(self.scores) > 1000:
+                    self.scores.pop()
+
+                logger.info('T{0} / STEP {1} / REWARD {2} / {3} / {4}'.format(
+                    self.actor_id, T, total_episode_reward, s1, s2))
+                logger.info('ID: {0} -- RUNNING AVG: {1:.0f} ± {2:.0f} -- BEST: {3:.0f}'.format(
+                    self.actor_id,
+                    np.array(self.scores).mean(),
+                    2*np.array(self.scores).std(),
+                    max(self.scores),
+                ))
+
+                if self.actor_id == 0 and self.is_train:
                     stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
                     feed_dict = {}
                     for i in range(len(stats)):
@@ -651,7 +679,7 @@ class OneStepSARSALearner(ValueBasedLearner):
                 s2 = "EPS {0:.4f}".format(self.epsilon)
                 logger.info("T{} / STEP {} / REWARD {} / {} / {} / ACTIONS {}".format(self.actor_id, T, total_episode_reward, s1, s2, np.unique(sel_actions)))
                 
-                if (self.actor_id == 0):
+                if self.actor_id == 0 and self.is_train:
                     stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
                     feed_dict = {}
                     for i in range(len(stats)):
