@@ -23,8 +23,6 @@ class A3CLearner(ActorLearner):
                          'args': args}
 
         self.local_network = PolicyVNetwork(conf_learning)
-        conf_learning['name'] = 'target_{}'.format(self.actor_id)
-        self.target_network = PolicyVNetwork(conf_learning)
 
             
         if self.actor_id == 0:
@@ -34,7 +32,6 @@ class A3CLearner(ActorLearner):
     
 
     def choose_next_action(self, state):
-        new_action = np.zeros([self.num_actions])
         network_output_v, network_output_pi = self.session.run(
                 [self.local_network.output_layer_v,
                  self.local_network.output_layer_pi], 
@@ -42,10 +39,12 @@ class A3CLearner(ActorLearner):
             
         network_output_pi = network_output_pi.reshape(-1)
         network_output_v = np.asscalar(network_output_v)
-            
+
+
         action_index = self.sample_policy_action(network_output_pi)
-        
+        new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
+
 
         return new_action, network_output_v, network_output_pi
 
@@ -90,11 +89,6 @@ class A3CLearner(ActorLearner):
             # Sync local learning net with shared mem
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 
-            # Sync target learning net with shared mem
-            if self.local_step % self.q_target_update_steps == 0:
-                self.sync_net_with_shared_memory(self.target_network, self.learning_vars)
-                self.save_vars()
-
             local_step_start = self.local_step 
             
             rewards = []
@@ -137,8 +131,8 @@ class A3CLearner(ActorLearner):
                 R = 0
             else:
                 R = self.session.run(
-                    self.target_network.output_layer_v,
-                    feed_dict={self.target_network.input_ph:[new_s]})[0][0]
+                    self.local_network.output_layer_v,
+                    feed_dict={self.local_network.input_ph:[new_s]})[0][0]
                             
              
             sel_actions = []
@@ -226,8 +220,6 @@ class A3CLSTMLearner(ActorLearner):
                          'args': args}
         
         self.local_network = PolicyVNetwork(conf_learning)
-        conf_learning['name'] = 'target_{}'.format(self.actor_id)
-        self.target_network = PolicyVNetwork(conf_learning)
         self.reset_hidden_state()
             
         if self.actor_id == 0:
@@ -241,7 +233,6 @@ class A3CLSTMLearner(ActorLearner):
 
 
     def choose_next_action(self, state):
-        new_action = np.zeros([self.num_actions])
         network_output_v, network_output_pi, self.lstm_state_out = self.session.run(
             [
                 self.local_network.output_layer_v,
@@ -255,13 +246,12 @@ class A3CLSTMLearner(ActorLearner):
             })
 
 
-            
         network_output_pi = network_output_pi.reshape(-1)
         network_output_v = np.asscalar(network_output_v)
             
 
         action_index = self.sample_policy_action(network_output_pi)
-        
+        new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
 
         return new_action, network_output_v, network_output_pi
@@ -308,7 +298,6 @@ class A3CLSTMLearner(ActorLearner):
 
             # Sync target learning net with shared mem
             # if self.local_step % self.q_target_update_steps == 0: # try to stabilize training
-            self.sync_net_with_shared_memory(self.target_network, self.learning_vars)
             self.save_vars()
 
             local_step_start = self.local_step
@@ -326,7 +315,11 @@ class A3CLSTMLearner(ActorLearner):
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t = self.choose_next_action(s)
                 
+                assert not np.allclose(local_lstm_state, self.lstm_state_out)
+
+
                 if (self.actor_id == 0) and (self.local_step % 100 == 0):
+                    # print self.lstm_state_out
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                 new_s, reward, episode_over = self.emulator.next(a)
@@ -353,14 +346,16 @@ class A3CLSTMLearner(ActorLearner):
                 R = 0
             else:
                 # compute with repsect to target network
+                prev_lstm_state_out = self.lstm_state_out
                 R = self.session.run(
-                    self.target_network.output_layer_v,
+                    self.local_network.output_layer_v,
                     feed_dict={
-                        self.target_network.input_ph:[new_s],
-                        self.target_network.step_size: [1],
-                        self.target_network.initial_lstm_state: self.lstm_state_out,
+                        self.local_network.input_ph:[new_s],
+                        self.local_network.step_size: [1],
+                        self.local_network.initial_lstm_state: self.lstm_state_out,
                     }
                 )[0][0]
+                assert np.allclose(prev_lstm_state_out, self.lstm_state_out)
                             
              
             sel_actions = []
@@ -375,11 +370,11 @@ class A3CLSTMLearner(ActorLearner):
                 sel_actions.append(np.argmax(actions[i]))
                 
             # reverse everything so that the LSTM inputs are time-ordered
-            s_batch = list(reversed(s_batch))
-            y_batch = list(reversed(y_batch))
-            a_batch = list(reversed(a_batch))
-            adv_batch = list(reversed(adv_batch))
-            sel_actions = list(reversed(sel_actions))
+            y_batch.reverse()
+            a_batch.reverse()
+            s_batch.reverse()
+            adv_batch.reverse()
+            sel_actions.reverse()
 
             # Compute gradients on the local policy/V network and apply them to shared memory  
             feed_dict={
