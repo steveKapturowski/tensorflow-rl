@@ -196,7 +196,7 @@ class A3CLearner(ActorLearner):
                 total_episode_reward = 0
                 steps_at_last_reward = self.local_step
 
-                if reset_game:
+                if reset_game or self.emulator.game == 'Pong-v0':
                     s = self.emulator.get_initial_state()
                     reset_game = False
 
@@ -457,7 +457,7 @@ class A3CLSTMLearner(ActorLearner):
                 
                 self.log_summary(total_episode_reward)
                 
-                if reset_game:
+                if reset_game or self.emulator.game == 'Pong-v0':
                     s = self.emulator.get_initial_state()
 
                 self.reset_hidden_state()
