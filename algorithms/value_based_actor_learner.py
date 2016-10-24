@@ -4,6 +4,7 @@ from q_network import QNetwork
 from actor_learner import *
 import time
 import sys
+import tempfile
 from hogupdatemv import copy
 #import cProfile
 
@@ -223,7 +224,9 @@ class DuelingLearner(ValueBasedLearner):
         self._run()
 
     def _run(self):
-        """ Main actor learner loop for n-step Q learning. """    
+        """ Main actor learner loop for n-step Q learning. """
+        if not self.is_train:
+            return self.test()
 
         logger.debug("Actor {} resuming at Step {}, {}".format(self.actor_id, 
             self.global_step.value(), time.ctime()))
@@ -340,7 +343,9 @@ class DuelingLearner(ValueBasedLearner):
 
 
             if (self.local_step - steps_at_last_reward > 5000
-                or self.emulator.env.ale.lives() == 0):
+                or (self.emulator.env.ale.lives() == 0
+                    and self.emulator.game != 'Pong-v0')):
+
                 steps_at_last_reward = self.local_step
                 episode_over = True
                 reset_game = True
@@ -384,6 +389,36 @@ class DuelingLearner(ValueBasedLearner):
                 episode_ave_max_q = 0
                 episode_over = False
                 reset_game = False
+
+    def test(self):
+        log_dir = tempfile.mkdtemp()
+        self.emulator.env.monitor.start(log_dir)
+        self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+
+        rewards = list()
+        logger.info('writing monitor log to {}'.format(log_dir))
+        for episode in range(100):
+            s = self.emulator.get_initial_state()
+            total_episode_reward = 0
+            episode_over = False
+
+            while not episode_over:
+                a, _ = self.choose_next_action(s)
+                s, reward, episode_over = self.emulator.next(a)
+
+                total_episode_reward += reward
+
+            else:
+                rewards.append(total_episode_reward)
+                logger.info("EPISODE {0} -- REWARD: {1}, RUNNING AVG: {2:.0f}±{3:.0f}, BEST: {4}".format(
+                    episode,
+                    total_episode_reward,
+                    np.array(rewards).mean(),
+                    2*np.array(rewards).std(),
+                    max(rewards),
+                ))
+
+        self.emulator.env.monitor.close()
 
         
 class NStepQLearner(ValueBasedLearner):
@@ -515,7 +550,9 @@ class NStepQLearner(ValueBasedLearner):
 
 
             if (self.local_step - steps_at_last_reward > 5000
-                or self.emulator.env.ale.lives() == 0):
+                or (self.emulator.env.ale.lives() == 0
+                    and self.emulator.game != 'Pong-v0')):
+            
                 steps_at_last_reward = self.local_step
                 episode_over = True
                 reset_game = True

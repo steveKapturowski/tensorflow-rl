@@ -1,8 +1,9 @@
-# A3C -- unfinished!
+# -*- encoding: utf-8 -*-
 from actor_learner import *
 from policy_v_network import *
 import time
 import utils
+import tempfile
 import numpy as np
 
 
@@ -68,6 +69,9 @@ class A3CLearner(ActorLearner):
         self._run()
 
     def _run(self):
+        if not self.is_train:
+            return self.test()
+
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
             self.global_step.value()))
@@ -170,7 +174,10 @@ class A3CLearner(ActorLearner):
             
             # prevent the agent from getting stuck
             if (self.local_step - steps_at_last_reward > 5000
-                or self.emulator.env.ale.lives() == 0):
+                or (self.emulator.env.ale.lives() == 0
+                    and self.emulator.game != 'Pong-v0')):
+
+                steps_at_last_reward = self.local_step
                 episode_over = True
                 reset_game = True
 
@@ -193,6 +200,35 @@ class A3CLearner(ActorLearner):
                     s = self.emulator.get_initial_state()
                     reset_game = False
 
+    def test(self):
+        log_dir = tempfile.mkdtemp()
+        self.emulator.env.monitor.start(log_dir)
+        self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+
+        rewards = list()
+        logger.info('writing monitor log to {}'.format(log_dir))
+        for episode in range(100):
+            s = self.emulator.get_initial_state()
+            total_episode_reward = 0
+            episode_over = False
+
+            while not episode_over:
+                a, _, _ = self.choose_next_action(s)
+                s, reward, episode_over = self.emulator.next(a)
+
+                total_episode_reward += reward
+
+            else:
+                rewards.append(total_episode_reward)
+                logger.info("EPISODE {0} -- REWARD: {1}, RUNNING AVG: {2:.0f}±{3:.0f}, BEST: {4}".format(
+                    episode,
+                    total_episode_reward,
+                    np.array(rewards).mean(),
+                    2*np.array(rewards).std(),
+                    max(rewards),
+                ))
+
+        self.emulator.env.monitor.close()
 
     @utils.only_on_train()
     def log_summary(self, total_episode_reward):
@@ -275,6 +311,10 @@ class A3CLSTMLearner(ActorLearner):
         self._run()
 
     def _run(self):
+        if not self.is_train:
+            return self.test()
+
+
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
             self.global_step.value()))
@@ -307,7 +347,6 @@ class A3CLSTMLearner(ActorLearner):
             states = []
             actions = []
             values = []
-            
             while not (episode_over 
                 or (self.local_step - local_step_start 
                     == self.max_local_steps)):
@@ -319,7 +358,6 @@ class A3CLSTMLearner(ActorLearner):
 
 
                 if (self.actor_id == 0) and (self.local_step % 100 == 0):
-                    # print self.lstm_state_out
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                 new_s, reward, episode_over = self.emulator.next(a)
@@ -398,10 +436,12 @@ class A3CLSTMLearner(ActorLearner):
             a_batch = []
             y_batch = []          
             adv_batch = []
-            
+
             # prevent the agent from getting stuck
             if (self.local_step - steps_at_last_reward > 5000
-                or self.emulator.env.ale.lives() == 0):
+                or (self.emulator.env.ale.lives() == 0
+                    and self.emulator.game != 'Pong-v0')):
+
                 steps_at_last_reward = self.local_step
                 episode_over = True
                 reset_game = True
@@ -425,6 +465,37 @@ class A3CLSTMLearner(ActorLearner):
                 total_episode_reward = 0
                 episode_over = False
                 reset_game = False
+
+    def test(self):
+        log_dir = tempfile.mkdtemp()
+        self.emulator.env.monitor(log_dir)
+        self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+
+        rewards = list()
+        logger.info('writing monitor log to {}'.format(log_dir))
+        for episode in range(100):
+            s = self.emulator.get_initial_state()
+            self.reset_hidden_state()
+            total_episode_reward = 0
+            episode_over = False
+
+            while not episode_over:
+                a, _, _ = self.choose_next_action(s)
+                s, reward, episode_over = self.emulator.next(a)
+
+                total_episode_reward += reward
+
+            else:
+                rewards.append(total_episode_reward)
+                logger.info("EPISODE {0} -- REWARD: {1}, RUNNING AVG: {2:.0f}±{3:.0f}, BEST: {4}".format(
+                    episode,
+                    total_episode_reward,
+                    np.array(rewards).mean(),
+                    2*np.array(rewards).std(),
+                    max(rewards),
+                ))
+
+        self.emulator.env.monitor.close()
 
 
     @utils.only_on_train()

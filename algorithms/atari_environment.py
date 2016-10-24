@@ -40,7 +40,7 @@ def get_num_actions(game):
     # Figure out number of actions from gym env
     env = gym.make(game)
     num_actions = env.action_space.n
-    if (game == "Pong-v0" or game == "Breakout-v0"):
+    if (game == 'Pong-v0' or game == 'Breakout-v0'):
         # Gym currently specifies 6 actions for pong
         # and breakout when only 3 are needed. This
         # is a lame workaround.
@@ -55,8 +55,9 @@ class AtariEnvironment(object):
     is constructed.
     """
     def __init__(self, game, visualize=False, resized_width=84, resized_height=84, agent_history_length=4, frame_skip=4, single_life_episodes=False):
+        self.game = game
         self.env = gym.make(game)
-        self.env.frameskip = 4
+        self.env.frameskip = frame_skip
         self.resized_width = resized_width
         self.resized_height = resized_height
         self.agent_history_length = agent_history_length
