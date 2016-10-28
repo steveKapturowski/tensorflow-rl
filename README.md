@@ -8,12 +8,13 @@ This implementation uses processes instead of threads to achieve real concurrenc
 
 Both [ALE](https://github.com/mgbellemare/Arcade-Learning-Environment) and [Open AI GYM](https://gym.openai.com/) environments can be used.
 
-
+#Results
 The graphs below show the reward achieved in different games by one individual actor during training (i.e., not averaging over several runs, and over all actors, as in the paper). All experiments were run on a rather old machine equipped with 2 Xeon E5540 quad-core 2.53GHz CPUs (16 virtual cores) and 47 Gb RAM.
 
 Boxing-v0 (from OpenAI Gym), A3C, 100 actors, lr=0.0007, 80M steps in 59h, 31m:
 ![](https://github.com/traai/async-deep-rl/blob/master/help/images/boxing_v0.png)
 As you can see, the score achieved is much higher than the one reported in the paper. That is due to the effect of having 100 actors. So concurrently exploring the environment in different ways definitely helps with the learning process and makes experience replay not needed. Note, however, that the performance in terms of training time is slightly worse than with fewer actors. This is probably due to our implementation, which is not optimal, and to the limitations of the machine we used.
+
 Pong (from ALE), A3C, 16 actors, lr=0.0007, 80M steps in 48h:
 ![](https://github.com/traai/async-deep-rl/blob/master/help/images/pong.png)
 
