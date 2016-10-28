@@ -468,7 +468,7 @@ class A3CLSTMLearner(ActorLearner):
 
     def test(self):
         log_dir = tempfile.mkdtemp()
-        self.emulator.env.monitor(log_dir)
+        self.emulator.env.monitor.start(log_dir)
         self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 
         rewards = list()
