@@ -13,7 +13,7 @@ The graphs below show the reward achieved in different games by one individual a
 
 Boxing-v0 (from OpenAI Gym), A3C, 100 actors, lr=0.0007, 80M steps in 59h, 31m:
 ![](https://github.com/traai/async-deep-rl/blob/master/help/images/boxing_v0.png)
-As you can see, the score achieved is much higher than the one reported in the paper (and maybe even state-of-the-art? a proper evaluation should be needed). That is due to the effect of having 100 actors. So concurrently exploring the environment in different ways definitely helps with the learning process and makes experience replay not needed. Note, however, that the performance in terms of training time is slightly worse than with fewer actors. This is probably due to our implementation, which is not optimal, and to the limitations of the machine we used.
+As you can see, the score achieved is much higher than the one reported in the paper. That is due to the effect of having 100 actors. So concurrently exploring the environment in different ways definitely helps with the learning process and makes experience replay not needed. Note, however, that the performance in terms of training time is slightly worse than with fewer actors. This is probably due to our implementation, which is not optimal, and to the limitations of the machine we used.
 Pong (from ALE), A3C, 16 actors, lr=0.0007, 80M steps in 48h:
 ![](https://github.com/traai/async-deep-rl/blob/master/help/images/pong.png)
 
@@ -44,6 +44,7 @@ To run outside a docker, you need to install some dependencies:
 - Open CV v2, for standalone ALE (It should be possible to change the code in `emulator.py` to use Scikit-image instead of CV2. Indeed, CV2 might slow things down)  
 
 To run inside a docker:
+
 (1) Clone this repo at `~/some-path`.
 
 (2) Make sure your machine has docker installed. Follow instructions [here]
