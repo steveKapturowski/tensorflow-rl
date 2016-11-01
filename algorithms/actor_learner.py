@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 import numpy as np
 from multiprocessing import Process 
 import logging_utils
@@ -7,6 +8,7 @@ import pyximport; pyximport.install()
 from hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam
 import time
 import utils
+import tempfile
 
 CHECKPOINT_INTERVAL = 500000
  
@@ -99,6 +101,48 @@ class ActorLearner(Process):
         self.summary_ph, self.update_ops, self.summary_ops = self.setup_summaries()
         self.game = args.game
         
+
+    def reset_hidden_state(self):
+        '''
+        Override in subclass if needed
+        '''
+        pass
+
+
+    def test(self, num_episodes=100):
+        '''
+        Run test monitor for `num_episodes`
+        '''
+        log_dir = tempfile.mkdtemp()
+        self.emulator.env.monitor.start(log_dir)
+        self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+
+        rewards = list()
+        logger.info('writing monitor log to {}'.format(log_dir))
+        for episode in range(num_episodes):
+            s = self.emulator.get_initial_state()
+            self.reset_hidden_state()
+            total_episode_reward = 0
+            episode_over = False
+
+            while not episode_over:
+                a = self.choose_next_action(s)[0]
+                s, reward, episode_over = self.emulator.next(a)
+
+                total_episode_reward += reward
+
+            else:
+                rewards.append(total_episode_reward)
+                logger.info("EPISODE {0} -- REWARD: {1}, RUNNING AVG: {2:.0f}±{3:.0f}, BEST: {4}".format(
+                    episode,
+                    total_episode_reward,
+                    np.array(rewards).mean(),
+                    2*np.array(rewards).std(),
+                    max(rewards),
+                ))
+
+        self.emulator.env.monitor.close()
+
 
     def run(self):
         gpu_options = tf.GPUOptions(
