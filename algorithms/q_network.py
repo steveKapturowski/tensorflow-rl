@@ -12,17 +12,17 @@ class QNetwork(Network):
         with tf.name_scope(self.name):
         
             self.target_ph = tf.placeholder(
-                "float32", [None], name = 'target')
+                "float32", [None], name='target')
     
             if self.arch == "NIPS":
                 #fc4
-                self.w4, self.b4, self.output_layer = self._fc('fc4', self.o3, self.num_actions, activation = "linear")
+                self.w4, self.b4, self.output_layer = self._fc('fc4', self.o3, self.num_actions, activation="linear")
             
                 self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3, 
                                            self.w4, self.b4]
             else: #NATURE
                 #fc5
-                self.w5, self.b5, self.output_layer = self._fc('fc5', self.o4, self.num_actions, activation = "linear")
+                self.w5, self.b5, self.output_layer = self._fc('fc5', self.o4, self.num_actions, activation="linear")
             
                 self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3, 
                                            self.w4, self.b4, self.w5, self.b5]
@@ -69,17 +69,15 @@ class QNetwork(Network):
                     # (i.e., of the gradients) will be calculated.
                     self.clipped_grad_hist_op = None
                     if self.clip_norm_type == 'ignore':
-                        # Unclipped gradients
                         self.get_gradients = grads
-                        #self.get_gradients = [g for g, _ in self.grads_and_vars]
                     elif self.clip_norm_type == 'global':
-                        # Clip network grads by network norm
-                        self.get_gradients = tf.clip_by_global_norm(
-                            grads, self.clip_norm)[0]
+                        self.get_gradients = tf.clip_by_global_norm(grads, self.clip_norm)[0]
+                    elif self.clip_norm_type == 'avg':
+                        self.get_gradients = tf.clip_by_average_norm(grads, self.clip_norm)[0]
                     elif self.clip_norm_type == 'local':
-                        # Clip layer grads by layer norm
-                        self.get_gradients = [tf.clip_by_norm(
-                            g, self.clip_norm) for g in grads]
+                        self.get_gradients = [
+                            tf.clip_by_norm(g, self.clip_norm) for g in grads
+                        ]
 
             # Placeholders for shared memory vars
             self.params_ph = []

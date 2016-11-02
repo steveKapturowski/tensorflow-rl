@@ -22,14 +22,14 @@ class Network(object):
             self.input_ph = tf.placeholder(
                 'float32',[None,84,84,4], name = 'input')
             self.selected_action_ph = tf.placeholder(
-                "float32", [None, self.num_actions], name = "selected_action")
+                'float32', [None, self.num_actions], name = 'selected_action')
 
-            if self.optimizer_type == "adam":
-                init= "glorot_uniform"
+            if self.optimizer_type == 'adam':
+                init= 'glorot_uniform'
             else: 
-                init = "torch"
+                init = 'torch'
                 
-            if self.arch == "NIPS":
+            if self.arch == 'NIPS':
                 #conv1
                 self.w1, self.b1, self.o1 = self._conv2d('conv1', self.input_ph, 16, 8, 4, 4, init=init)
     
@@ -37,7 +37,7 @@ class Network(object):
                 self.w2, self.b2, self.o2 = self._conv2d('conv2', self.o1, 32, 4, 16, 2, init=init)
     
                 #fc3
-                self.w3, self.b3, self.o3 = self._fc('fc3', self._flatten(self.o2), 256, activation = "relu", init=init)
+                self.w3, self.b3, self.o3 = self._fc('fc3', self._flatten(self.o2), 256, activation='relu', init=init)
             else: #NATURE
                 #conv1
                 self.w1, self.b1, self.o1 = self._conv2d('conv1', self.input_ph, 32, 8, 4, 4, init=init)
@@ -49,7 +49,7 @@ class Network(object):
                 self.w3, self.b3, self.o3 = self._conv2d('conv3', self.o2, 64, 3, 64, 1, init=init)
     
                 #fc4
-                self.w4, self.b4, self.o4 = self._fc('fc4', self._flatten(self.o3), 512, activation="relu", init=init)
+                self.w4, self.b4, self.o4 = self._fc('fc4', self._flatten(self.o3), 512, activation='relu', init=init)
                 
 
     

@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 from actor_learner import *
-from policy_v_network import *
+from policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
 import time
 import utils
 import numpy as np
@@ -399,6 +399,28 @@ class A3CLSTMLearner(BaseA3CLearner):
 
 
 class ActionSequenceA3CLearner(BaseA3CLearner):
+    def __init__(self, args):
+
+        super(ActionSequenceA3CLearner, self).__init__(args)
+        
+        # Shared mem vars
+        self.learning_vars = args.learning_vars
+        self.q_target_update_steps = args.q_target_update_steps
+
+        conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
+                         'num_act': self.num_actions,
+                         'args': args}
+        
+        self.local_network = SequencePolicyVNetwork(conf_learning)
+        self.reset_hidden_state()
+            
+        if self.actor_id == 0:
+            var_list = self.local_network.params
+            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
+                                        keep_checkpoint_every_n_hours=2)
+
+
+
     def choose_next_action(self, state):
         network_output_v, network_output_pi = self.session.run(
                 [self.local_network.output_layer_v,

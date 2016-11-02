@@ -1,38 +1,24 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import random
 import sys
 import os
-import numpy as np
-from multiprocessing import Process, RawArray
-import tensorflow as tf
 import logging_utils
 import time
-import importlib
-from value_based_actor_learner import *
-from policy_based_actor_learner import *
-import math
-from shared_utils import SharedCounter, SharedVars, SharedFlags, Barrier
 import ctypes
 import argparse
+import numpy as np
+import tensorflow as tf
+
+from multiprocessing import Process, RawArray
+from value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
+from policy_based_actor_learner import A3CLearner, A3CLSTMLearner, ActionSequenceA3CLearner
+from shared_utils import SharedCounter, SharedVars, SharedFlags, Barrier
 
 logger = logging_utils.getLogger('main')
 
 
-def bool_arg(string):
-    value = string.lower
-    if value == 'true': 
-        return True
-    elif value == 'false': 
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Expected True or False, but got {}'.format(string))
-    
 def get_learning_rate(low, high):
     """ Return LogUniform(low, high) learning rate. """
-    lr = math.exp(random.uniform(math.log(low), math.log(high)))
+    lr = np.exp(random.uniform(np.log(low), np.log(high)))
     return lr
 
 def get_num_actions(rom_path, rom_name):
@@ -55,30 +41,25 @@ def main(args):
     
     args.summ_base_dir = '/tmp/summary_logs/{}/{}'.format(args.game, time.time())
 
-    if args.alg_type == 'q':
-        if args.max_local_steps > 1:
-            Learner = NStepQLearner
-        else:
-            Learner = OneStepQLearner
-    elif args.alg_type == 'sarsa':
-        if args.max_local_steps > 1:
-            print('n-step SARSA not implemented!')
-            sys.exit()
-        else:
-            Learner = OneStepSARSALearner
-    elif args.alg_type == 'dueling':
-        Learner = DuelingLearner
-    elif args.alg_type == 'a3c-lstm':
-        Learner = A3CLSTMLearner
-    else:
-        Learner = A3CLearner
+    algorithms = {
+        'q': NStepQLearner,
+        'sarsa': OneStepSARSALearner,
+        'dueling': DuelingLearner,
+        'a3c': A3CLearner,
+        'a3c-lstm': A3CLSTMLearner,
+        'a3c-sequence-decoder': ActionSequenceA3CLearner,
+    }
+
+    assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)
+    Learner = algorithms[args.alg_type]
 
     T = SharedCounter(0)
     args.learning_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
-    if args.opt_mode == 'shared':
-        args.opt_state = SharedVars(num_actions, args.alg_type, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr)
-    else:
-        args.opt_state = None
+    
+    args.opt_state = SharedVars(
+        num_actions, args.alg_type, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr
+    ) if args.opt_mode == 'shared' else None
+
     if args.alg_type in ['q', 'sarsa', 'dueling']:
         args.target_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
@@ -108,7 +89,6 @@ def main(args):
         t.join()
     
     logger.debug('All training threads finished')
-
     logger.debug('All threads stopped')
 
 if __name__ == '__main__':
@@ -138,7 +118,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_global_steps', default=640000000, type=int, help='Max. number of training steps', dest='max_global_steps')
     parser.add_argument('-ea', '--epsilon_annealing_steps', default=5000000, type=int, help='Nr. of global steps during which the exploration epsilon will be annealed', dest='epsilon_annealing_steps')
     parser.add_argument('--max_local_steps', default=5, type=int, help='Number of steps to gain experience from before every update for the Q learning/A3C algorithm', dest='max_local_steps')
-    parser.add_argument('--rescale_rewards', default=False, type=bool_arg, help='If True, rewards will be rescaled (dividing by the max. possible reward) to be in the range [-1, 1]. If False, rewards will be clipped to be in the range [-1, 1]', dest='rescale_rewards')  
+    parser.add_argument('--rescale_rewards', action='store_true', help='If True, rewards will be rescaled (dividing by the max. possible reward) to be in the range [-1, 1]. If False, rewards will be clipped to be in the range [-1, 1]', dest='rescale_rewards')  
     parser.add_argument('--arch', default='NIPS', help='Which network architecture to use: from the NIPS or NATURE paper', dest='arch')
     parser.add_argument('--single_life_episodes', action='store_true', help='if true, training episodes will be terminated when a life is lost (for games)', dest='single_life_episodes')
     parser.add_argument('--frame_skip', default=[4], type=int, nargs='+', help='number of frames to repeat action', dest='frame_skip')
