@@ -1,4 +1,5 @@
-# A3C -- in progress!
+# -*- encoding: utf-8 -*-
+import numpy as np
 from network import *
 from custom_lstm import CustomBasicLSTMCell
 
@@ -11,10 +12,7 @@ class PolicyVNetwork(Network):
 
         super(PolicyVNetwork, self).__init__(conf)
         
-        self.entropy_regularisation_strength = \
-                conf['args'].entropy_regularisation_strength
-        
-
+        self.beta = conf['args'].entropy_regularisation_strength
         self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
                 
         with tf.name_scope(self.name):
@@ -102,9 +100,7 @@ class PolicyVNetwork(Network):
             actor_objective_advantage_term = tf.mul(
                 log_output_selected_action, self.adv_actor_ph
             )
-            actor_objective_entropy_term = tf.mul(
-                self.entropy_regularisation_strength, self.output_layer_entropy
-            )
+            actor_objective_entropy_term = self.beta * self.output_layer_entropy
             self.actor_objective = -tf.reduce_sum(
                 actor_objective_advantage_term
                 + actor_objective_entropy_term
@@ -167,12 +163,11 @@ class SequencePolicyVNetwork(Network):
         compute and apply ops, network parameter synchronization ops, and 
         summary ops. """
 
-        super(PolicyVNetwork, self).__init__(conf)
+        super(SequencePolicyVNetwork, self).__init__(conf)
         
-        self.entropy_regularisation_strength = \
-                conf['args'].entropy_regularisation_strength
-        
+        self.beta = conf['args'].entropy_regularisation_strength
 
+        self.max_local_steps = conf['args'].max_local_steps
         self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
                 
         with tf.name_scope(self.name):
@@ -181,105 +176,68 @@ class SequencePolicyVNetwork(Network):
                 'float32', [None], name='target')
             self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')
 
-            if self.use_recurrent:
-                self.hidden_state_size = 256
-                with tf.variable_scope(self.name+'/lstm_layer') as vs:
-                    self.lstm_cell = CustomBasicLSTMCell(self.hidden_state_size, forget_bias=1.0)
-
-                    self.step_size = tf.placeholder(tf.float32, [1], name='step_size')
-                    self.initial_lstm_state = tf.placeholder(
-                        tf.float32, [1, 2*self.hidden_state_size], name='initital_state')
-                    
-                    o3_reshaped = tf.reshape(self.o3, [1,-1,256])
-                    lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(
-                        self.lstm_cell,
-                        o3_reshaped,
-                        initial_state=self.initial_lstm_state,
-                        sequence_length=self.step_size,
-                        time_major=False,
-                        scope=vs)
-
-                    self.ox = tf.reshape(lstm_outputs, [-1,256])
-
-                    # Get all LSTM trainable params
-                    self.lstm_trainable_variables = [v for v in 
-                        tf.trainable_variables() if v.name.startswith(vs.name)]
-            else:
-                if self.arch == 'NIPS':
-                    self.ox = self.o3
-                else: #NATURE
-                    self.ox = self.o4
-
-            # Final actor layer
-            # layer_name = 'softmax_policy4'            
-            # self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = self._softmax_and_log_softmax(
-            #     layer_name, self.ox, self.num_actions)
-            
+            if self.arch == 'NIPS':
+                self.ox = self.o3
+            else: #NATURE
+                self.ox = self.o4
 
             with tf.variable_scope(self.name+'/lstm_decoder') as vs:
-                self.decoder_step_size = tf.placeholder(tf.float32, [1], name='step_size')
-                self.action_inputs = tf.placeholder(tf.float32, [1], name='step_size')
+                self.decoder_step_size = tf.placeholder(tf.float32, [1], name='decoder_step_size')
+                self.action_outputs = tf.placeholder(tf.float32, [None, None, self.num_actions+1], name='action_outputs')
+                self.action_inputs = tf.placeholder(tf.float32, [None, None, self.num_actions+1], name='action_inputs')
+
+                self.decoder_hidden_state_size = 256
+                self.decoder_lstm_cell = CustomBasicLSTMCell(self.decoder_hidden_state_size, forget_bias=1.0)
+
+                print self.ox.get_shape(), tf.fill(tf.shape(self.ox), 0.0).get_shape()
+                self.decoder_initial_state = tf.concat(1, [
+                    tf.fill(tf.shape(self.ox), 0.0), self.ox
+                ])
+
                 decoder_outputs, self.decoder_state = tf.nn.dynamic_rnn(
-                    self.lstm_cell,
+                    self.decoder_lstm_cell,
                     self.action_inputs,
-                    initial_state=self.ox,
-                    sequence_length=self.step_size,
+                    initial_state=self.decoder_initial_state,
+                    sequence_length=self.decoder_step_size,
                     time_major=False,
                     scope=vs)
 
+                self.decoder_trainable_variables = [
+                    v for v in tf.trainable_variables()
+                    if v.name.startswith(vs.name)
+                ]
+
+            fan_in = self.decoder_hidden_state_size
+            fan_out = self.num_actions+1
+            d = np.sqrt(6. / (fan_in + fan_out))
+            initial = tf.random_uniform([fan_in, fan_out], minval=-d, maxval=d)
+            self.W_pi = tf.Variable(initial, name='W_pi', dtype='float32')
+            self.b_pi = tf.Variable(tf.zeros(fan_out, name='b_pi', dtype='float32'))
 
 
+            logits = tf.einsum('ijk,kl->ijl', decoder_outputs, self.W_pi) + self.b_pi
+            action_probs = tf.nn.softmax(logits)
+            log_action_probs = tf.nn.log_softmax(logits)
 
+            sequence_probs = tf.reduce_prod(tf.reduce_sum(action_probs * self.action_outputs, 2), 1)
+            log_sequence_probs = tf.reduce_sum(tf.reduce_sum(log_action_probs * self.action_outputs, 2), 1)
 
-
-            self.output_layer_entropy = tf.reduce_sum(
-                - 1.0 * tf.mul(
-                    self.output_layer_pi,
-                    self.log_output_layer_pi
-                ), reduction_indices=1)
-
-            
-
-
+            # ∏a_i * ∑ log a_i
+            self.output_layer_entropy = -tf.reduce_sum(sequence_probs * log_sequence_probs)
 
 
             # Final critic layer
             self.wv, self.bv, self.output_layer_v = self._fc(
                 'fc_value4', self.ox, 1, activation='linear')
 
-
-            if self.arch == 'NIPS':
-                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, 
-                    self.b3, self.wpi, self.bpi, self.wv, self.bv]
-            else: #NATURE
-                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, 
-                    self.b3, self.w4, self.b4, self.wpi, self.bpi, self.wv, self.bv]
-                
-
-            if self.use_recurrent:
-                self.params += self.lstm_trainable_variables
- 
-
             # Advantage critic
-            self.adv_critic = tf.sub(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
-            
-            # Actor objective
-            # Multiply the output of the network by a one hot vector, 1 for the 
-            # executed action. This will make the non-regularised objective 
-            # term for non-selected actions to be zero.
-            log_output_selected_action = tf.reduce_sum(
-                tf.mul(self.log_output_layer_pi, self.selected_action_ph), 
-                reduction_indices=1
-            )
-            actor_objective_advantage_term = tf.mul(
-                log_output_selected_action, self.adv_actor_ph
-            )
-            actor_objective_entropy_term = tf.mul(
-                self.entropy_regularisation_strength, self.output_layer_entropy
-            )
+            self.adv_critic = self.critic_target_ph - tf.reshape(self.output_layer_v, [-1])
+
+
+            actor_advantage_term = log_sequence_probs[:self.max_local_steps] * self.adv_actor_ph
+            actor_entropy_term = self.beta * self.output_layer_entropy
             self.actor_objective = -tf.reduce_sum(
-                actor_objective_advantage_term
-                + actor_objective_entropy_term
+                actor_advantage_term + actor_entropy_term
             )
             
             # Critic loss
@@ -298,6 +256,16 @@ class SequencePolicyVNetwork(Network):
             
             self.loss = self.actor_objective + self.critic_loss
             
+
+            if self.arch == 'NIPS':
+                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, 
+                    self.b3, self.W_pi, self.b_pi, self.wv, self.bv]
+            else: #NATURE
+                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, 
+                    self.b3, self.w4, self.b4, self.W_pi, self.b_pi, self.wv, self.bv]
+
+            self.params += self.decoder_trainable_variables
+
             # Optimizer
             grads = tf.gradients(self.loss, self.params)
 

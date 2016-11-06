@@ -154,7 +154,7 @@ class ActorLearner(Process):
             #Initizlize Tensorboard summaries
             self.summary_op = tf.merge_all_summaries()
             self.summary_writer = tf.train.SummaryWriter(
-                            "{}/{}".format(self.summ_base_dir, self.actor_id), self.session.graph_def) 
+                            "{}/{}".format(self.summ_base_dir, self.actor_id), self.session.graph) 
 
             # Initialize network parameters
             g_step = utils.restore_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps)
@@ -191,7 +191,7 @@ class ActorLearner(Process):
         # Merge all param matrices into a single 1-D array
         params = np.hstack([p.reshape(-1) for p in params])
         np.frombuffer(self.learning_vars.vars, ctypes.c_float)[:] = params
-        if self.alg_type not in ['a3c', 'a3c-lstm']:
+        if self.alg_type not in ['a3c', 'a3c-lstm', 'a3c-sequence-decoder']:
             np.frombuffer(self.target_vars.vars, ctypes.c_float)[:] = params
         #memoryview(self.learning_vars.vars)[:] = params
         #memoryview(self.target_vars.vars)[:] = memoryview(self.learning_vars.vars)

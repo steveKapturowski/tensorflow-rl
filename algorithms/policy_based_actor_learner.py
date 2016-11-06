@@ -421,6 +421,10 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
 
 
 
+    def sample_action_sequence(self):
+        pass
+
+
     def choose_next_action(self, state):
         network_output_v, network_output_pi = self.session.run(
                 [self.local_network.output_layer_v,

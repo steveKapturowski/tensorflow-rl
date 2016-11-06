@@ -66,19 +66,6 @@ class SharedVars(object):
                     (num_actions),
                 ]
 
-            self.size = 0
-            for shape in self.var_shapes:
-                self.size += np.prod(shape)
-                
-            if opt_type == 'adam':
-                self.ms = self.malloc_contiguous(self.size)
-                self.vs = self.malloc_contiguous(self.size)
-                self.lr = RawValue(ctypes.c_float, lr)
-            elif opt_type == 'rmsprop':
-                self.vars = self.malloc_contiguous(self.size, np.ones(self.size, dtype=np.float))
-            else: #momentum
-                self.vars = self.malloc_contiguous(self.size)
-
         elif alg_type == 'dueling':
             if arch == 'NIPS':
                 self.var_shapes = [
@@ -109,19 +96,21 @@ class SharedVars(object):
                     (num_actions),
                 ]
 
-
-            self.size = 0
-            for shape in self.var_shapes:
-                self.size += np.prod(shape)
-                
-            if opt_type == 'adam':
-                self.ms = self.malloc_contiguous(self.size)
-                self.vs = self.malloc_contiguous(self.size)
-                self.lr = RawValue(ctypes.c_float, lr)
-            elif opt_type == 'rmsprop':
-                self.vars = self.malloc_contiguous(self.size, np.ones(self.size, dtype=np.float))
-            else: #momentum
-                self.vars = self.malloc_contiguous(self.size)
+        elif alg_type == 'a3c-sequence-decoder':
+            self.var_shapes = [
+                (8, 8, 4, 16),
+                (16),
+                (4, 4, 16, 32),
+                (32),
+                (2592, 256),
+                (256),
+                (256, num_actions+1),
+                (19),
+                (256, 1),
+                (1),
+                (257+num_actions, 1024),
+                (1024)
+            ]
 
         else:
             # no lstm
@@ -159,20 +148,20 @@ class SharedVars(object):
                 self.var_shapes += [(512, 1024), (1024)]
 
             
-            self.size = 0
-            for shape in self.var_shapes:
-                self.size += np.prod(shape)
+        self.size = 0
+        for shape in self.var_shapes:
+            self.size += np.prod(shape)
             
-            if opt_type == 'adam':
-                self.ms = self.malloc_contiguous(self.size)
-                self.vs = self.malloc_contiguous(self.size)
-                self.lr = RawValue(ctypes.c_float, lr)
-            if opt_type == 'rmsprop':
-                self.vars = self.malloc_contiguous(self.size, np.ones(self.size, dtype=np.float))
-            elif opt_type == 'momentum':
-                self.vars = self.malloc_contiguous(self.size)
-            else:
-                self.vars = self.malloc_contiguous(self.size)
+        if opt_type == 'adam':
+            self.ms = self.malloc_contiguous(self.size)
+            self.vs = self.malloc_contiguous(self.size)
+            self.lr = RawValue(ctypes.c_float, lr)
+        elif opt_type == 'rmsprop':
+            self.vars = self.malloc_contiguous(self.size, np.ones(self.size, dtype=np.float))
+        elif opt_type == 'momentum':
+            self.vars = self.malloc_contiguous(self.size)
+        else:
+            self.vars = self.malloc_contiguous(self.size)
 
             
     def malloc_contiguous(self, size, initial_val=None):
