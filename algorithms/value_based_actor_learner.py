@@ -7,6 +7,10 @@ import sys
 from hogupdatemv import copy
 #import cProfile
 
+
+ONE_LIFE_GAMES = ['Pong-v0', 'Enduro-v0']
+
+
 class ValueBasedLearner(ActorLearner):
 
     def __init__(self, args):
@@ -209,7 +213,7 @@ class NStepQLearner(ValueBasedLearner):
 
             if (self.local_step - steps_at_last_reward > 5000
                 or (self.emulator.env.ale.lives() == 0
-                    and self.emulator.game != 'Pong-v0')):
+                    and self.emulator.game not in ONE_LIFE_GAMES)):
             
                 steps_at_last_reward = self.local_step
                 episode_over = True
@@ -247,7 +251,7 @@ class NStepQLearner(ValueBasedLearner):
     
                     self.summary_writer.add_summary(res[-1], self.global_step.value())
                 
-                if reset_game or self.emulator.game == 'Pong-v0':
+                if reset_game or self.emulator.game in ONE_LIFE_GAMES:
                     s = self.emulator.get_initial_state()
 
                 ep_t = 0

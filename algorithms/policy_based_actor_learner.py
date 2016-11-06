@@ -6,6 +6,9 @@ import utils
 import numpy as np
 
 
+ONE_LIFE_GAMES = ['Pong-v0', 'Enduro-v0']
+
+
 class BaseA3CLearner(ActorLearner):
     def __init__(self, args):
 
@@ -180,7 +183,7 @@ class A3CLearner(BaseA3CLearner):
             # prevent the agent from getting stuck
             if (self.local_step - steps_at_last_reward > 5000
                 or (self.emulator.env.ale.lives() == 0
-                    and self.emulator.game != 'Pong-v0')):
+                    and self.emulator.game not in ONE_LIFE_GAMES)):
 
                 steps_at_last_reward = self.local_step
                 episode_over = True
@@ -201,7 +204,7 @@ class A3CLearner(BaseA3CLearner):
                 total_episode_reward = 0
                 steps_at_last_reward = self.local_step
 
-                if reset_game or self.emulator.game == 'Pong-v0':
+                if reset_game or self.emulator.game in ONE_LIFE_GAMES:
                     s = self.emulator.get_initial_state()
                     reset_game = False
 
@@ -422,7 +425,14 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
 
 
     def sample_action_sequence(self):
-        pass
+        self.session.run(
+            [
+                self.decoder_state
+            ],
+            feed_dict={
+                self.local_network.input_ph: [state]
+            }
+        )
 
 
     def choose_next_action(self, state):
