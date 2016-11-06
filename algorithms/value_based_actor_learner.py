@@ -8,9 +8,6 @@ from hogupdatemv import copy
 #import cProfile
 
 
-ONE_LIFE_GAMES = ['Pong-v0', 'Enduro-v0']
-
-
 class ValueBasedLearner(ActorLearner):
 
     def __init__(self, args):

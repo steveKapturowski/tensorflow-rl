@@ -10,7 +10,23 @@ import time
 import utils
 import tempfile
 
+
 CHECKPOINT_INTERVAL = 500000
+ONE_LIFE_GAMES = [
+    'Bowling-v0',
+    'Boxing-v0',
+    'Carnival-v0',
+    'DoubleDunk-v0',
+    'Enduro-v0',
+    'FishingDerby-v0',
+    'Freeway-v0',
+    'IceHockey-v0',
+    'JourneyEscape-v0',
+    'Pong-v0',
+    'PrivateEye-v0',
+    'Skiing-v0',
+    'Tennis-v0',
+]
  
 logger = logging_utils.getLogger('actor_learner')
 

@@ -6,9 +6,6 @@ import utils
 import numpy as np
 
 
-ONE_LIFE_GAMES = ['Pong-v0', 'Enduro-v0']
-
-
 class BaseA3CLearner(ActorLearner):
     def __init__(self, args):
 
