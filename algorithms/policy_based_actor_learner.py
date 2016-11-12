@@ -368,7 +368,7 @@ class A3CLSTMLearner(BaseA3CLearner):
             # prevent the agent from getting stuck
             if (self.local_step - steps_at_last_reward > 5000
                 or (self.emulator.env.ale.lives() == 0
-                    and self.emulator.game != 'Pong-v0')):
+                    and self.emulator.game not in ONE_LIFE_GAMES)):
 
                 steps_at_last_reward = self.local_step
                 episode_over = True
@@ -385,7 +385,7 @@ class A3CLSTMLearner(BaseA3CLearner):
                 
                 self.log_summary(total_episode_reward)
                 
-                if reset_game or self.emulator.game == 'Pong-v0':
+                if reset_game or self.emulator.game in ONE_LIFE_GAMES:
                     s = self.emulator.get_initial_state()
 
                 self.reset_hidden_state()
@@ -420,34 +420,43 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                                         keep_checkpoint_every_n_hours=2)
 
 
-
-    def sample_action_sequence(self):
-        self.session.run(
-            [
-                self.decoder_state
-            ],
+    def sample_action_sequence(self, state):
+        value = self.session.run(
+            self.local_network.output_layer_v,
             feed_dict={
-                self.local_network.input_ph: [state]
+                self.local_network.input_ph: [state],
             }
-        )
+        )[0, 0]
 
+        modify_state = False
+        cell_state = np.zeros((1, 256*2))
+        selected_action = np.hstack([np.zeros(self.num_actions), 1]) #`GO` token
+        actions = list()
 
-    def choose_next_action(self, state):
-        network_output_v, network_output_pi = self.session.run(
-                [self.local_network.output_layer_v,
-                 self.local_network.output_layer_pi], 
-                feed_dict={self.local_network.input_ph: [state]})
-            
-        network_output_pi = network_output_pi.reshape(-1)
-        network_output_v = np.asscalar(network_output_v)
+        while True:
+            action_probs, cell_state = self.session.run(
+                [
+                    self.local_network.action_probs,
+                    self.local_network.decoder_state,
+                ],
+                feed_dict={
+                    self.local_network.modify_state:          modify_state,
+                    self.local_network.input_ph:              [state],
+                    self.local_network.decoder_initial_state: cell_state,
+                    self.local_network.decoder_seq_lengths:   [1],
+                    self.local_network.action_inputs:         [
+                        [selected_action]*self.local_network.max_seq_length
+                    ],
+                }
+            )
 
+            selected_action = np.random.multinomial(1, action_probs[0, 0]-np.finfo(np.float32).epsneg)
+            # print np.argmax(selected_action), action_probs[0, 0, np.argmax(selected_action)]
+            actions.append(selected_action)
+            modify_state = True
 
-        action_index = self.sample_policy_action(network_output_pi)
-        new_action = np.zeros([self.num_actions])
-        new_action[action_index] = 1
-
-
-        return new_action, network_output_v, network_output_pi
+            if selected_action[self.num_actions] or len(actions) == self.local_network.max_seq_length:
+                return actions, value
 
 
     def _run(self):
@@ -487,13 +496,19 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                     == self.max_local_steps)):
                 
                 # Choose next action and execute it
-                a, readout_v_t, readout_pi_t = self.choose_next_action(s)
+                action_sequence, readout_v_t = self.sample_action_sequence(s)
+                # if (self.actor_id == 0) and (self.local_step % 100 == 0):
+                #     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                 
-                if (self.actor_id == 0) and (self.local_step % 100 == 0):
-                    logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
-                    
-                new_s, reward, episode_over = self.emulator.next(a)
+                acc_reward = 0.0
+                for a in action_sequence[:-1]:
+                    new_s, reward, episode_over = self.emulator.next(a)
+                    acc_reward += reward
 
+                    if episode_over:
+                        break
+
+                reward = acc_reward
                 if reward != 0.0:
                     steps_at_last_reward = self.local_step
 
@@ -504,7 +519,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 
                 rewards.append(reward)
                 states.append(s)
-                actions.append(a)
+                actions.append(action_sequence)
                 values.append(readout_v_t)
                 
                 s = new_s
@@ -533,18 +548,40 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 sel_actions.append(np.argmax(actions[i]))
                 
 
-            # Compute gradients on the local policy/V network and apply them to shared memory  
+
+            seq_lengths = [len(seq) for seq in actions]
+            padded_output_sequences = np.array([
+                seq + [[0]*(self.num_actions+1)]*(self.local_network.max_seq_length-len(seq))
+                for seq in a_batch
+            ])
+
+            go_input = np.zeros((len(s_batch), 1, self.num_actions+1))
+            go_input[:,:,self.num_actions] = 1
+            padded_input_sequences = np.hstack([go_input, padded_output_sequences[:,:-1,:]])
+
+            print 'Sequence lengths:', seq_lengths
+            print 'Actions:', [np.argmax(a) for a in a_batch[0]]
+
+
             feed_dict={
-                self.local_network.input_ph: s_batch, 
-                self.local_network.critic_target_ph: y_batch,
-                self.local_network.selected_action_ph: a_batch,
-                self.local_network.adv_actor_ph: adv_batch,
+                self.local_network.input_ph:              s_batch, 
+                self.local_network.critic_target_ph:      y_batch,
+                self.local_network.adv_actor_ph:          adv_batch,
+                self.local_network.decoder_initial_state: np.zeros((len(s_batch), 256*2)),
+                self.local_network.action_inputs:         padded_input_sequences,
+                self.local_network.action_outputs:        padded_output_sequences,
+                self.local_network.modify_state:          False,
+                self.local_network.decoder_seq_lengths:   seq_lengths,
             }
+            entropy, advantage, grads = self.session.run(
+                [
+                    self.local_network.entropy,
+                    self.local_network.actor_advantage_term,
+                    self.local_network.get_gradients
+                ],
+                feed_dict=feed_dict)
 
-
-            grads = self.session.run(
-                                self.local_network.get_gradients,
-                                feed_dict=feed_dict)
+            print 'Entropy:', entropy, 'Adv:', advantage
 
             self.apply_gradients_to_shared_memory_vars(grads)     
             
@@ -556,7 +593,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             # prevent the agent from getting stuck
             if (self.local_step - steps_at_last_reward > 5000
                 or (self.emulator.env.ale.lives() == 0
-                    and self.emulator.game != 'Pong-v0')):
+                    and self.emulator.game not in ONE_LIFE_GAMES)):
 
                 steps_at_last_reward = self.local_step
                 episode_over = True
@@ -577,7 +614,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 total_episode_reward = 0
                 steps_at_last_reward = self.local_step
 
-                if reset_game or self.emulator.game == 'Pong-v0':
+                if reset_game or self.emulator.game in ONE_LIFE_GAMES:
                     s = self.emulator.get_initial_state()
                     reset_game = False
 

@@ -1,7 +1,9 @@
 # -*- encoding: utf-8 -*-
 import numpy as np
-from network import *
+import tensorflow as tf
+from network import Network
 from custom_lstm import CustomBasicLSTMCell
+
 
 class PolicyVNetwork(Network):
  
@@ -182,25 +184,35 @@ class SequencePolicyVNetwork(Network):
                 self.ox = self.o4
 
             with tf.variable_scope(self.name+'/lstm_decoder') as vs:
-                self.decoder_step_size = tf.placeholder(tf.float32, [1], name='decoder_step_size')
-                self.action_outputs = tf.placeholder(tf.float32, [None, None, self.num_actions+1], name='action_outputs')
-                self.action_inputs = tf.placeholder(tf.float32, [None, None, self.num_actions+1], name='action_inputs')
+                self.max_seq_length = 30
+                self.decoder_seq_lengths = tf.placeholder(tf.float32, [None], name='decoder_seq_lengths')
+                self.action_outputs = tf.placeholder(tf.float32, [None, self.max_seq_length, self.num_actions+1], name='action_outputs')
+                self.action_inputs = tf.placeholder(tf.float32, [None, self.max_seq_length, self.num_actions+1], name='action_inputs')
 
                 self.decoder_hidden_state_size = 256
                 self.decoder_lstm_cell = CustomBasicLSTMCell(self.decoder_hidden_state_size, forget_bias=1.0)
 
-                print self.ox.get_shape(), tf.fill(tf.shape(self.ox), 0.0).get_shape()
-                self.decoder_initial_state = tf.concat(1, [
+                self.network_state = tf.concat(1, [
                     tf.fill(tf.shape(self.ox), 0.0), self.ox
                 ])
+                self.decoder_initial_state = tf.placeholder(tf.float32, [None, 2*self.decoder_hidden_state_size], name='decoder_initial_state')
 
+                self.modify_state = tf.placeholder(tf.bool, name='modify_state')
+                initial_state_op = tf.cond(
+                    self.modify_state,
+                    lambda: self.decoder_initial_state,
+                    lambda: self.network_state,
+                    name='decode_initial_state_conditional')
                 decoder_outputs, self.decoder_state = tf.nn.dynamic_rnn(
                     self.decoder_lstm_cell,
                     self.action_inputs,
-                    initial_state=self.decoder_initial_state,
-                    sequence_length=self.decoder_step_size,
+                    initial_state=initial_state_op,
+                    sequence_length=self.decoder_seq_lengths,
                     time_major=False,
                     scope=vs)
+
+
+
 
                 self.decoder_trainable_variables = [
                     v for v in tf.trainable_variables()
@@ -216,14 +228,17 @@ class SequencePolicyVNetwork(Network):
 
 
             logits = tf.einsum('ijk,kl->ijl', decoder_outputs, self.W_pi) + self.b_pi
-            action_probs = tf.nn.softmax(logits)
+            self.action_probs = tf.nn.softmax(logits)
             log_action_probs = tf.nn.log_softmax(logits)
 
-            sequence_probs = tf.reduce_prod(tf.reduce_sum(action_probs * self.action_outputs, 2), 1)
+            sequence_probs = tf.reduce_prod(tf.reduce_sum(self.action_probs * self.action_outputs, 2), 1)
             log_sequence_probs = tf.reduce_sum(tf.reduce_sum(log_action_probs * self.action_outputs, 2), 1)
 
             # ∏a_i * ∑ log a_i
-            self.output_layer_entropy = -tf.reduce_sum(sequence_probs * log_sequence_probs)
+            # self.output_layer_entropy = - tf.reduce_sum(sequence_probs * log_sequence_probs) / tf.stop_gradient(1e-30 + tf.reduce_sum(sequence_probs))
+            
+            self.output_layer_entropy = - tf.reduce_mean(tf.stop_gradient(1 + log_sequence_probs) * log_sequence_probs)
+            self.entropy = - tf.reduce_mean(log_sequence_probs)
 
 
             # Final critic layer
@@ -234,10 +249,10 @@ class SequencePolicyVNetwork(Network):
             self.adv_critic = self.critic_target_ph - tf.reshape(self.output_layer_v, [-1])
 
 
-            actor_advantage_term = log_sequence_probs[:self.max_local_steps] * self.adv_actor_ph
-            actor_entropy_term = self.beta * self.output_layer_entropy
-            self.actor_objective = -tf.reduce_sum(
-                actor_advantage_term + actor_entropy_term
+            self.actor_advantage_term = tf.reduce_sum(log_sequence_probs[:self.max_local_steps] * self.adv_actor_ph)
+            self.actor_entropy_term = self.beta * self.output_layer_entropy
+            self.actor_objective = - (
+                self.actor_advantage_term + self.actor_entropy_term
             )
             
             # Critic loss

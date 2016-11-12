@@ -185,7 +185,7 @@ class ActorLearner(Process):
         if self.actor_id > 0:
             logger.debug("T{}: Syncing with shared memory...".format(self.actor_id))
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)  
-            if self.alg_type not in ['a3c', 'a3c-lstm']:
+            if self.alg_type not in ['a3c', 'a3c-lstm', 'a3c-sequence-decoder']:
                 self.sync_net_with_shared_memory(self.target_network, self.target_vars)
 
         # Wait until all actors are ready to start 
@@ -294,7 +294,7 @@ class ActorLearner(Process):
     def setup_summaries(self):
         episode_reward = tf.Variable(0.)
         s1 = tf.scalar_summary("Episode Reward " + str(self.actor_id), episode_reward)
-        if self.alg_type in ['a3c', 'a3c-lstm']:
+        if self.alg_type in ['a3c', 'a3c-lstm', 'a3c-sequence-decoder']:
             summary_vars = [episode_reward]
         else:
             episode_ave_max_q = tf.Variable(0.)
