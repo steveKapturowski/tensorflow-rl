@@ -168,6 +168,7 @@ class SequencePolicyVNetwork(Network):
         super(SequencePolicyVNetwork, self).__init__(conf)
         
         self.beta = conf['args'].entropy_regularisation_strength
+        self.max_decoder_steps = conf['args'].max_decoder_steps
 
         self.max_local_steps = conf['args'].max_local_steps
         self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
@@ -184,10 +185,9 @@ class SequencePolicyVNetwork(Network):
                 self.ox = self.o4
 
             with tf.variable_scope(self.name+'/lstm_decoder') as vs:
-                self.max_seq_length = 30
                 self.decoder_seq_lengths = tf.placeholder(tf.float32, [None], name='decoder_seq_lengths')
-                self.action_outputs = tf.placeholder(tf.float32, [None, self.max_seq_length, self.num_actions+1], name='action_outputs')
-                self.action_inputs = tf.placeholder(tf.float32, [None, self.max_seq_length, self.num_actions+1], name='action_inputs')
+                self.action_outputs = tf.placeholder(tf.float32, [None, self.max_decoder_steps, self.num_actions+1], name='action_outputs')
+                self.action_inputs = tf.placeholder(tf.float32, [None, self.max_decoder_steps, self.num_actions+1], name='action_inputs')
 
                 self.decoder_hidden_state_size = 256
                 self.decoder_lstm_cell = CustomBasicLSTMCell(self.decoder_hidden_state_size, forget_bias=1.0)

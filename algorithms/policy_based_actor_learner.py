@@ -445,7 +445,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                     self.local_network.decoder_initial_state: cell_state,
                     self.local_network.decoder_seq_lengths:   [1],
                     self.local_network.action_inputs:         [
-                        [selected_action]*self.local_network.max_seq_length
+                        [selected_action]*self.local_network.max_decoder_steps
                     ],
                 }
             )
@@ -455,7 +455,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             actions.append(selected_action)
             modify_state = True
 
-            if selected_action[self.num_actions] or len(actions) == self.local_network.max_seq_length:
+            if selected_action[self.num_actions] or len(actions) == self.local_network.max_decoder_steps:
                 return actions, value
 
 
@@ -551,7 +551,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
 
             seq_lengths = [len(seq) for seq in actions]
             padded_output_sequences = np.array([
-                seq + [[0]*(self.num_actions+1)]*(self.local_network.max_seq_length-len(seq))
+                seq + [[0]*(self.num_actions+1)]*(self.local_network.max_decoder_steps-len(seq))
                 for seq in a_batch
             ])
 
