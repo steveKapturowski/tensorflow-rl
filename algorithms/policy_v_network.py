@@ -235,8 +235,6 @@ class SequencePolicyVNetwork(Network):
             log_sequence_probs = tf.reduce_sum(tf.reduce_sum(log_action_probs * self.action_outputs, 2), 1)
 
             # ∏a_i * ∑ log a_i
-            # self.output_layer_entropy = - tf.reduce_sum(sequence_probs * log_sequence_probs) / tf.stop_gradient(1e-30 + tf.reduce_sum(sequence_probs))
-            
             self.output_layer_entropy = - tf.reduce_mean(tf.stop_gradient(1 + log_sequence_probs) * log_sequence_probs)
             self.entropy = - tf.reduce_mean(log_sequence_probs)
 
