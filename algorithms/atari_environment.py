@@ -40,7 +40,7 @@ def get_num_actions(game):
     # Figure out number of actions from gym env
     env = gym.make(game)
     num_actions = env.action_space.n
-    if (game == 'Pong-v0' or game == 'Breakout-v0'):
+    if game in ['Pong-v0', 'Breakout-v0']:
         # Gym currently specifies 6 actions for pong
         # and breakout when only 3 are needed. This
         # is a lame workaround.
@@ -64,8 +64,8 @@ class AtariEnvironment(object):
         self.single_life_episodes = single_life_episodes
 
         self.gym_actions = range(self.env.action_space.n)
-        if (self.env.spec.id == "Pong-v0" or self.env.spec.id == "Breakout-v0"):
-            print "Doing workaround for pong or breakout"
+        if self.env.spec.id in ['Pong-v0', 'Breakout-v0']:
+            print 'Doing workaround for pong or breakout'
             # Gym returns 6 possible actions for breakout and pong.
             # Only three are used, the rest are no-ops. This just lets us
             # pick from a simplified "LEFT", "RIGHT", "NOOP" action space.

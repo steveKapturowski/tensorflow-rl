@@ -39,7 +39,6 @@ class Barrier:
 #Holy shit, this needs to be refactored
 class SharedVars(object):
     def __init__(self, num_actions, alg_type, arch='NIPS', opt_type=None, lr=0):
-        # Net
         if alg_type in ['q', 'sarsa']:
             if arch == 'NIPS':
                 self.var_shapes = [
@@ -105,7 +104,7 @@ class SharedVars(object):
                 (2592, 256),
                 (256),
                 (256, num_actions+1),
-                (19),
+                (num_actions+1),
                 (256, 1),
                 (1),
                 (257+num_actions, 1024),

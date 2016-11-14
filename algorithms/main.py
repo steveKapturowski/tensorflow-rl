@@ -53,6 +53,7 @@ def main(args):
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)
     Learner = algorithms[args.alg_type]
 
+    print '\n\nFUCK!', num_actions
     T = SharedCounter(0)
     args.learning_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
     
