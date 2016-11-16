@@ -11,7 +11,7 @@ import utils
 import tempfile
 
 
-CHECKPOINT_INTERVAL = 500000
+CHECKPOINT_INTERVAL = 100000
 ONE_LIFE_GAMES = [
     'Bowling-v0',
     'Boxing-v0',
