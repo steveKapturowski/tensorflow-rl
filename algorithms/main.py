@@ -3,7 +3,6 @@ import sys
 import os
 import logging_utils
 import time
-import ctypes
 import argparse
 import numpy as np
 import tensorflow as tf

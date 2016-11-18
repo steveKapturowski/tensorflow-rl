@@ -3,7 +3,6 @@ import cython
 cimport cython
 #import numpy as np
 #cimport numpy as np
-import ctypes
 #from libc.stdlib cimport memcpy
 
 cdef extern from "math.h" nogil:

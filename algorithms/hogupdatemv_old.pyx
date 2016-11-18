@@ -2,7 +2,6 @@ import cython
 cimport cython
 import numpy as np
 cimport numpy as np
-import ctypes
 #from libc.stdlib cimport memcpy
 
 #cdef extern float __sync_fetch_and_sub (float *var, float value) nogil
