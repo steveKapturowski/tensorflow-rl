@@ -188,6 +188,7 @@ class SequencePolicyVNetwork(Network):
                 self.decoder_seq_lengths = tf.placeholder(tf.float32, [None], name='decoder_seq_lengths')
                 self.action_outputs = tf.placeholder(tf.float32, [None, self.max_decoder_steps, self.num_actions+1], name='action_outputs')
                 self.action_inputs = tf.placeholder(tf.float32, [None, self.max_decoder_steps, self.num_actions+1], name='action_inputs')
+                self.allowed_actions = tf.placeholder(tf.float32, [None, self.max_decoder_steps, self.num_actions+1], name='allowed_actions')
 
                 self.decoder_hidden_state_size = 256
                 self.decoder_lstm_cell = CustomBasicLSTMCell(self.decoder_hidden_state_size, forget_bias=1.0)
@@ -212,8 +213,6 @@ class SequencePolicyVNetwork(Network):
                     scope=vs)
 
 
-
-
                 self.decoder_trainable_variables = [
                     v for v in tf.trainable_variables()
                     if v.name.startswith(vs.name)
@@ -228,8 +227,14 @@ class SequencePolicyVNetwork(Network):
 
 
             logits = tf.einsum('ijk,kl->ijl', decoder_outputs, self.W_pi) + self.b_pi
-            self.action_probs = tf.nn.softmax(logits)
-            log_action_probs = tf.nn.log_softmax(logits)
+            
+            #mask softmax by allowed actions
+            exp_logits = tf.exp(logits) * self.allowed_actions
+            Z = tf.expand_dims(tf.reduce_sum(exp_logits, 2), 2)
+            self.action_probs = exp_logits / Z
+            log_action_probs = logits - tf.log(Z)
+
+
 
             sequence_probs = tf.reduce_prod(tf.reduce_sum(self.action_probs * self.action_outputs, 2), 1)
             log_sequence_probs = tf.reduce_sum(tf.reduce_sum(log_action_probs * self.action_outputs, 2), 1)

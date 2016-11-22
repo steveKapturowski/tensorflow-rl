@@ -2,8 +2,8 @@ from skimage.transform import resize
 from skimage.color import rgb2gray
 import numpy as np
 import atari_py
-import logging_utils
-logger = logging_utils.getLogger('emulator')
+import utils.logger
+logger = utils.logger.getLogger('emulator')
 
 import matplotlib.pyplot as plt
 

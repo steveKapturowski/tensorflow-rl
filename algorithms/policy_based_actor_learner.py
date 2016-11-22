@@ -1,9 +1,9 @@
 # -*- encoding: utf-8 -*-
-from actor_learner import *
-from policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
 import time
-import utils
 import numpy as np
+import checkpoint_utils
+from actor_learner import *
+from networks.policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
 
 
 class BaseA3CLearner(ActorLearner):
@@ -47,7 +47,7 @@ class BaseA3CLearner(ActorLearner):
         self._run()
 
 
-    @utils.only_on_train()
+    @checkpoint_utils.only_on_train()
     def log_summary(self, total_episode_reward):
         if (self.actor_id == 0):
             feed_dict = {self.summary_ph[0]: total_episode_reward}
@@ -431,6 +431,8 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
         modify_state = False
         cell_state = np.zeros((1, 256*2))
         selected_action = np.hstack([np.zeros(self.num_actions), 1]) #`GO` token
+        allowed_actions = np.hstack([np.ones(self.num_actions), 0])
+
         actions = list()
 
         while True:
@@ -447,9 +449,13 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                     self.local_network.action_inputs:         [
                         [selected_action]*self.local_network.max_decoder_steps
                     ],
+                    self.local_network.allowed_actions:       [
+                        [allowed_actions]*self.local_network.max_decoder_steps
+                    ],
                 }
             )
 
+            allowed_actions[-1] = 1 #allow decoder to select terminal state now
             selected_action = np.random.multinomial(1, action_probs[0, 0]-np.finfo(np.float32).epsneg)
             # print np.argmax(selected_action), action_probs[0, 0, np.argmax(selected_action)]
             actions.append(selected_action)
@@ -562,6 +568,9 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             print 'Sequence lengths:', seq_lengths
             print 'Actions:', [np.argmax(a) for a in a_batch[0]]
 
+            allowed_actions = np.ones((len(s_batch), self.local_network.max_decoder_steps, self.num_actions+1))
+            allowed_actions[:, 0, -1] = 0 #empty sequence is not a valid action
+
 
             feed_dict={
                 self.local_network.input_ph:              s_batch, 
@@ -570,6 +579,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 self.local_network.decoder_initial_state: np.zeros((len(s_batch), 256*2)),
                 self.local_network.action_inputs:         padded_input_sequences,
                 self.local_network.action_outputs:        padded_output_sequences,
+                self.local_network.allowed_actions:       allowed_actions,
                 self.local_network.modify_state:          False,
                 self.local_network.decoder_seq_lengths:   seq_lengths,
             }

@@ -7,8 +7,8 @@ import cv2
 #from skimage.color import rgb2gray
 import sys
 import random
-import logging_utils
-logger = logging_utils.getLogger('emulator')
+import utils.logger
+logger = utils.logger.getLogger('emulator')
 
 import matplotlib.pyplot as plt
 

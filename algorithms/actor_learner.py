@@ -1,14 +1,14 @@
 # -*- encoding: utf-8 -*-
 import numpy as np
-from multiprocessing import Process 
-import logging_utils
+import utils.logger
 import tensorflow as tf
 import ctypes
 import pyximport; pyximport.install()
-from hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam
 import time
-import utils
+import checkpoint_utils
 import tempfile
+from multiprocessing import Process 
+from hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam
 
 
 CHECKPOINT_INTERVAL = 100000
@@ -28,7 +28,7 @@ ONE_LIFE_GAMES = [
     'Tennis-v0',
 ]
  
-logger = logging_utils.getLogger('actor_learner')
+logger = utils.logger.getLogger('actor_learner')
 
 def generate_final_epsilon():
     """ Generate lower limit for decaying epsilon. """
@@ -173,7 +173,7 @@ class ActorLearner(Process):
                             "{}/{}".format(self.summ_base_dir, self.actor_id), self.session.graph) 
 
             # Initialize network parameters
-            g_step = utils.restore_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps)
+            g_step = checkpoint_utils.restore_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps)
             self.global_step.val.value = g_step
             self.last_saving_step = g_step   
             logger.debug("T{}: Initializing shared memory...".format(self.actor_id))
@@ -198,7 +198,7 @@ class ActorLearner(Process):
     def save_vars(self):
         if self.global_step.value()-self.last_saving_step >= CHECKPOINT_INTERVAL:
             self.last_saving_step = self.global_step.value()
-            utils.save_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps, self.last_saving_step) 
+            checkpoint_utils.save_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps, self.last_saving_step) 
     
     def init_shared_memory(self):
         # Initialize shared memory with tensorflow var values
@@ -217,7 +217,7 @@ class ActorLearner(Process):
             self.epsilon -= (self.initial_epsilon - self.final_epsilon) / self.epsilon_annealing_steps
             
     
-    @utils.only_on_train(return_val=0.0)
+    @checkpoint_utils.only_on_train(return_val=0.0)
     def decay_lr(self):
         if self.global_step.value() <= self.lr_annealing_steps:            
             return self.initial_lr - (self.global_step.value() * self.initial_lr / self.lr_annealing_steps)
@@ -225,7 +225,7 @@ class ActorLearner(Process):
             return 0.0
 
 
-    @utils.only_on_train()
+    @checkpoint_utils.only_on_train()
     def apply_gradients_to_shared_memory_vars(self, grads):
             #Flatten grads
             offset = 0

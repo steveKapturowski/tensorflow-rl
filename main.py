@@ -1,18 +1,18 @@
 import random
 import sys
 import os
-import logging_utils
 import time
 import argparse
 import numpy as np
+import utils.logger
 import tensorflow as tf
 
 from multiprocessing import Process, RawArray
-from value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
-from policy_based_actor_learner import A3CLearner, A3CLSTMLearner, ActionSequenceA3CLearner
-from shared_utils import SharedCounter, SharedVars, SharedFlags, Barrier
+from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
+from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner, ActionSequenceA3CLearner
+from algorithms.shared_utils import SharedCounter, SharedVars, SharedFlags, Barrier
 
-logger = logging_utils.getLogger('main')
+logger = utils.logger.getLogger('main')
 
 
 def get_learning_rate(low, high):
@@ -33,7 +33,7 @@ def main(args):
     
     """ Set up the graph, the agents, and run the agents in parallel. """
     if args.env == 'GYM':
-        import atari_environment 
+        from algorithms import atari_environment
         num_actions = atari_environment.get_num_actions(args.game)
     else:
         num_actions = get_num_actions(args.rom_path, args.game)

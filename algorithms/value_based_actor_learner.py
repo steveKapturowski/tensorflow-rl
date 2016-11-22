@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
-from dueling_network import DuelingNetwork
-from q_network import QNetwork
+from networks.dueling_network import DuelingNetwork
+from networks.q_network import QNetwork
 from actor_learner import *
 import time
 import sys
