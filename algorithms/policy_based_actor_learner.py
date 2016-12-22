@@ -27,18 +27,27 @@ class BaseA3CLearner(ActorLearner):
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
 
-    def sample_policy_action(self, probs):
+
+    def gumbel_noise(self, n):
+        return -np.log(-np.log(np.random.random(n)))
+
+
+    def sample_policy_action(self, probs, temperature=0.5):
         """
         Sample an action from an action probability distribution output by
         the policy network.
         """
         # Subtract a tiny value from probabilities in order to avoid
         # "ValueError: sum(pvals[:-1]) > 1.0" in numpy.multinomial
-        probs = probs - np.finfo(np.float32).epsneg
+        # probs = probs - np.finfo(np.float32).epsneg
     
-        histogram = np.random.multinomial(1, probs)
-        action_index = int(np.nonzero(histogram)[0])
-        return action_index
+        # histogram = np.random.multinomial(1, probs)
+        # action_index = int(np.nonzero(histogram)[0])
+        # return action_index
+
+        gumbel_noise = -tf.log(-tf.log(tf.random_uniform((5,))))
+        gumbel_softmax = tf.nn.softmax((tf.log(probs) + gumbel_noise)/temperature)
+        
 
 
     def run(self):
