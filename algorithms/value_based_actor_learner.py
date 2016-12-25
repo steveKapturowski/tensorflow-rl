@@ -18,7 +18,6 @@ class ValueBasedLearner(ActorLearner):
         self.target_vars = args.target_vars
         self.target_update_flags = args.target_update_flags
         self.q_target_update_steps = args.q_target_update_steps
-        self.last_saving_step = 0
 
         self.scores = list()
         

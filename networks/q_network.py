@@ -28,7 +28,6 @@ class QNetwork(Network):
                    
 
             self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
-            print 'Var names:', [var.name for var in self.params]
 
             # Loss
             # Multiply the output of the network by a one hot vector 1 for the 

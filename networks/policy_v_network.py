@@ -75,18 +75,8 @@ class PolicyVNetwork(Network):
             self.wv, self.bv, self.output_layer_v = self._fc(
                 'fc_value4', self.ox, 1, activation='linear')
 
+            self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
 
-            if self.arch == 'NIPS':
-                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, 
-                    self.b3, self.wpi, self.bpi, self.wv, self.bv]
-            else: #NATURE
-                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, 
-                    self.b3, self.w4, self.b4, self.wpi, self.bpi, self.wv, self.bv]
-                
-
-            if self.use_recurrent:
-                self.params += self.lstm_trainable_variables
- 
 
             # Advantage critic
             self.adv_critic = tf.sub(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
@@ -309,14 +299,7 @@ class SequencePolicyVNetwork(Network):
             self.loss = self.actor_objective + self.critic_loss
             
 
-            if self.arch == 'NIPS':
-                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, 
-                    self.b3, self.W_pi, self.b_pi, self.wv, self.bv]
-            else: #NATURE
-                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, 
-                    self.b3, self.w4, self.b4, self.W_pi, self.b_pi, self.wv, self.bv]
-
-            self.params += self.decoder_trainable_variables
+            self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
 
             # Optimizer
             grads = tf.gradients(self.loss, self.params)

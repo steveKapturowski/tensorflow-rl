@@ -16,7 +16,7 @@ class Network(object):
         self.clip_loss_delta = conf['args'].clip_loss_delta
         self.clip_norm = conf['args'].clip_norm
         self.clip_norm_type = conf['args'].clip_norm_type
-        self.use_layer_norm = True #conf['args'].use_layer_norm
+        self.use_layer_norm = conf['args'].use_layer_norm
 
         with tf.name_scope(self.name):
             

@@ -46,6 +46,7 @@ class ActorLearner(Process):
         
         self.local_step = 0
         self.global_step = args.global_step
+        self.last_saving_step = 0
 
         self.actor_id = args.actor_id
         self.alg_type = args.alg_type
