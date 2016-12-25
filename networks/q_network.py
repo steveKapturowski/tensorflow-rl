@@ -14,19 +14,21 @@ class QNetwork(Network):
             self.target_ph = tf.placeholder(
                 "float32", [None], name='target')
     
+            #add self params
+            # tf.trainable_variables
+
             if self.arch == "NIPS":
-                #fc4
                 self.w4, self.b4, self.output_layer = self._fc('fc4', self.o3, self.num_actions, activation="linear")
-            
                 self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3, 
                                            self.w4, self.b4]
             else: #NATURE
-                #fc5
                 self.w5, self.b5, self.output_layer = self._fc('fc5', self.o4, self.num_actions, activation="linear")
-            
                 self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3, 
                                            self.w4, self.b4, self.w5, self.b5]
                    
+
+            self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
+            print 'Var names:', [var.name for var in self.params]
 
             # Loss
             # Multiply the output of the network by a one hot vector 1 for the 
@@ -38,26 +40,12 @@ class QNetwork(Network):
                 
                 diff = tf.sub(self.target_ph, output_selected_action)
             
-                # HUBER LOSS
-                # If we simply take the squared clipped diff as our loss,
-                # then the gradient will be zero whenever the diff exceeds
-                # the clip bounds. To avoid this, we extend the loss
-                # linearly past the clip point to keep the gradient constant
-                # in that regime.
-                # 
-                # This is equivalent to declaring d loss/d q_vals to be
-                # equal to the clipped diff, then backpropagating from
-                # there, which is what the DeepMind implementation does.
+                # DEFINE HUBER LOSS
                 if self.clip_loss_delta > 0:
-                    quadratic_part = tf.minimum(tf.abs(diff), 
-                        tf.constant(self.clip_loss_delta))
-                    linear_part = tf.sub(tf.abs(diff), quadratic_part)
-                    #self.loss = tf.reduce_mean(0.5 * tf.square(quadratic_part) + 
-                    #    self.clip_loss_delta * linear_part)
-                    self.loss = tf.add(tf.nn.l2_loss(quadratic_part),
-                                              tf.mul(tf.constant(self.clip_loss_delta), linear_part))
+                    quadratic_term = tf.minimum(tf.abs(diff), self.clip_loss_delta)
+                    linear_term = tf.abs(diff) - quadratic_term
+                    self.loss = tf.nn.l2_loss(quadratic_term) + self.clip_loss_delta*linear_term
                 else:
-                    #self.loss = tf.reduce_mean(0.5 * tf.square(diff))
                     self.loss = tf.nn.l2_loss(diff)
                       
                 # Operations to compute gradients

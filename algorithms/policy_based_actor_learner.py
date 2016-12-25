@@ -39,15 +39,11 @@ class BaseA3CLearner(ActorLearner):
         """
         # Subtract a tiny value from probabilities in order to avoid
         # "ValueError: sum(pvals[:-1]) > 1.0" in numpy.multinomial
-        # probs = probs - np.finfo(np.float32).epsneg
+        probs = probs - np.finfo(np.float32).epsneg
     
-        # histogram = np.random.multinomial(1, probs)
-        # action_index = int(np.nonzero(histogram)[0])
-        # return action_index
-
-        gumbel_noise = -tf.log(-tf.log(tf.random_uniform((5,))))
-        gumbel_softmax = tf.nn.softmax((tf.log(probs) + gumbel_noise)/temperature)
-        
+        histogram = np.random.multinomial(1, probs)
+        action_index = int(np.nonzero(histogram)[0])
+        return action_index
 
 
     def run(self):

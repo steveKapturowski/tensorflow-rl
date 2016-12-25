@@ -1,6 +1,7 @@
 from multiprocessing import RawValue, RawArray, Semaphore, Lock
 import ctypes
 import numpy as np
+import tensorflow as tf
 
 
 class SharedCounter(object):
@@ -38,115 +39,12 @@ class Barrier:
 
 #Holy shit, this needs to be refactored
 class SharedVars(object):
-    def __init__(self, num_actions, alg_type, arch='NIPS', opt_type=None, lr=0):
-        if alg_type in ['q', 'sarsa']:
-            if arch == 'NIPS':
-                self.var_shapes = [
-                    (8, 8, 4, 16), 
-                    (16), 
-                    (4, 4, 16, 32), 
-                    (32), 
-                    (2592, 256),
-                    (256), 
-                    (256, num_actions), 
-                    (num_actions),
-                ]
-            else:
-                self.var_shapes = [
-                    (8, 8, 4, 32),
-                    (32),
-                    (4, 4, 32, 64),
-                    (64),
-                    (3, 3, 64, 64),
-                    (64),
-                    (3136, 512),
-                    (512),
-                    (512, num_actions),
-                    (num_actions),
-                ]
+    def __init__(self, num_actions, alg_type, network, arch='NIPS', opt_type=None, lr=0):
+        self.var_shapes = [
+            var.get_shape().as_list()
+            for var in tf.global_variables()
+        ]
 
-        elif alg_type == 'dueling':
-            if arch == 'NIPS':
-                self.var_shapes = [
-                    (8, 8, 4, 16), 
-                    (16), 
-                    (4, 4, 16, 32), 
-                    (32), 
-                    (2592, 256),
-                    (256), 
-                    (256, 1), 
-                    (1),
-                    (256, num_actions),
-                    (num_actions),
-                ]
-            else:
-                self.var_shapes = [
-                    (8, 8, 4, 32),
-                    (32),
-                    (4, 4, 32, 64),
-                    (64),
-                    (3, 3, 64, 64),
-                    (64),
-                    (3136, 512),
-                    (512),
-                    (512, 1),
-                    (1),
-                    (512, num_actions),
-                    (num_actions),
-                ]
-
-        elif alg_type == 'a3c-sequence-decoder':
-            self.var_shapes = [
-                (8, 8, 4, 16),
-                (16),
-                (4, 4, 16, 32),
-                (32),
-                (2592, 256),
-                (256),
-                (256, num_actions+1),
-                (num_actions+1),
-                (256, 1),
-                (1),
-                (257+num_actions, 1024),
-                (1024)
-            ]
-
-        else:
-            # no lstm
-            if arch == 'NIPS':
-                self.var_shapes = [
-                    (8, 8, 4, 16), 
-                    (16), 
-                    (4, 4, 16, 32), 
-                    (32), 
-                    (2592, 256),
-                    (256), 
-                    (256, num_actions), 
-                    (num_actions),
-                    (256, 1),
-                    (1),
-                ]
-
-            else:
-                self.var_shapes = [
-                    (8, 8, 4, 32), 
-                    (32), 
-                    (4, 4, 32, 64), 
-                    (64),
-                    (3, 3, 64, 64),
-                    (64),
-                    (3136, 512), 
-                    (512),
-                    (512, num_actions), 
-                    (num_actions),
-                    (512, 1),
-                    (1),
-                ]
-
-            if alg_type == 'a3c-lstm':
-                self.var_shapes += [(512, 1024), (1024)]
-
-            
         self.size = 0
         for shape in self.var_shapes:
             self.size += np.prod(shape)

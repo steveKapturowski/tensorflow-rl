@@ -16,13 +16,14 @@ class Network(object):
         self.clip_loss_delta = conf['args'].clip_loss_delta
         self.clip_norm = conf['args'].clip_norm
         self.clip_norm_type = conf['args'].clip_norm_type
+        self.use_layer_norm = True #conf['args'].use_layer_norm
 
         with tf.name_scope(self.name):
             
             self.input_ph = tf.placeholder(
-                'float32',[None,84,84,4], name = 'input')
+                'float32',[None,84,84,4], name='input')
             self.selected_action_ph = tf.placeholder(
-                'float32', [None, self.num_actions], name = 'selected_action')
+                'float32', [None, self.num_actions], name='selected_action')
 
             if self.optimizer_type == 'adam':
                 init= 'glorot_uniform'
@@ -50,31 +51,36 @@ class Network(object):
     
                 #fc4
                 self.w4, self.b4, self.o4 = self._fc('fc4', self._flatten(self.o3), 512, activation='relu', init=init)
-                
 
-    
-    
     
     def _flatten(self, _input):
         shape = _input.get_shape().as_list() 
         dim = shape[1]*shape[2]*shape[3] 
-        return tf.reshape(_input, [-1,dim], name='_flattened')
+        return tf.reshape(_input, [-1, dim], name='_flattened')
             
-    def _conv2d(self, name, _input, filters, size, channels, stride, padding='VALID', init="torch"):
+    def _conv2d(self, name, _input, filters, size, channels, stride, padding='VALID', init='torch'):
         w = self._conv_weight_variable([size,size,channels,filters], 
-                                                 name + '_weights', init = init)
+                                                 name+'_weights', init=init)
         b = self._conv_bias_variable([filters], size, size, channels,
-                                               name + '_biases', init = init)
+                                               name+'_biases', init=init)
         conv = tf.nn.conv2d(_input, w, strides=[1, stride, stride, 1], 
-                padding=padding, name=name + '_convs')
-        out = tf.nn.relu(tf.add(conv, b), 
-                name='' + name + '_activations')
+                padding=padding, name=name+'_convs')
+        
+
+        if self.use_layer_norm:
+            conv = tf.contrib.layers.layer_norm(conv, center=False, scope=self.name+'/'+name) + b
+            # conv = layer_norm(conv, b, name)
+        else:
+            conv += b
+
+        out = tf.nn.relu(conv, 
+                name=name+'_activations')
         
         return w, b, out
 
 
-    def _conv_weight_variable(self, shape, name, init = "torch"):
-        if init == "glorot_uniform":
+    def _conv_weight_variable(self, shape, name, init='torch'):
+        if init == 'glorot_uniform':
             receptive_field_size = np.prod(shape[:2])
             fan_in = shape[-2] * receptive_field_size
             fan_out = shape[-1] * receptive_field_size
@@ -90,29 +96,34 @@ class Network(object):
 
 
 
-    def _conv_bias_variable(self, shape, w, h, input_channels, name, init="torch"):
-        if init=="glorot_uniform":
+    def _conv_bias_variable(self, shape, w, h, input_channels, name, init='torch'):
+        if init=='glorot_uniform':
             initial = tf.zeros(shape)
         else:
             d = 1.0 / np.sqrt(input_channels * w * h)
             initial = tf.random_uniform(shape, minval=-d, maxval=d)
         return tf.Variable(initial, name=name, dtype='float32')
 
-    def _fc(self, name, _input, output_dim, activation="relu", init="torch"):
+    def _fc(self, name, _input, output_dim, activation='relu', init='torch'):
         input_dim = _input.get_shape().as_list()[1]
         w = self._fc_weight_variable([input_dim, output_dim], 
-                                               name + '_weights', init=init)
+                                               name+'_weights', init=init)
         b = self._fc_bias_variable([output_dim], input_dim,
-                                               '' + name + '_biases', init=init)
-        out = tf.add(tf.matmul(_input, w), b, name= name + '_out')
-        
-        if activation == "relu":
-            out = tf.nn.relu(out, name='' + name + '_relu')
+                                               name+'_biases', init=init)
+        out = tf.matmul(_input, w)
+        if self.use_layer_norm:
+            out = tf.contrib.layers.layer_norm(out, center=False, scope=self.name+'/'+name) + b
+            # out = layer_norm(out, b, name)
+        else:
+            out += b
+
+        if activation == 'relu':
+            out = tf.nn.relu(out, name=name+'_relu')
 
         return w, b, out
     
-    def _fc_weight_variable(self, shape, name, init = "torch"):
-        if init == "glorot_uniform":
+    def _fc_weight_variable(self, shape, name, init='torch'):
+        if init == 'glorot_uniform':
             fan_in = shape[0]
             fan_out = shape[1]
             d = np.sqrt(6. / (fan_in + fan_out))            
@@ -132,21 +143,46 @@ class Network(object):
     
     def _softmax(self, name, _input, output_dim):
         input_dim = _input.get_shape().as_list()[1]
-        w = self._fc_weight_variable([input_dim, output_dim], name + '_weights')
-        b = self._fc_bias_variable([output_dim], input_dim, name + '_biases')
-        out = tf.nn.softmax(tf.add(tf.matmul(_input, w), b), name= name + '_policy')
+        w = self._fc_weight_variable([input_dim, output_dim], name+'_weights')
+        b = self._fc_bias_variable([output_dim], input_dim, name+'_biases')
+        out = tf.nn.softmax(tf.add(tf.matmul(_input, w), b), name=name+'_policy')
  
         return w, b, out
     
     def _softmax_and_log_softmax(self, name, _input, output_dim):
         input_dim = _input.get_shape().as_list()[1]
-        w = self._fc_weight_variable([input_dim, output_dim], name + '_weights')
-        b = self._fc_bias_variable([output_dim], input_dim, name + '_biases')
+        w = self._fc_weight_variable([input_dim, output_dim], name+'_weights')
+        b = self._fc_bias_variable([output_dim], input_dim, name+'_biases')
         xformed = tf.matmul(_input, w) + b
-        out = tf.nn.softmax(xformed, name= name + '_policy')
-        log_out = tf.nn.log_softmax(xformed, name= name + '_log_policy')
+        out = tf.nn.softmax(xformed, name=name+'_policy')
+        log_out = tf.nn.log_softmax(xformed, name=name+'_log_policy')
  
         return w, b, out, log_out
+
+
+from tensorflow.contrib.layers.python.layers import utils
+from tensorflow.contrib.framework.python.ops import variables
+from tensorflow.python.ops import init_ops, nn, variable_scope
+
+def layer_norm(inputs, bias, name):
+    inputs_shape = inputs.get_shape()
+    inputs_rank = inputs_shape.ndims
+
+    axis = list(range(1, inputs_rank))
+    params_shape = inputs_shape[-1:]
+
+    gain = tf.Variable(np.ones(params_shape), name=name+'_gamma', dtype='float32')
+
+    # Calculate the moments on the last axis (layer activations).
+    mean, variance = nn.moments(inputs, axis, keep_dims=True)
+
+    # Compute layer normalization using the batch_normalization function.
+    epsilon = 1e-12
+    output = nn.batch_normalization(
+        inputs, mean, variance, bias, gain, epsilon)
+
+    return output
+
  
   
         

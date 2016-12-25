@@ -8,6 +8,9 @@ import utils.logger
 import tensorflow as tf
 
 from multiprocessing import Process, RawArray
+from networks.q_network import QNetwork
+from networks.dueling_network import DuelingNetwork
+from networks.policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
 from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
 from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner, ActionSequenceA3CLearner
 from algorithms.shared_utils import SharedCounter, SharedVars, SharedFlags, Barrier
@@ -41,26 +44,32 @@ def main(args):
     args.summ_base_dir = '/tmp/summary_logs/{}/{}'.format(args.game, time.time())
 
     algorithms = {
-        'q': NStepQLearner,
-        'sarsa': OneStepSARSALearner,
-        'dueling': DuelingLearner,
-        'a3c': A3CLearner,
-        'a3c-lstm': A3CLSTMLearner,
-        'a3c-sequence-decoder': ActionSequenceA3CLearner,
+        'q': (NStepQLearner, QNetwork),
+        'sarsa': (OneStepSARSALearner, QNetwork),
+        'dueling': (DuelingLearner, DuelingNetwork),
+        'a3c': (A3CLearner, PolicyVNetwork),
+        'a3c-lstm': (A3CLSTMLearner, PolicyVNetwork),
+        'a3c-sequence-decoder': (ActionSequenceA3CLearner, SequencePolicyVNetwork),
     }
 
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)
-    Learner = algorithms[args.alg_type]
+    Learner, Network = algorithms[args.alg_type]
 
     T = SharedCounter(0)
-    args.learning_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
+    network = Network({
+        'name': 'shared_vars_network',
+        'num_act': num_actions,
+        'args': args
+    })
+
+    args.learning_vars = SharedVars(num_actions, args.alg_type, network, arch=args.arch)
     
     args.opt_state = SharedVars(
-        num_actions, args.alg_type, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr
+        num_actions, args.alg_type, network, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
 
     if args.alg_type in ['q', 'sarsa', 'dueling']:
-        args.target_vars = SharedVars(num_actions, args.alg_type, arch=args.arch)
+        args.target_vars = SharedVars(num_actions, args.alg_type, network, arch=args.arch)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
     
     args.barrier = Barrier(args.num_actor_learners)
