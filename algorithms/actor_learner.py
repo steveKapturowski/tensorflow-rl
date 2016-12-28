@@ -65,10 +65,10 @@ class ActorLearner(Process):
         self.flat_grads = np.empty(size, dtype = ctypes.c_float)
             
         if (self.optimizer_mode == "local"):
-                if (self.optimizer_type == "rmsprop"):
-                    self.opt_st = np.ones(size, dtype = ctypes.c_float)
-                else:
-                    self.opt_st = np.zeros(size, dtype = ctypes.c_float)
+            if (self.optimizer_type == "rmsprop"):
+                self.opt_st = np.ones(size, dtype = ctypes.c_float)
+            else:
+                self.opt_st = np.zeros(size, dtype = ctypes.c_float)
         elif (self.optimizer_mode == "shared"):
                 self.opt_st = args.opt_state
 
@@ -186,7 +186,7 @@ class ActorLearner(Process):
         if self.actor_id > 0:
             logger.debug("T{}: Syncing with shared memory...".format(self.actor_id))
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)  
-            if self.alg_type not in ['a3c', 'a3c-lstm', 'a3c-sequence-decoder']:
+            if hasattr(self, 'target_vars'):
                 self.sync_net_with_shared_memory(self.target_network, self.target_vars)
 
         # Wait until all actors are ready to start 
@@ -208,7 +208,7 @@ class ActorLearner(Process):
         # Merge all param matrices into a single 1-D array
         params = np.hstack([p.reshape(-1) for p in params])
         np.frombuffer(self.learning_vars.vars, ctypes.c_float)[:] = params
-        if self.alg_type not in ['a3c', 'a3c-lstm', 'a3c-sequence-decoder']:
+        if hasattr(self, 'target_vars'):
             np.frombuffer(self.target_vars.vars, ctypes.c_float)[:] = params
         #memoryview(self.learning_vars.vars)[:] = params
         #memoryview(self.target_vars.vars)[:] = memoryview(self.learning_vars.vars)
@@ -226,9 +226,12 @@ class ActorLearner(Process):
         else:
             return 0.0
 
+    def apply_gradients_to_shared_memory_vars(self, grads):
+        self._apply_gradients_to_shared_memory_vars(grads, self.opt_st)
+
 
     @checkpoint_utils.only_on_train()
-    def apply_gradients_to_shared_memory_vars(self, grads):
+    def _apply_gradients_to_shared_memory_vars(self, grads, opt_st):
             #Flatten grads
             offset = 0
             for g in grads:
@@ -239,19 +242,19 @@ class ActorLearner(Process):
             if self.optimizer_type == "adam" and self.optimizer_mode == "shared":
                 p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
                 p_size = self.learning_vars.size
-                m = np.frombuffer(self.opt_st.ms, ctypes.c_float)
-                v = np.frombuffer(self.opt_st.vs, ctypes.c_float)
+                m = np.frombuffer(opt_st.ms, ctypes.c_float)
+                v = np.frombuffer(opt_st.vs, ctypes.c_float)
                 T = self.global_step.value() 
-                self.opt_st.lr.value =  1.0 * self.opt_st.lr.value * (1 - self.b2**T)**0.5 / (1 - self.b1**T) 
+                opt_st.lr.value =  1.0 * opt_st.lr.value * (1 - self.b2**T)**0.5 / (1 - self.b1**T) 
                 
-                apply_grads_adam(m, v, g, p, p_size, self.opt_st.lr.value, self.b1, self.b2, self.e)
+                apply_grads_adam(m, v, g, p, p_size, opt_st.lr.value, self.b1, self.b2, self.e)
                     
             else: #local or shared rmsprop/momentum
                 lr = self.decay_lr()
                 if (self.optimizer_mode == "local"):
-                    m = self.opt_st
+                    m = opt_st
                 else: #shared 
-                    m = np.frombuffer(self.opt_st.vars, ctypes.c_float)
+                    m = np.frombuffer(opt_st.vars, ctypes.c_float)
                 
                 p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
                 p_size = self.learning_vars.size
@@ -295,7 +298,7 @@ class ActorLearner(Process):
     def setup_summaries(self):
         episode_reward = tf.Variable(0.)
         s1 = tf.scalar_summary("Episode Reward " + str(self.actor_id), episode_reward)
-        if self.alg_type in ['a3c', 'a3c-lstm', 'a3c-sequence-decoder']:
+        if not hasattr(self, 'target_vars'):
             summary_vars = [episode_reward]
         else:
             episode_ave_max_q = tf.Variable(0.)

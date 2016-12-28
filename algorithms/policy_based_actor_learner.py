@@ -1,10 +1,14 @@
 # -*- encoding: utf-8 -*-
 import time
 import numpy as np
+import utils.logger
 import checkpoint_utils
-from actor_learner import *
+import tensorflow as tf
+from actor_learner import ActorLearner
 from networks.policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
 
+
+logger = utils.logger.getLogger('policy_based_actor_learner')
 
 class BaseA3CLearner(ActorLearner):
     def __init__(self, args):

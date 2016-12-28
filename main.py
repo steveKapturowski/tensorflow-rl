@@ -14,6 +14,7 @@ from networks.policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
 from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
 from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner, ActionSequenceA3CLearner
 from algorithms.shared_utils import SharedCounter, SharedVars, SharedFlags, Barrier
+from algorithms.pgq import PGQLearner
 
 logger = utils.logger.getLogger('main')
 
@@ -50,6 +51,7 @@ def main(args):
         'a3c': (A3CLearner, PolicyVNetwork),
         'a3c-lstm': (A3CLSTMLearner, PolicyVNetwork),
         'a3c-sequence-decoder': (ActionSequenceA3CLearner, SequencePolicyVNetwork),
+        'pgq': (PGQLearner, PolicyVNetwork),
     }
 
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)
@@ -65,6 +67,10 @@ def main(args):
     args.learning_vars = SharedVars(num_actions, args.alg_type, network, arch=args.arch)
     
     args.opt_state = SharedVars(
+        num_actions, args.alg_type, network, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr
+    ) if args.opt_mode == 'shared' else None
+
+    args.batch_opt_state = SharedVars(
         num_actions, args.alg_type, network, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
 
@@ -116,6 +122,8 @@ if __name__ == '__main__':
     parser.add_argument('-lra', '--lr_annealing_steps', default=640000000, type=int, help='Nr. of global steps during which the learning rate will be linearly annealed towards zero', dest='lr_annealing_steps')
     parser.add_argument('--clip_loss', default=0.0, type=float, help='If bigger than 0.0, the loss will be clipped at +/-clip_loss', dest='clip_loss_delta')
     parser.add_argument('--entropy', default=0.01, type=float, help='Strength of the entropy regularization term (needed for actor-critic)', dest='entropy_regularisation_strength')
+    parser.add_argument('--eta_pgq', default=0.5, type=float, help='Weight governing trade-off between policy gradient and q-learning updates. Eta=1.0 will result in pure batch Q-learning updates', dest='eta_pgq')
+    parser.add_argument('--replay_size', default=100000, type=int, help='Maximum capacity of replay memory', dest='replay_size')
     parser.add_argument('--clip_norm', default=40, type=float, help='If clip_norm_type is local/global, grads will be clipped at the specified maximum (avaerage) L2-norm', dest='clip_norm')
     parser.add_argument('--clip_norm_type', default='global', help='Whether to clip grads by their norm or not. Values: ignore (no clipping), local (layer-wise norm), global (global norm)', dest='clip_norm_type')
     parser.add_argument('--alg_type', default="a3c", help='Type of algorithm: q (for Q-learning), sarsa, a3c (for actor-critic)', dest='alg_type') 
