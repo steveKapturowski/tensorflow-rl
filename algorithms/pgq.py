@@ -169,8 +169,9 @@ class PGQLearner(BaseA3CLearner):
                                 self.local_network.get_gradients,
                                 feed_dict=feed_dict)
 
-            self.apply_gradients_to_shared_memory_vars(grads) 
-            self.apply_batch_q_update()
+            self.apply_gradients_to_shared_memory_vars(grads)
+            if self.local_step > 1000:
+                self.apply_batch_q_update()
             
             s_batch = []
             a_batch = []
