@@ -2,6 +2,7 @@ import time
 import numpy as np
 import utils.logger
 import tensorflow as tf
+from actor_learner import ONE_LIFE_GAMES
 from utils.replay_memory import ReplayMemory
 from policy_based_actor_learner import BaseA3CLearner
 
@@ -16,21 +17,25 @@ class PGQLearner(BaseA3CLearner):
         self.replay_memory = ReplayMemory(args.replay_size)
         self.q_estimate = self.local_network.beta * (
             self.local_network.log_output_layer_pi
-            + self.local_network.output_layer_entropy
+            + tf.expand_dims(self.local_network.output_layer_entropy, 1)
         ) + self.local_network.output_layer_v
 
-        Q, TQ = tf.split(0, 2, self.q_estimate)
-        V, _ = tf.split(0, 2, self.local_network.output_layer_v)
-        Q_a = tf.reduce_sum(Q * self.local_network.selected_action_ph)
-        self.q_objective = 0.5 * tf.stop_gradient(tf.reduce_max(TQ, 1) - Q_a) * V
+        self.Q, self.TQ = tf.split(0, 2, self.q_estimate)
+        self.V, _ = tf.split(0, 2, self.local_network.output_layer_v)
+        self.R = tf.placeholder('float32', [None], name='1-step_reward')
 
-        self.q_gradients = tf.gradients(self.q_objective, self.local_network.params)
+        self.Q_a = tf.reduce_sum(self.Q * self.local_network.selected_action_ph, 1)
+        self.delta_Q = self.gamma*tf.reduce_max(self.TQ, 1) - self.Q_a
+        self.q_objective = -0.5 * tf.stop_gradient(self.R + self.delta_Q) * self.V
+
+        self.V_params = [var for var in self.local_network.params if 'policy' not in var.name]
+        self.q_gradients = tf.gradients(self.q_objective, self.V_params)
 
         if (self.optimizer_mode == "local"):
             if (self.optimizer_type == "rmsprop"):
-                self.batch_opt_st = np.ones(size, dtype = ctypes.c_float)
+                self.batch_opt_st = np.ones(size, dtype=ctypes.c_float)
             else:
-                self.batch_opt_st = np.zeros(size, dtype = ctypes.c_float)
+                self.batch_opt_st = np.zeros(size, dtype=ctypes.c_float)
         elif (self.optimizer_mode == "shared"):
                 self.batch_opt_st = args.opt_state
 
@@ -41,7 +46,9 @@ class PGQLearner(BaseA3CLearner):
         batch_grads = self.session.run(
             self.q_gradients,
             feed_dict={
-                self.local_network.input_ph: np.hstack([s_i, s_f])
+                self.R: r_i,
+                self.local_network.selected_action_ph: a_i,
+                self.local_network.input_ph: np.vstack([s_i, s_f]),
             }
         )
         self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
@@ -163,7 +170,7 @@ class PGQLearner(BaseA3CLearner):
                                 feed_dict=feed_dict)
 
             self.apply_gradients_to_shared_memory_vars(grads) 
-            # self.apply_batch_q_update()
+            self.apply_batch_q_update()
             
             s_batch = []
             a_batch = []
