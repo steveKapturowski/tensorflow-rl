@@ -26,7 +26,7 @@ class PGQLearner(BaseA3CLearner):
 
         self.Q_a = tf.reduce_sum(self.Q * self.local_network.selected_action_ph, 1)
         self.delta_Q = self.gamma*tf.reduce_max(self.TQ, 1) - self.Q_a
-        self.q_objective = -0.5 * tf.stop_gradient(-self.R + self.delta_Q) * self.V
+        self.q_objective = -0.5 * tf.stop_gradient(self.R + self.delta_Q) * self.V
 
         self.V_params = [var for var in self.local_network.params if 'policy' not in var.name]
         self.q_gradients = tf.gradients(self.q_objective, self.V_params)
