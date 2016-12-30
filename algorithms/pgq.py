@@ -14,6 +14,7 @@ class PGQLearner(BaseA3CLearner):
 
         super(PGQLearner, self).__init__(args)
 
+        self.batch_size = 32
         self.replay_memory = ReplayMemory(args.replay_size)
         self.q_estimate = self.local_network.beta * (
             self.local_network.log_output_layer_pi
@@ -27,7 +28,7 @@ class PGQLearner(BaseA3CLearner):
         self.terminal_indicator = tf.placeholder(tf.float32, [None], name='terminal_indicator')
         self.max_TQ = tf.reduce_max(self.TQ, 1) * (1 - self.terminal_indicator)
         self.Q_a = tf.reduce_sum(self.Q * self.local_network.selected_action_ph, 1)
-        self.q_objective = 0.5 * tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * self.V
+        self.q_objective = -0.5 * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * self.V)
 
         self.V_params = [var for var in self.local_network.params if 'policy' not in var.name]
         self.q_gradients = tf.gradients(self.q_objective, self.V_params)
@@ -42,9 +43,8 @@ class PGQLearner(BaseA3CLearner):
 
 
     def apply_batch_q_update(self):
-        s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(32)
+        s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-        print is_terminal.astype(np.int)
         batch_grads = self.session.run(
             self.q_gradients,
             feed_dict={
@@ -54,7 +54,7 @@ class PGQLearner(BaseA3CLearner):
                 self.terminal_indicator: is_terminal.astype(np.int),
             }
         )
-        # self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
+        self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
 
 
     def choose_next_action(self, state):

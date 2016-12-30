@@ -58,11 +58,6 @@ class PolicyVNetwork(Network):
             self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = self._softmax_and_log_softmax(
                 layer_name, self.ox, self.num_actions)
             
-            # Avoiding log(0) by adding a very small quantity (1e-30) to output.
-            # self.log_output_layer_pi = tf.log(
-            #     tf.maximum(self.output_layer_pi, tf.constant(1e-30)),
-            #     name=layer_name+'_log_policy')
-
             # Entropy: sum_a (-p_a ln p_a)
             self.output_layer_entropy = tf.reduce_sum(
                 - 1.0 * tf.mul(
@@ -93,7 +88,7 @@ class PolicyVNetwork(Network):
                 log_output_selected_action, self.adv_actor_ph
             )
             actor_objective_entropy_term = self.beta * self.output_layer_entropy
-            self.actor_objective = -tf.reduce_sum(
+            self.actor_objective = -tf.reduce_mean(
                 actor_objective_advantage_term
                 + actor_objective_entropy_term
             )
