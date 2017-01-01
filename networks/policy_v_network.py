@@ -88,7 +88,7 @@ class PolicyVNetwork(Network):
                 self.log_output_selected_action, self.adv_actor_ph
             )
             actor_objective_entropy_term = self.beta * self.output_layer_entropy
-            self.actor_objective = -tf.reduce_sum(
+            self.actor_objective = -tf.reduce_mean(
                 actor_objective_advantage_term
                 + actor_objective_entropy_term
             )
@@ -105,7 +105,7 @@ class PolicyVNetwork(Network):
             else:
                 #OBS! For the standard L2 loss, we should multiply by 0.5. However, the authors of the paper
                 # recommend multiplying the gradients of the V function by 0.5. Thus the 0.5 
-                self.critic_loss = tf.mul(tf.constant(0.5), tf.nn.l2_loss(self.adv_critic))               
+                self.critic_loss = tf.mul(tf.constant(0.5), tf.reduce_mean(tf.pow(self.adv_critic, 2)))           
             
             self.loss = self.actor_objective + self.critic_loss
             
