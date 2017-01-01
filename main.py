@@ -11,9 +11,10 @@ from multiprocessing import Process, RawArray
 from networks.q_network import QNetwork
 from networks.dueling_network import DuelingNetwork
 from networks.policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
-from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
-from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner, ActionSequenceA3CLearner
 from algorithms.shared_utils import SharedCounter, SharedVars, SharedFlags, Barrier
+from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
+from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner
+from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
 from algorithms.pgq import PGQLearner
 
 logger = utils.logger.getLogger('main')

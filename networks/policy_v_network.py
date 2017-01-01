@@ -80,12 +80,12 @@ class PolicyVNetwork(Network):
             # Multiply the output of the network by a one hot vector, 1 for the 
             # executed action. This will make the non-regularised objective 
             # term for non-selected actions to be zero.
-            log_output_selected_action = tf.reduce_sum(
-                tf.mul(self.log_output_layer_pi, self.selected_action_ph), 
+            self.log_output_selected_action = tf.reduce_sum(
+                self.log_output_layer_pi*self.selected_action_ph, 
                 reduction_indices=1
             )
             actor_objective_advantage_term = tf.mul(
-                log_output_selected_action, self.adv_actor_ph
+                self.log_output_selected_action, self.adv_actor_ph
             )
             actor_objective_entropy_term = self.beta * self.output_layer_entropy
             self.actor_objective = -tf.reduce_mean(

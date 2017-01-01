@@ -23,14 +23,16 @@ class PGQLearner(BaseA3CLearner):
 
         self.Q, self.TQ = tf.split(0, 2, self.q_estimate)
         self.V, _ = tf.split(0, 2, self.local_network.output_layer_v)
+        self.pi, _ = tf.split(0, 2, tf.expand_dims(self.local_network.log_output_selected_action, 1))
         self.R = tf.placeholder('float32', [None], name='1-step_reward')
 
         self.terminal_indicator = tf.placeholder(tf.float32, [None], name='terminal_indicator')
-        self.max_TQ = tf.reduce_max(self.TQ, 1) * (1 - self.terminal_indicator)
-        self.Q_a = tf.reduce_sum(self.Q * self.local_network.selected_action_ph, 1)
-        self.q_objective = -0.5 * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * self.V)
+        self.max_TQ = self.gamma*tf.reduce_max(self.TQ, 1) * (1 - self.terminal_indicator)
+        self.Q_a = tf.reduce_sum(self.Q * tf.split(0, 2, self.local_network.selected_action_ph)[0], 1)
+        self.q_objective = -0.5 * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V + self.pi))
 
-        self.V_params = [var for var in self.local_network.params if 'policy' not in var.name]
+
+        self.V_params = self.local_network.params #[var for var in self.local_network.params if 'policy' not in var.name]
         self.q_gradients = tf.gradients(self.q_objective, self.V_params)
 
         if (self.optimizer_mode == "local"):
@@ -49,7 +51,7 @@ class PGQLearner(BaseA3CLearner):
             self.q_gradients,
             feed_dict={
                 self.R: r_i,
-                self.local_network.selected_action_ph: a_i,
+                self.local_network.selected_action_ph: np.vstack([a_i, a_i]),
                 self.local_network.input_ph: np.vstack([s_i, s_f]),
                 self.terminal_indicator: is_terminal.astype(np.int),
             }

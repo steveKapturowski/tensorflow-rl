@@ -21,18 +21,6 @@ class DuelingNetwork(Network):
             self.w_adv, self.b_adv, self.advantage = self._fc(
                 'fc6', o_conv, self.num_actions, activation='linear')
             
-            # self.params = [
-            #     self.w1, self.b1,
-            #     self.w2, self.b2,
-            #     self.w3, self.b3,
-            # ]
-            # if self.arch == 'NATURE':
-            #     self.params += [self.w4, self.b4]
-
-            # self.params += [
-            #     self.w_value, self.b_value,
-            #     self.w_adv, self.b_adv,
-            # ]
             self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
             
             self.output_layer = (
