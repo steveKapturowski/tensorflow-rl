@@ -88,7 +88,7 @@ class PolicyVNetwork(Network):
                 self.log_output_selected_action, self.adv_actor_ph
             )
             actor_objective_entropy_term = self.beta * self.output_layer_entropy
-            self.actor_objective = -tf.reduce_mean(
+            self.actor_objective = -tf.reduce_sum(
                 actor_objective_advantage_term
                 + actor_objective_entropy_term
             )

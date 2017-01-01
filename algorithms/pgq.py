@@ -180,7 +180,7 @@ class PGQLearner(BaseA3CLearner):
             
             s_batch = []
             a_batch = []
-            y_batch = []          
+            y_batch = []
             adv_batch = []
             
             # prevent the agent from getting stuck
