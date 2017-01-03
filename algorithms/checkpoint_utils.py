@@ -49,19 +49,3 @@ def check_or_create_checkpoint_dir(checkpoint_dir):
         except OSError:
             pass
 
-# def save_shared_mem_vars(shared_mem_vars, game_name, alg_type, 
-#     max_local_steps):
-#     checkpoint_dir = 'checkpoints/' + game_name + '/' + \
-#         {'0': 'Q/', '1': 'sarsa/', '2': 'a3c/'}[str(alg_type)] + \
-#         str(max_local_steps) + '_step' + '/'
-# 
-#     check_or_create_checkpoint_dir(checkpoint_dir)
-#     while True:
-#         g_step = shared_mem_vars['global_step'].val.value
-#         if g_step % 1000000 == 0:
-#             path = checkpoint_dir + 'vars-opt-' + str(g_step)
-#             np.save(path + '-learning', np.frombuffer(shared_mem_vars['learning_vars.vars'], ctypes.c_float))
-#             np.save(path + '-target', np.frombuffer(shared_mem_vars['target_vars.vars'], ctypes.c_float)) 
-#             for i in xrange(len(shared_mem_vars['opt_state.vars'])):
-#                 np.save(path + '-opt' + str(i), 
-#                         np.frombuffer(shared_mem_vars['opt_state'].vars[i], ctypes.c_float))

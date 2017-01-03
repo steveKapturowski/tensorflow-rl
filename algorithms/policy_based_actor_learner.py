@@ -107,6 +107,7 @@ class A3CLearner(BaseA3CLearner):
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+            self.save_vars()
 
             local_step_start = self.local_step 
             
@@ -272,9 +273,6 @@ class A3CLSTMLearner(BaseA3CLearner):
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-
-            # Sync target learning net with shared mem
-            # if self.local_step % self.q_target_update_steps == 0: # try to stabilize training
             self.save_vars()
 
             local_step_start = self.local_step
