@@ -95,26 +95,23 @@ class PolicyVNetwork(Network):
             
             # Critic loss
             if self.clip_loss_delta > 0:
-                quadratic_part = tf.minimum(tf.abs(self.adv_critic), 
-                    tf.constant(self.clip_loss_delta))
+                quadratic_part = tf.reduce_mean(tf.pow(
+                    tf.minimum(
+                        tf.abs(self.adv_critic), self.clip_loss_delta
+                    ), 2))
                 linear_part = tf.sub(tf.abs(self.adv_critic), quadratic_part)
                 #OBS! For the standard L2 loss, we should multiply by 0.5. However, the authors of the paper
                 # recommend multiplying the gradients of the V function by 0.5. Thus the 0.5 
                 self.critic_loss = tf.mul(tf.constant(0.5), tf.nn.l2_loss(quadratic_part) + \
                     self.clip_loss_delta * linear_part)
             else:
-                #OBS! For the standard L2 loss, we should multiply by 0.5. However, the authors of the paper
-                # recommend multiplying the gradients of the V function by 0.5. Thus the 0.5 
-                self.critic_loss = tf.mul(tf.constant(0.5), tf.reduce_mean(tf.pow(self.adv_critic, 2)))           
+                self.critic_loss = 0.5 * tf.reduce_mean(tf.pow(self.adv_critic, 2))          
             
             self.loss = self.actor_objective + self.critic_loss
             
             # Optimizer
             grads = tf.gradients(self.loss, self.params)
 
-            # This is not really an operation, but a list of gradient Tensors. 
-            # When calling run() on it, the value of those Tensors 
-            # (i.e., of the gradients) will be calculated
             if self.clip_norm_type == 'ignore':
                 # Unclipped gradients
                 self.get_gradients = grads
@@ -188,7 +185,7 @@ class SequencePolicyVNetwork(Network):
 
         self.max_local_steps = conf['args'].max_local_steps
         self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
-                
+        
         with tf.name_scope(self.name):
 
             self.critic_target_ph = tf.placeholder(
