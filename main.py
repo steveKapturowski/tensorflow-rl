@@ -34,6 +34,7 @@ def get_num_actions(rom_path, rom_name):
 
 
 def main(args):
+    args.batch_size = None
     logger.debug('CONFIGURATION: {}'.format(args))
     
     """ Set up the graph, the agents, and run the agents in parallel. """

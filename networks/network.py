@@ -7,10 +7,11 @@ class Network(object):
     def __init__(self, conf):
         """ Initialize hyper-parameters, set up optimizer and network 
         layers common across Q and Policy/V nets. """
-        
+
         self.name = conf['name']
         self.num_actions = conf['num_act']
         self.arch = conf['args'].arch
+        self.batch_size = conf['args'].batch_size
         self.optimizer_type = conf['args'].opt_type
         self.optimizer_mode = conf['args'].opt_mode
         self.clip_loss_delta = conf['args'].clip_loss_delta
@@ -21,9 +22,9 @@ class Network(object):
         with tf.name_scope(self.name):
             
             self.input_ph = tf.placeholder(
-                'float32',[None,84,84,4], name='input')
+                'float32',[self.batch_size,84,84,4], name='input')
             self.selected_action_ph = tf.placeholder(
-                'float32', [None, self.num_actions], name='selected_action')
+                'float32', [self.batch_size, self.num_actions], name='selected_action')
 
             if self.optimizer_type == 'adam':
                 init= 'glorot_uniform'

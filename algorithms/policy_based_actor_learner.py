@@ -12,28 +12,11 @@ logger = utils.logger.getLogger('policy_based_actor_learner')
 
 class BaseA3CLearner(ActorLearner):
     def __init__(self, args):
-
         super(BaseA3CLearner, self).__init__(args)
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
         self.q_target_update_steps = args.q_target_update_steps
-
-        conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
-                         'num_act': self.num_actions,
-                         'args': args}
-        
-        self.local_network = PolicyVNetwork(conf_learning)
-        self.reset_hidden_state()
-            
-        if self.actor_id == 0:
-            var_list = self.local_network.params
-            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
-                                        keep_checkpoint_every_n_hours=2)
-
-
-    def gumbel_noise(self, n):
-        return -np.log(-np.log(np.random.random(n)))
 
 
     def sample_policy_action(self, probs, temperature=0.5):
@@ -65,6 +48,21 @@ class BaseA3CLearner(ActorLearner):
 
 
 class A3CLearner(BaseA3CLearner):
+    def __init__(self, args):
+        super(A3CLearner, self).__init__(args)
+
+        conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
+                         'num_act': self.num_actions,
+                         'args': args}
+        
+        self.local_network = PolicyVNetwork(conf_learning)
+        self.reset_hidden_state()
+            
+        if self.actor_id == 0:
+            var_list = self.local_network.params
+            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
+                                        keep_checkpoint_every_n_hours=2)
+
     def choose_next_action(self, state):
         network_output_v, network_output_pi = self.session.run(
                 [self.local_network.output_layer_v,
@@ -219,6 +217,20 @@ class A3CLearner(BaseA3CLearner):
 
 
 class A3CLSTMLearner(BaseA3CLearner):
+    def __init__(self, args):
+        conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
+                         'num_act': self.num_actions,
+                         'args': args}
+        
+        self.local_network = PolicyVNetwork(conf_learning)
+        self.reset_hidden_state()
+            
+        if self.actor_id == 0:
+            var_list = self.local_network.params
+            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
+                                        keep_checkpoint_every_n_hours=2)
+
+
     def reset_hidden_state(self):
         self.lstm_state_out = np.zeros([1, 2*self.local_network.hidden_state_size])
 

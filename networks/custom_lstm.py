@@ -33,10 +33,11 @@ class CustomBasicLSTMCell(RNNCell):
 
 	def __call__(self, inputs, state, scope=None):
 		'''Long short-term memory cell (LSTM).'''
-		print 'State:', state.get_shape()
+		print 'Inputs / Cell State:', inputs.get_shape(), state.get_shape()
 		with tf.variable_scope(scope or type(self).__name__):  # "BasicLSTMCell"
 			# Parameters of gates are concatenated into one multiply for efficiency.
 			c, h = tf.split(1, 2, state)
+
 			concat = self._linear([inputs, h], 4 * self._num_units, True)
 
 			# i = input_gate, j = new_input, f = forget_gate, o = output_gate
@@ -69,6 +70,7 @@ class CustomBasicLSTMCell(RNNCell):
 			raise ValueError("`args` must be specified")
 		if not isinstance(args, (list, tuple)):
 			args = [args]
+
   
 		# Calculate the total size of arguments on dimension 1.
 		total_arg_size = 0
@@ -84,6 +86,7 @@ class CustomBasicLSTMCell(RNNCell):
 		# Now the computation.
 		with tf.variable_scope(scope or "Linear"):      
 			matrix = tf.get_variable("Matrix", [total_arg_size, output_size])
+
 			if len(args) == 1:
 				res = tf.matmul(args[0], matrix)
 			else:

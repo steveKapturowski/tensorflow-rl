@@ -37,7 +37,6 @@ class Barrier:
         self.barrier.acquire()
         self.barrier.release()
 
-#Holy shit, this needs to be refactored
 class SharedVars(object):
     def __init__(self, num_actions, alg_type, network, arch='NIPS', opt_type=None, lr=0):
         self.var_shapes = [

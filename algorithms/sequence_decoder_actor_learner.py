@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
 from algorithms.policy_based_actor_learner import BaseA3CLearner
-from networks.policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
+from networks.policy_v_network import SequencePolicyVNetwork
 
 
 logger = utils.logger.getLogger('action_sequence_actor_learner')
@@ -36,48 +36,31 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
 
 
     def sample_action_sequence(self, state):
-        value = self.session.run(
-            self.local_network.output_layer_v,
+        allowed_actions = np.ones((self.local_network.max_decoder_steps, self.local_network.num_actions+1))
+        allowed_actions[0, -1] = 0
+
+        action_inputs = np.zeros((1,self.local_network.max_decoder_steps,self.num_actions+1))
+        action_inputs[0, 0, -1] = 1
+
+        actions, value = self.session.run(
+            [
+                self.local_network.actions[0],
+                self.local_network.output_layer_v[0, 0],
+            ],
             feed_dict={
-                self.local_network.input_ph: [state],
+                self.local_network.input_ph:              [state],
+                self.local_network.decoder_seq_lengths:   [self.local_network.max_decoder_steps],
+                self.local_network.allowed_actions:       [allowed_actions],
+                self.local_network.use_fixed_action:      False,
+                self.local_network.modify_state:          False,
+                self.local_network.temperature:           1.0,
+                self.local_network.action_outputs:        np.zeros((1,self.local_network.max_decoder_steps,self.num_actions+1)),
+                self.local_network.action_inputs:         action_inputs,
+                self.local_network.decoder_initial_state: np.zeros((1, 256*2)),
             }
-        )[0, 0]
+        )
 
-        modify_state = False
-        cell_state = np.zeros((1, 256*2))
-        selected_action = np.hstack([np.zeros(self.num_actions), 1]) #`GO` token
-        allowed_actions = np.hstack([np.ones(self.num_actions), 0])
-
-        actions = list()
-
-        while True:
-            action_probs, cell_state = self.session.run(
-                [
-                    self.local_network.action_probs,
-                    self.local_network.decoder_state,
-                ],
-                feed_dict={
-                    self.local_network.modify_state:          modify_state,
-                    self.local_network.input_ph:              [state],
-                    self.local_network.decoder_initial_state: cell_state,
-                    self.local_network.decoder_seq_lengths:   [1],
-                    self.local_network.action_inputs:         [
-                        [selected_action]*self.local_network.max_decoder_steps
-                    ],
-                    self.local_network.allowed_actions:       [
-                        [allowed_actions]*self.local_network.max_decoder_steps
-                    ],
-                }
-            )
-
-            allowed_actions[-1] = 1 #allow decoder to select terminal state now
-            selected_action = np.random.multinomial(1, action_probs[0, 0]-np.finfo(np.float32).epsneg)
-            # print np.argmax(selected_action), action_probs[0, 0, np.argmax(selected_action)]
-            actions.append(selected_action)
-            modify_state = True
-
-            if selected_action[self.num_actions] or len(actions) == self.local_network.max_decoder_steps:
-                return actions, value
+        return actions, value
 
 
     def _run(self):
@@ -95,6 +78,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
         a_batch = []
         y_batch = []
         adv_batch = []
+        seq_len_batch = []
         
         reset_game = False
         episode_over = False
@@ -112,6 +96,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             states = []
             actions = []
             values = []
+            seq_lengths = []
             
             while not (episode_over 
                 or (self.local_step - local_step_start 
@@ -123,12 +108,15 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 #     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                 
                 acc_reward = 0.0
-                for a in action_sequence[:-1]:
-                    new_s, reward, episode_over = self.emulator.next(a)
-                    acc_reward += reward
-
-                    if episode_over:
+                length = 0
+                for action in action_sequence:
+                    length += 1
+                    a = np.argmax(action)
+                    if a == self.num_actions or episode_over:
                         break
+
+                    new_s, reward, episode_over = self.emulator.next(action[:self.num_actions])
+                    acc_reward += reward
 
                 reward = acc_reward
                 if reward != 0.0:
@@ -140,6 +128,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 reward = self.rescale_reward(reward)
                 
                 rewards.append(reward)
+                seq_lengths.append(length)
                 states.append(s)
                 actions.append(action_sequence)
                 values.append(readout_v_t)
@@ -166,15 +155,13 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 a_batch.append(actions[i])
                 s_batch.append(states[i])
                 adv_batch.append(R - values[i])
+                seq_len_batch.append(seq_lengths[i])
                 
                 sel_actions.append(np.argmax(actions[i]))
-                
-
-
-            seq_lengths = [len(seq) for seq in actions]
+            
             padded_output_sequences = np.array([
-                seq + [[0]*(self.num_actions+1)]*(self.local_network.max_decoder_steps-len(seq))
-                for seq in a_batch
+                np.vstack([seq[:length, :], np.zeros((max(seq_len_batch)-length, self.num_actions+1))])
+                for length, seq in zip(seq_len_batch, a_batch)
             ])
 
             go_input = np.zeros((len(s_batch), 1, self.num_actions+1))
@@ -184,9 +171,8 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             print 'Sequence lengths:', seq_lengths
             print 'Actions:', [np.argmax(a) for a in a_batch[0]]
 
-            allowed_actions = np.ones((len(s_batch), self.local_network.max_decoder_steps, self.num_actions+1))
+            allowed_actions = np.ones((len(s_batch), max(seq_len_batch), self.num_actions+1))
             allowed_actions[:, 0, -1] = 0 #empty sequence is not a valid action
-
 
             feed_dict={
                 self.local_network.input_ph:              s_batch, 
@@ -197,7 +183,9 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 self.local_network.action_outputs:        padded_output_sequences,
                 self.local_network.allowed_actions:       allowed_actions,
                 self.local_network.modify_state:          False,
+                self.local_network.use_fixed_action:      True,
                 self.local_network.decoder_seq_lengths:   seq_lengths,
+                self.local_network.temperature:           1.0,
             }
             entropy, advantage, grads = self.session.run(
                 [
@@ -215,6 +203,8 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             a_batch = []
             y_batch = []          
             adv_batch = []
+            seq_len_batch = []
+
             
             # prevent the agent from getting stuck
             if (self.local_step - steps_at_last_reward > 5000
