@@ -209,7 +209,7 @@ def decoder(decoder_inputs, initial_state, cell, sequence_lengths, W_actions, b_
                 l,
                 use_fixed_action,
                 action_outputs[:, t, :],
-                tf.equal(t, 0))
+                tf.greater(t, 0))
 
             update = tf.less(t, sequence_lengths, name='update_cond')
 
@@ -225,7 +225,7 @@ def decoder(decoder_inputs, initial_state, cell, sequence_lengths, W_actions, b_
 
 
         go_action = decoder_inputs[:, 0, :]
-        _, states, logits, actions, state_array, logits_array, action_array = tf.while_loop(
+        final_const, states, logits, actions, state_array, logits_array, action_array = tf.while_loop(
             loop_condition,
             body,
             loop_vars=[t0,
@@ -286,15 +286,15 @@ class SequencePolicyVNetwork(Network):
 
                 self.network_state = tf.concat(1, [
                     # tf.zeros_like(self.ox), self.ox
-                    # self.ox, tf.zeros_like(self.ox)
-                    self.ox, self.ox
+                    self.ox, tf.zeros_like(self.ox)
                 ])
 
-                initial_state_op = tf.cond(
-                    self.modify_state,
-                    lambda: self.decoder_initial_state,
-                    lambda: self.network_state,
-                    name='decode_initial_state_conditional')
+                # initial_state_op = tf.cond(
+                #     self.modify_state,
+                #     lambda: self.decoder_initial_state,
+                #     lambda: self.network_state,
+                #     name='decode_initial_state_conditional')
+                initial_state_op = self.network_state
 
                 self.W_actions = tf.get_variable('W_actions', shape=[self.decoder_hidden_state_size, self.num_actions+1], dtype='float32', initializer=tf.contrib.layers.xavier_initializer())
                 self.b_actions = tf.get_variable('b_actions', dtype='float32', initializer=tf.zeros_initializer(self.num_actions+1))

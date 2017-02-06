@@ -5,7 +5,7 @@ import utils.logger
 import checkpoint_utils
 import tensorflow as tf
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
-from networks.policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
+from networks.policy_v_network import PolicyVNetwork
 
 
 logger = utils.logger.getLogger('policy_based_actor_learner')

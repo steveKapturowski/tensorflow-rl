@@ -5,9 +5,10 @@ import utils.logger
 import checkpoint_utils
 import tensorflow as tf
 
+from utils.forked_debugger import ForkedPdb as Pdb
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
-from algorithms.policy_based_actor_learner import BaseA3CLearner
 from networks.policy_v_network import SequencePolicyVNetwork
+from algorithms.policy_based_actor_learner import BaseA3CLearner
 
 
 logger = utils.logger.getLogger('action_sequence_actor_learner')
@@ -34,6 +35,8 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
 
+        self.session.graph.finalize() # ensure we don't add any more nodes to the graph
+
 
     def sample_action_sequence(self, state):
         allowed_actions = np.ones((self.local_network.max_decoder_steps, self.local_network.num_actions+1))
@@ -44,8 +47,8 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
 
         actions, value = self.session.run(
             [
-                self.local_network.actions[0],
-                self.local_network.output_layer_v[0, 0],
+                self.local_network.actions,
+                self.local_network.output_layer_v,
             ],
             feed_dict={
                 self.local_network.input_ph:              [state],
@@ -60,7 +63,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             }
         )
 
-        return actions, value
+        return actions[0], value[0, 0]
 
 
     def _run(self):
@@ -109,6 +112,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 
                 acc_reward = 0.0
                 length = 0
+
                 for action in action_sequence:
                     length += 1
                     a = np.argmax(action)
@@ -133,9 +137,15 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 actions.append(action_sequence)
                 values.append(readout_v_t)
                 
+
+                print 'actor_id={} action={}'.format(self.actor_id, a)
+
                 s = new_s
                 self.local_step += 1
                 self.global_step.increment()
+
+                if self.local_step % 1000 == 0:
+                    Pdb().set_trace()
                 
             
             # Calculate the value offered by critic in the new state.

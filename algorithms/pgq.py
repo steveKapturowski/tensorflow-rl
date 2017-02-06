@@ -4,16 +4,30 @@ import utils.logger
 import tensorflow as tf
 from actor_learner import ONE_LIFE_GAMES
 from utils.replay_memory import ReplayMemory
+from networks.policy_v_network import PolicyVNetwork
 from policy_based_actor_learner import BaseA3CLearner
 
 
-logger = utils.logger.getLogger('pgq')
+logger = utils.logger.getLogger('pgq_actor_learner')
 
 class PGQLearner(BaseA3CLearner):
     def __init__(self, args):
 
         super(PGQLearner, self).__init__(args)
 
+        conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
+                         'num_act': self.num_actions,
+                         'args': args}
+        
+        self.local_network = PolicyVNetwork(conf_learning)
+        self.reset_hidden_state()
+            
+        if self.actor_id == 0:
+            var_list = self.local_network.params
+            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
+                                        keep_checkpoint_every_n_hours=2)
+
+        # pgq specific initialization
         self.batch_size = 32
         self.replay_memory = ReplayMemory(args.replay_size)
         self.q_estimate = self.local_network.beta * (
@@ -42,6 +56,8 @@ class PGQLearner(BaseA3CLearner):
                 self.batch_opt_st = np.zeros(size, dtype=ctypes.c_float)
         elif (self.optimizer_mode == "shared"):
                 self.batch_opt_st = args.opt_state
+
+        self.session.graph.finalize() # ensure we don't add any more nodes to the graph
 
 
     def apply_batch_q_update(self):
