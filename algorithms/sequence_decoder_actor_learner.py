@@ -35,8 +35,6 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
 
-        self.session.graph.finalize() # ensure we don't add any more nodes to the graph
-
 
     def sample_action_sequence(self, state):
         allowed_actions = np.ones((self.local_network.max_decoder_steps, self.local_network.num_actions+1))
@@ -138,14 +136,13 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 values.append(readout_v_t)
                 
 
-                print 'actor_id={} action={}'.format(self.actor_id, a)
-
                 s = new_s
                 self.local_step += 1
                 self.global_step.increment()
 
                 if self.local_step % 1000 == 0:
-                    Pdb().set_trace()
+                    pass
+                    # Pdb().set_trace()
                 
             
             # Calculate the value offered by critic in the new state.

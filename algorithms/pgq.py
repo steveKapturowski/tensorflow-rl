@@ -57,8 +57,6 @@ class PGQLearner(BaseA3CLearner):
         elif (self.optimizer_mode == "shared"):
                 self.batch_opt_st = args.opt_state
 
-        self.session.graph.finalize() # ensure we don't add any more nodes to the graph
-
 
     def apply_batch_q_update(self):
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)

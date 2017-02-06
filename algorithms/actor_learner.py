@@ -180,6 +180,9 @@ class ActorLearner(Process):
             logger.debug("T{}: Initializing shared memory...".format(self.actor_id))
             self.init_shared_memory()
 
+        # Ensure we don't add any more nodes to the graph
+        self.session.graph.finalize()
+
         # Wait until actor 0 finishes initializing shared memory
         self.barrier.wait()
         
