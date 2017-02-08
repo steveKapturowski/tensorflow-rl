@@ -277,7 +277,6 @@ class SequencePolicyVNetwork(Network):
                 self.decoder_seq_lengths = tf.placeholder(tf.int32, [self.batch_size], name='decoder_seq_lengths')
                 self.allowed_actions = tf.placeholder(tf.float32, [self.batch_size, None, self.num_actions+1], name='allowed_actions')
                 self.use_fixed_action = tf.placeholder(tf.bool, name='use_fixed_action')
-                self.modify_state = tf.placeholder(tf.bool, name='modify_state')
                 self.temperature = tf.placeholder(tf.float32, name='temperature')
 
                 self.decoder_hidden_state_size = 256
@@ -289,20 +288,13 @@ class SequencePolicyVNetwork(Network):
                     self.ox, tf.zeros_like(self.ox)
                 ])
 
-                # initial_state_op = tf.cond(
-                #     self.modify_state,
-                #     lambda: self.decoder_initial_state,
-                #     lambda: self.network_state,
-                #     name='decode_initial_state_conditional')
-                initial_state_op = self.network_state
-
                 self.W_actions = tf.get_variable('W_actions', shape=[self.decoder_hidden_state_size, self.num_actions+1], dtype='float32', initializer=tf.contrib.layers.xavier_initializer())
                 self.b_actions = tf.get_variable('b_actions', dtype='float32', initializer=tf.zeros_initializer(self.num_actions+1))
 
 
                 self.decoder_state, self.logits, self.actions = decoder(
                     self.action_inputs,
-                    initial_state_op,
+                    self.network_state,
                     self.decoder_lstm_cell,
                     self.decoder_seq_lengths,
                     self.W_actions,

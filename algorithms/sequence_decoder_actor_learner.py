@@ -21,7 +21,6 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
-        self.q_target_update_steps = args.q_target_update_steps
 
         conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
                          'num_act': self.num_actions,
@@ -53,7 +52,6 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 self.local_network.decoder_seq_lengths:   [self.local_network.max_decoder_steps],
                 self.local_network.allowed_actions:       [allowed_actions],
                 self.local_network.use_fixed_action:      False,
-                self.local_network.modify_state:          False,
                 self.local_network.temperature:           1.0,
                 self.local_network.action_outputs:        np.zeros((1,self.local_network.max_decoder_steps,self.num_actions+1)),
                 self.local_network.action_inputs:         action_inputs,
@@ -189,7 +187,6 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 self.local_network.action_inputs:         padded_input_sequences,
                 self.local_network.action_outputs:        padded_output_sequences,
                 self.local_network.allowed_actions:       allowed_actions,
-                self.local_network.modify_state:          False,
                 self.local_network.use_fixed_action:      True,
                 self.local_network.decoder_seq_lengths:   seq_lengths,
                 self.local_network.temperature:           1.0,
