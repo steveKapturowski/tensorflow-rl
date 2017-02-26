@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import tensorflow as tf 
 import os
 
@@ -23,7 +24,7 @@ def restore_vars(saver, sess, game, alg_type, max_local_steps):
     check_or_create_checkpoint_dir(checkpoint_dir)
     path = tf.train.latest_checkpoint(checkpoint_dir)
     if path is None:
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
         return 0
     else:
         print 'Restoring checkpoint `{}`'.format(path)

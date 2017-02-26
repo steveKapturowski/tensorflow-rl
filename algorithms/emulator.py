@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Emulator code inspired by:
 # https://github.com/Jabberwockyll/deep_rl_ale/
 import numpy as np

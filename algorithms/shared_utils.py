@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from multiprocessing import RawValue, RawArray, Semaphore, Lock
 import ctypes
 import numpy as np

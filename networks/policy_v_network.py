@@ -60,10 +60,10 @@ class PolicyVNetwork(Network):
             
             # Entropy: sum_a (-p_a ln p_a)
             self.output_layer_entropy = tf.reduce_sum(
-                - 1.0 * tf.mul(
+                - 1.0 * tf.multiply(
                     self.output_layer_pi,
                     self.log_output_layer_pi
-                ), reduction_indices=1)
+                ), axis=1)
 
             
             # Final critic layer
@@ -74,7 +74,7 @@ class PolicyVNetwork(Network):
 
 
             # Advantage critic
-            self.adv_critic = tf.sub(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
+            self.adv_critic = tf.subtract(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
             
             # Actor objective
             # Multiply the output of the network by a one hot vector, 1 for the 
@@ -82,9 +82,9 @@ class PolicyVNetwork(Network):
             # term for non-selected actions to be zero.
             self.log_output_selected_action = tf.reduce_sum(
                 self.log_output_layer_pi*self.selected_action_ph, 
-                reduction_indices=1
+                axis=1
             )
-            actor_objective_advantage_term = tf.mul(
+            actor_objective_advantage_term = tf.multiply(
                 self.log_output_selected_action, self.adv_actor_ph
             )
             actor_objective_entropy_term = self.beta * self.output_layer_entropy
@@ -99,10 +99,10 @@ class PolicyVNetwork(Network):
                     tf.minimum(
                         tf.abs(self.adv_critic), self.clip_loss_delta
                     ), 2))
-                linear_part = tf.sub(tf.abs(self.adv_critic), quadratic_part)
+                linear_part = tf.subtract(tf.abs(self.adv_critic), quadratic_part)
                 #OBS! For the standard L2 loss, we should multiply by 0.5. However, the authors of the paper
                 # recommend multiplying the gradients of the V function by 0.5. Thus the 0.5 
-                self.critic_loss = tf.mul(tf.constant(0.5), tf.nn.l2_loss(quadratic_part) + \
+                self.critic_loss = tf.multiply(tf.constant(0.5), tf.nn.l2_loss(quadratic_part) + \
                     self.clip_loss_delta * linear_part)
             else:
                 self.critic_loss = 0.5 * tf.reduce_mean(tf.pow(self.adv_critic, 2))          
@@ -147,7 +147,7 @@ def gumbel_noise(shape, epsilon=1e-30):
 def sample_gumbel_softmax(logits, allow_stop, temperature):
     y = logits + gumbel_noise(tf.shape(logits))
 
-    mask = tf.concat(1, [
+    mask = tf.concat(axis=1, values=[
         tf.ones_like(logits[:, :-1]),
         tf.zeros_like(logits[:, -1:])
     ])
@@ -198,9 +198,9 @@ def decoder(decoder_inputs, initial_state, cell, sequence_lengths, W_actions, b_
         max_seq_len = tf.reduce_max(sequence_lengths)
         loop_condition = lambda t, state, logits, action, s_array, l_array, a_array: tf.less(t, max_seq_len, name='loop_condition')
 
-        state_array = tf.nn.tensor_array_ops.TensorArray(dtype=tf.float32, size=max_seq_len, infer_shape=True, dynamic_size=True, name='state_array')
-        logits_array = tf.nn.tensor_array_ops.TensorArray(dtype=tf.float32, size=max_seq_len, infer_shape=True, dynamic_size=True, name='logits_array')
-        action_array = tf.nn.tensor_array_ops.TensorArray(dtype=tf.float32, size=max_seq_len, infer_shape=True, dynamic_size=True, name='action_array')
+        state_array = tf.TensorArray(dtype=tf.float32, size=max_seq_len, infer_shape=True, dynamic_size=True, name='state_array')
+        logits_array = tf.TensorArray(dtype=tf.float32, size=max_seq_len, infer_shape=True, dynamic_size=True, name='logits_array')
+        action_array = tf.TensorArray(dtype=tf.float32, size=max_seq_len, infer_shape=True, dynamic_size=True, name='action_array')
 
         def body(t, hidden_state, logits, action, state_array, logits_array, action_array):
             o, s = cell(action, hidden_state)
@@ -213,9 +213,9 @@ def decoder(decoder_inputs, initial_state, cell, sequence_lengths, W_actions, b_
 
             update = tf.less(t, sequence_lengths, name='update_cond')
 
-            s_out = tf.select(update, s, hidden_state)
-            l_out = tf.select(update, l, logits)
-            a_out = tf.select(update, a, action)
+            s_out = tf.where(update, s, hidden_state)
+            l_out = tf.where(update, l, logits)
+            a_out = tf.where(update, a, action)
 
             state_array = state_array.write(t, s_out)
             logits_array = logits_array.write(t, l_out)
@@ -237,9 +237,9 @@ def decoder(decoder_inputs, initial_state, cell, sequence_lengths, W_actions, b_
                        action_array])
 
         return (
-            tf.transpose(state_array.pack(), perm=[1, 0, 2]),
-            tf.transpose(logits_array.pack(), perm=[1, 0, 2]),
-            tf.transpose(action_array.pack(), perm=[1, 0, 2]),
+            tf.transpose(state_array.stack(), perm=[1, 0, 2]),
+            tf.transpose(logits_array.stack(), perm=[1, 0, 2]),
+            tf.transpose(action_array.stack(), perm=[1, 0, 2]),
         )
 
 
@@ -283,13 +283,13 @@ class SequencePolicyVNetwork(Network):
                 self.decoder_lstm_cell = CustomBasicLSTMCell(self.decoder_hidden_state_size, forget_bias=1.0)
                 self.decoder_initial_state = tf.placeholder(tf.float32, [self.batch_size, 2*self.decoder_hidden_state_size], name='decoder_initial_state')
 
-                self.network_state = tf.concat(1, [
+                self.network_state = tf.concat(axis=1, values=[
                     # tf.zeros_like(self.ox), self.ox
                     self.ox, tf.zeros_like(self.ox)
                 ])
 
                 self.W_actions = tf.get_variable('W_actions', shape=[self.decoder_hidden_state_size, self.num_actions+1], dtype='float32', initializer=tf.contrib.layers.xavier_initializer())
-                self.b_actions = tf.get_variable('b_actions', dtype='float32', initializer=tf.zeros_initializer(self.num_actions+1))
+                self.b_actions = tf.get_variable('b_actions', shape=[self.num_actions+1], dtype='float32', initializer=tf.zeros_initializer())
 
 
                 self.decoder_state, self.logits, self.actions = decoder(

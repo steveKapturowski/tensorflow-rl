@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from skimage.transform import resize
 from skimage.color import rgb2gray
 import numpy as np

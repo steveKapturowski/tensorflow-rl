@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import tensorflow as tf
 from network import *
 
@@ -27,7 +28,7 @@ class DuelingNetwork(Network):
                 self.value + self.advantage
                 - tf.reduce_mean(
                     self.advantage,
-                    reduction_indices=1,
+                    axis=1,
                     keep_dims=True
                 )
             )
@@ -37,10 +38,10 @@ class DuelingNetwork(Network):
             # executed action. This will make the loss due to non-selected 
             # actions to be zero.
             if 'target' not in self.name:
-                output_selected_action = tf.reduce_sum(tf.mul(self.output_layer, 
+                output_selected_action = tf.reduce_sum(tf.multiply(self.output_layer, 
                                                               self.selected_action_ph), reduction_indices = 1)
                 
-                diff = tf.sub(self.target_ph, output_selected_action)
+                diff = tf.subtract(self.target_ph, output_selected_action)
             
                 # HUBER LOSS
                 # If we simply take the squared clipped diff as our loss,
@@ -55,11 +56,11 @@ class DuelingNetwork(Network):
                 if self.clip_loss_delta > 0:
                     quadratic_part = tf.minimum(tf.abs(diff), 
                         tf.constant(self.clip_loss_delta))
-                    linear_part = tf.sub(tf.abs(diff), quadratic_part)
+                    linear_part = tf.subtract(tf.abs(diff), quadratic_part)
                     #self.loss = tf.reduce_mean(0.5 * tf.square(quadratic_part) + 
                     #    self.clip_loss_delta * linear_part)
                     self.loss = tf.add(tf.nn.l2_loss(quadratic_part),
-                                              tf.mul(tf.constant(self.clip_loss_delta), linear_part))
+                                              tf.multiply(tf.constant(self.clip_loss_delta), linear_part))
                 else:
                     #self.loss = tf.reduce_mean(0.5 * tf.square(diff))
                     self.loss = tf.nn.l2_loss(diff)

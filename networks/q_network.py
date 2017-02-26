@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from network import *
 
 class QNetwork(Network):
@@ -34,10 +35,10 @@ class QNetwork(Network):
             # executed action. This will make the loss due to non-selected 
             # actions to be zero.
             if "target" not in self.name:
-                output_selected_action = tf.reduce_sum(tf.mul(self.output_layer, 
+                output_selected_action = tf.reduce_sum(tf.multiply(self.output_layer, 
                                                               self.selected_action_ph), reduction_indices = 1)
                 
-                diff = tf.sub(self.target_ph, output_selected_action)
+                diff = tf.subtract(self.target_ph, output_selected_action)
             
                 # DEFINE HUBER LOSS
                 if self.clip_loss_delta > 0:

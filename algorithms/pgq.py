@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import time
 import numpy as np
 import utils.logger
@@ -35,14 +36,14 @@ class PGQLearner(BaseA3CLearner):
             + tf.expand_dims(self.local_network.output_layer_entropy, 1)
         ) + self.local_network.output_layer_v
 
-        self.Q, self.TQ = tf.split(0, 2, self.q_estimate)
-        self.V, _ = tf.split(0, 2, self.local_network.output_layer_v)
-        self.pi, _ = tf.split(0, 2, tf.expand_dims(self.local_network.log_output_selected_action, 1))
+        self.Q, self.TQ = tf.split(axis=0, num_or_size_splits=2, value=self.q_estimate)
+        self.V, _ = tf.split(axis=0, num_or_size_splits=2, value=self.local_network.output_layer_v)
+        self.pi, _ = tf.split(axis=0, num_or_size_splits=2, value=tf.expand_dims(self.local_network.log_output_selected_action, 1))
         self.R = tf.placeholder('float32', [None], name='1-step_reward')
 
         self.terminal_indicator = tf.placeholder(tf.float32, [None], name='terminal_indicator')
         self.max_TQ = self.gamma*tf.reduce_max(self.TQ, 1) * (1 - self.terminal_indicator)
-        self.Q_a = tf.reduce_sum(self.Q * tf.split(0, 2, self.local_network.selected_action_ph)[0], 1)
+        self.Q_a = tf.reduce_sum(self.Q * tf.split(axis=0, num_or_size_splits=2, value=self.local_network.selected_action_ph)[0], 1)
         self.q_objective = -0.5 * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V + self.pi))
 
 

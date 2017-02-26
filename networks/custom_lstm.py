@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
 
-from tensorflow.python.ops.rnn_cell import RNNCell
+from tensorflow.contrib.rnn import RNNCell
 
 class CustomBasicLSTMCell(RNNCell):
 	'''
@@ -36,17 +36,17 @@ class CustomBasicLSTMCell(RNNCell):
 		print 'Inputs / Cell State:', inputs.get_shape(), state.get_shape()
 		with tf.variable_scope(scope or type(self).__name__):  # "BasicLSTMCell"
 			# Parameters of gates are concatenated into one multiply for efficiency.
-			c, h = tf.split(1, 2, state)
+			c, h = tf.split(axis=1, num_or_size_splits=2, value=state)
 
 			concat = self._linear([inputs, h], 4 * self._num_units, True)
 
 			# i = input_gate, j = new_input, f = forget_gate, o = output_gate
-			i, j, f, o = tf.split(1, 4, concat)
+			i, j, f, o = tf.split(axis=1, num_or_size_splits=4, value=concat)
 
 			new_c = c * tf.sigmoid(f + self._forget_bias) + tf.sigmoid(i) * tf.tanh(j)
 			new_h = tf.tanh(new_c) * tf.sigmoid(o)
 
-			return new_h, tf.concat(1, [new_c, new_h])
+			return new_h, tf.concat(axis=1, values=[new_c, new_h])
 
 	def _linear(self, args, output_size, bias, bias_start=0.0, scope=None):
 		'''
@@ -90,7 +90,7 @@ class CustomBasicLSTMCell(RNNCell):
 			if len(args) == 1:
 				res = tf.matmul(args[0], matrix)
 			else:
-				res = tf.matmul(tf.concat(1, args), matrix)
+				res = tf.matmul(tf.concat(axis=1, values=args), matrix)
 			if not bias:
 				return res
 			bias_term = tf.get_variable(

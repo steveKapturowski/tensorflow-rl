@@ -7,7 +7,7 @@ import pyximport; pyximport.install()
 import time
 import checkpoint_utils
 import tempfile
-from multiprocessing import Process 
+from multiprocessing import Process
 from hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam
 
 
@@ -163,14 +163,16 @@ class ActorLearner(Process):
 
     def run(self):
         gpu_options = tf.GPUOptions(
-            per_process_gpu_memory_fraction=0.99/self.num_actor_learners)
+            # per_process_gpu_memory_fraction=0.99/self.num_actor_learners
+            allow_growth=True
+        )
         self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
 
         if (self.actor_id==0):
             #Initizlize Tensorboard summaries
-            self.summary_op = tf.merge_all_summaries()
-            self.summary_writer = tf.train.SummaryWriter(
+            self.summary_op = tf.summary.merge_all()
+            self.summary_writer = tf.summary.FileWriter(
                             "{}/{}".format(self.summ_base_dir, self.actor_id), self.session.graph) 
 
             # Initialize network parameters
@@ -300,19 +302,19 @@ class ActorLearner(Process):
     
     def setup_summaries(self):
         episode_reward = tf.Variable(0.)
-        s1 = tf.scalar_summary("Episode Reward " + str(self.actor_id), episode_reward)
+        s1 = tf.summary.scalar("Episode Reward " + str(self.actor_id), episode_reward)
         if not hasattr(self, 'target_vars'):
             summary_vars = [episode_reward]
         else:
             episode_ave_max_q = tf.Variable(0.)
-            s2 = tf.scalar_summary("Max Q Value " + str(self.actor_id), episode_ave_max_q)
+            s2 = tf.summary.scalar("Max Q Value " + str(self.actor_id), episode_ave_max_q)
             logged_epsilon = tf.Variable(0.)
-            s3 = tf.scalar_summary("Epsilon " + str(self.actor_id), logged_epsilon)
+            s3 = tf.summary.scalar("Epsilon " + str(self.actor_id), logged_epsilon)
             summary_vars = [episode_reward, episode_ave_max_q, logged_epsilon]
 
         summary_placeholders = [tf.placeholder("float") for _ in range(len(summary_vars))]
         update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
         with tf.control_dependencies(update_ops):
-            summary_ops = tf.merge_all_summaries()
+            summary_ops = tf.summary.merge_all()
         return summary_placeholders, update_ops, summary_ops
     

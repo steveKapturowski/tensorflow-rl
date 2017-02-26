@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """An implementation of the Context Tree Switching model.
 The Context Tree Switching algorithm (Veness et al., 2012) is a variable
 order Markov model with pleasant regret guarantees. It achieves excellent
