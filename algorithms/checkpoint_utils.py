@@ -23,6 +23,7 @@ def restore_vars(saver, sess, game, alg_type, max_local_steps):
     
     check_or_create_checkpoint_dir(checkpoint_dir)
     path = tf.train.latest_checkpoint(checkpoint_dir)
+
     if path is None:
         sess.run(tf.global_variables_initializer())
         return 0

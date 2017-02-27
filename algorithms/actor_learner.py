@@ -11,7 +11,7 @@ from multiprocessing import Process
 from hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam
 
 
-CHECKPOINT_INTERVAL = 100000
+CHECKPOINT_INTERVAL = 10000
 ONE_LIFE_GAMES = [
     'Bowling-v0',
     'Boxing-v0',
@@ -301,18 +301,18 @@ class ActorLearner(Process):
 
     
     def setup_summaries(self):
-        episode_reward = tf.Variable(0.)
-        s1 = tf.summary.scalar("Episode Reward " + str(self.actor_id), episode_reward)
+        episode_reward = tf.Variable(0., name='episode_reward')
+        s1 = tf.summary.scalar('Episode Reward {}'.format(self.actor_id), episode_reward)
         if not hasattr(self, 'target_vars'):
             summary_vars = [episode_reward]
         else:
-            episode_ave_max_q = tf.Variable(0.)
-            s2 = tf.summary.scalar("Max Q Value " + str(self.actor_id), episode_ave_max_q)
-            logged_epsilon = tf.Variable(0.)
-            s3 = tf.summary.scalar("Epsilon " + str(self.actor_id), logged_epsilon)
-            summary_vars = [episode_reward, episode_ave_max_q, logged_epsilon]
+            episode_avg_max_q = tf.Variable(0., name='episode_avg_max_q')
+            s2 = tf.summary.scalar('Max Q Value {}'.format(self.actor_id), episode_avg_max_q)
+            logged_epsilon = tf.Variable(0., name='epsilon_'.format(self.actor_id))
+            s3 = tf.summary.scalar('Epsilon {}'.format(self.actor_id), logged_epsilon)
+            summary_vars = [episode_reward, episode_avg_max_q, logged_epsilon]
 
-        summary_placeholders = [tf.placeholder("float") for _ in range(len(summary_vars))]
+        summary_placeholders = [tf.placeholder('float') for _ in range(len(summary_vars))]
         update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
         with tf.control_dependencies(update_ops):
             summary_ops = tf.summary.merge_all()

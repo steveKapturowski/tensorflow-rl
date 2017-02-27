@@ -200,7 +200,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 feed_dict=feed_dict)
 
             print 'Entropy:', entropy, 'Adv:', advantage
-
+            print 'Max Grads:', [v.max() for v in grads]
             self.apply_gradients_to_shared_memory_vars(grads)     
             
             s_batch = []

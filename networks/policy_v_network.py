@@ -284,8 +284,8 @@ class SequencePolicyVNetwork(Network):
                 self.decoder_initial_state = tf.placeholder(tf.float32, [self.batch_size, 2*self.decoder_hidden_state_size], name='decoder_initial_state')
 
                 self.network_state = tf.concat(axis=1, values=[
-                    # tf.zeros_like(self.ox), self.ox
-                    self.ox, tf.zeros_like(self.ox)
+                    tf.zeros_like(self.ox), self.ox
+                    # self.ox, tf.zeros_like(self.ox)
                 ])
 
                 self.W_actions = tf.get_variable('W_actions', shape=[self.decoder_hidden_state_size, self.num_actions+1], dtype='float32', initializer=tf.contrib.layers.xavier_initializer())
@@ -346,7 +346,8 @@ class SequencePolicyVNetwork(Network):
             self.actor_advantage_term = tf.reduce_sum(log_sequence_probs[:self.max_local_steps] * self.adv_actor_ph)
             self.actor_entropy_term = self.beta * self.output_layer_entropy
             self.actor_objective = - (
-                self.actor_advantage_term + self.actor_entropy_term
+                # 1e-10*self.actor_advantage_term
+                self.actor_entropy_term
             )
             
             # Critic loss
@@ -361,9 +362,9 @@ class SequencePolicyVNetwork(Network):
             else:
                 #OBS! For the standard L2 loss, we should multiply by 0.5. However, the authors of the paper
                 # recommend multiplying the gradients of the V function by 0.5. Thus the 0.5 
-                self.critic_loss = 0.5*tf.nn.l2_loss(self.adv_critic)           
+                self.critic_loss = 0.5*tf.nn.l2_loss(self.adv_critic)      
             
-            self.loss = self.actor_objective + self.critic_loss
+            self.loss = self.actor_objective + 1e-10*self.critic_loss
             
 
             self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
