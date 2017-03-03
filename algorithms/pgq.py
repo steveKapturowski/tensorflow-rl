@@ -31,24 +31,34 @@ class PGQLearner(BaseA3CLearner):
         # pgq specific initialization
         self.batch_size = 32
         self.replay_memory = ReplayMemory(args.replay_size)
-        self.q_estimate = self.local_network.beta * (
+        self.q_tilde = self.local_network.beta * (
             self.local_network.log_output_layer_pi
             + tf.expand_dims(self.local_network.output_layer_entropy, 1)
         ) + self.local_network.output_layer_v
 
-        self.Q, self.TQ = tf.split(axis=0, num_or_size_splits=2, value=self.q_estimate)
+        self.Qi, self.Qi_plus_1 = tf.split(axis=0, num_or_size_splits=2, value=self.q_tilde)
         self.V, _ = tf.split(axis=0, num_or_size_splits=2, value=self.local_network.output_layer_v)
         self.pi, _ = tf.split(axis=0, num_or_size_splits=2, value=tf.expand_dims(self.local_network.log_output_selected_action, 1))
         self.R = tf.placeholder('float32', [None], name='1-step_reward')
 
         self.terminal_indicator = tf.placeholder(tf.float32, [None], name='terminal_indicator')
-        self.max_TQ = self.gamma*tf.reduce_max(self.TQ, 1) * (1 - self.terminal_indicator)
-        self.Q_a = tf.reduce_sum(self.Q * tf.split(axis=0, num_or_size_splits=2, value=self.local_network.selected_action_ph)[0], 1)
+        self.max_TQ = self.gamma*tf.reduce_max(self.Qi_plus_1, 1) * (1 - self.terminal_indicator)
+        self.Q_a = tf.reduce_sum(self.Qi * tf.split(axis=0, num_or_size_splits=2, value=self.local_network.selected_action_ph)[0], 1)
         self.q_objective = -0.5 * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V + self.pi))
 
 
         self.V_params = self.local_network.params #[var for var in self.local_network.params if 'policy' not in var.name]
         self.q_gradients = tf.gradients(self.q_objective, self.V_params)
+
+        # if self.clip_norm_type == 'global':
+        #     # Clip network grads by network norm
+        #     self.q_gradients = tf.clip_by_global_norm(
+        #                 self.q_gradients, self.clip_norm)[0]
+        # elif self.clip_norm_type == 'local':
+        #     # Clip layer grads by layer norm
+        #     self.q_gradients = [tf.clip_by_norm(
+        #                 g, self.clip_norm) for g in self.q_gradients]
+
 
         if (self.optimizer_mode == "local"):
             if (self.optimizer_type == "rmsprop"):
@@ -56,7 +66,7 @@ class PGQLearner(BaseA3CLearner):
             else:
                 self.batch_opt_st = np.zeros(size, dtype=ctypes.c_float)
         elif (self.optimizer_mode == "shared"):
-                self.batch_opt_st = args.opt_state
+                self.batch_opt_st = args.batch_opt_state
 
 
     def apply_batch_q_update(self):
@@ -71,6 +81,7 @@ class PGQLearner(BaseA3CLearner):
                 self.terminal_indicator: is_terminal.astype(np.int),
             }
         )
+
         self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
 
 

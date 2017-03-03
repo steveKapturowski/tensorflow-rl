@@ -191,16 +191,16 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 self.local_network.decoder_seq_lengths:   seq_lengths,
                 self.local_network.temperature:           1.0,
             }
-            entropy, advantage, grads = self.session.run(
+            entropy, grads = self.session.run(
                 [
                     self.local_network.entropy,
-                    self.local_network.actor_advantage_term,
+                    # self.local_network.adv_critic,
+                    # self.local_network.output_layer_v,
                     self.local_network.get_gradients
                 ],
                 feed_dict=feed_dict)
 
-            print 'Entropy:', entropy, 'Adv:', advantage
-            print 'Max Grads:', [v.max() for v in grads]
+            print 'Entropy:', entropy #, 'Adv:', advantage #, 'Value:', value
             self.apply_gradients_to_shared_memory_vars(grads)     
             
             s_batch = []

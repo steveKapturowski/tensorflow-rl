@@ -58,7 +58,7 @@ class PolicyVNetwork(Network):
             self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = self._softmax_and_log_softmax(
                 layer_name, self.ox, self.num_actions)
             
-            # Entropy: sum_a (-p_a ln p_a)
+            # Entropy: ∑_a[-p_a ln p_a]
             self.output_layer_entropy = tf.reduce_sum(
                 - 1.0 * tf.multiply(
                     self.output_layer_pi,
@@ -325,15 +325,12 @@ class SequencePolicyVNetwork(Network):
             log_sequence_probs = tf.reduce_sum(tf.reduce_sum(log_action_probs * self.action_outputs, 2), 1)
 
             # ∏a_i * ∑ log a_i
-            # self.output_layer_entropy = - tf.reduce_mean(tf.stop_gradient(1 + log_sequence_probs) * log_sequence_probs)
+            self.output_layer_entropy = - tf.reduce_mean(tf.stop_gradient(1 + log_sequence_probs) * log_sequence_probs)
             self.entropy = - tf.reduce_mean(log_sequence_probs)
-            self.output_layer_entropy = self.entropy
 
             print 'sp, lsp:', sequence_probs.get_shape(), log_sequence_probs.get_shape()
 
-            # self.output_layer_entropy = - tf.reduce_mean(
-            #     tf.expand_dims(tf.reduce_sum(self.action_outputs, 2), 2) * self.action_probs * log_action_probs)
-            # self.entropy = self.output_layer_entropy
+
 
             # Final critic layer
             self.wv, self.bv, self.output_layer_v = self._fc(
@@ -342,12 +339,11 @@ class SequencePolicyVNetwork(Network):
             # Advantage critic
             self.adv_critic = self.critic_target_ph - tf.reshape(self.output_layer_v, [-1])
 
-
             self.actor_advantage_term = tf.reduce_sum(log_sequence_probs[:self.max_local_steps] * self.adv_actor_ph)
             self.actor_entropy_term = self.beta * self.output_layer_entropy
             self.actor_objective = - (
-                # 1e-10*self.actor_advantage_term
-                self.actor_entropy_term
+                self.actor_advantage_term
+                + self.actor_entropy_term
             )
             
             # Critic loss
@@ -362,9 +358,9 @@ class SequencePolicyVNetwork(Network):
             else:
                 #OBS! For the standard L2 loss, we should multiply by 0.5. However, the authors of the paper
                 # recommend multiplying the gradients of the V function by 0.5. Thus the 0.5 
-                self.critic_loss = 0.5*tf.nn.l2_loss(self.adv_critic)      
+                self.critic_loss = 0.5*tf.nn.l2_loss(self.adv_critic)     
             
-            self.loss = self.actor_objective + 1e-10*self.critic_loss
+            self.loss = self.actor_objective + self.critic_loss
             
 
             self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
