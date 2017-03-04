@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-from network import *
+import layers
+import tensorflow as tf
+from network import Network
+
 
 class QNetwork(Network):
- 
-    
+
     def __init__(self, conf):
         """ Set up remaining layers, loss function, gradient compute and apply 
         ops, network parameter synchronization ops, and summary ops. """
@@ -15,15 +17,12 @@ class QNetwork(Network):
             self.target_ph = tf.placeholder(
                 "float32", [None], name='target')
     
-            #add self params
-            # tf.trainable_variables
-
             if self.arch == "NIPS":
-                self.w4, self.b4, self.output_layer = self._fc('fc4', self.o3, self.num_actions, activation="linear")
+                self.w4, self.b4, self.output_layer = layers.fc('fc4', self.o3, self.num_actions, activation="linear")
                 self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3, 
                                            self.w4, self.b4]
             else: #NATURE
-                self.w5, self.b5, self.output_layer = self._fc('fc5', self.o4, self.num_actions, activation="linear")
+                self.w5, self.b5, self.output_layer = layers.fc('fc5', self.o4, self.num_actions, activation="linear")
                 self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3, 
                                            self.w4, self.b4, self.w5, self.b5]
                    
@@ -36,7 +35,7 @@ class QNetwork(Network):
             # actions to be zero.
             if "target" not in self.name:
                 output_selected_action = tf.reduce_sum(tf.multiply(self.output_layer, 
-                                                              self.selected_action_ph), reduction_indices = 1)
+                                                              self.selected_action_ph), axis=1)
                 
                 diff = tf.subtract(self.target_ph, output_selected_action)
             

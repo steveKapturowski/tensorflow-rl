@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import layers
 import numpy as np
 import tensorflow as tf
 from network import Network
@@ -55,7 +56,7 @@ class PolicyVNetwork(Network):
 
             # Final actor layer
             layer_name = 'softmax_policy4'            
-            self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = self._softmax_and_log_softmax(
+            self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = layers.softmax_and_log_softmax(
                 layer_name, self.ox, self.num_actions)
             
             # Entropy: ∑_a[-p_a ln p_a]
@@ -67,7 +68,7 @@ class PolicyVNetwork(Network):
 
             
             # Final critic layer
-            self.wv, self.bv, self.output_layer_v = self._fc(
+            self.wv, self.bv, self.output_layer_v = layers.fc(
                 'fc_value4', self.ox, 1, activation='linear')
 
             self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
@@ -333,7 +334,7 @@ class SequencePolicyVNetwork(Network):
 
 
             # Final critic layer
-            self.wv, self.bv, self.output_layer_v = self._fc(
+            self.wv, self.bv, self.output_layer_v = layers.fc(
                 'fc_value4', self.ox, 1, activation='linear')
 
             # Advantage critic

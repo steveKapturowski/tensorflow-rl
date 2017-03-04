@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+import layers
 import tensorflow as tf
-from network import *
+from network import Network
+
 
 class DuelingNetwork(Network):
  
@@ -17,9 +19,9 @@ class DuelingNetwork(Network):
             o_conv = self.o3 if self.arch == 'NIPS' else self.o4
 
 
-            self.w_value, self.b_value, self.value = self._fc(
+            self.w_value, self.b_value, self.value = layers.fc(
                 'fc5', o_conv, 1, activation='linear')
-            self.w_adv, self.b_adv, self.advantage = self._fc(
+            self.w_adv, self.b_adv, self.advantage = layers.fc(
                 'fc6', o_conv, self.num_actions, activation='linear')
             
             self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
@@ -39,7 +41,7 @@ class DuelingNetwork(Network):
             # actions to be zero.
             if 'target' not in self.name:
                 output_selected_action = tf.reduce_sum(tf.multiply(self.output_layer, 
-                                                              self.selected_action_ph), reduction_indices = 1)
+                                                              self.selected_action_ph), axis=1)
                 
                 diff = tf.subtract(self.target_ph, output_selected_action)
             
