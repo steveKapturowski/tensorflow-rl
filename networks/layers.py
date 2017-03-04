@@ -8,24 +8,14 @@ def flatten(_input):
     return tf.reshape(_input, [-1, dim], name='_flattened')
             
 def conv2d(name, _input, filters, size, channels, stride, padding='VALID'):
-    w = self._conv_weight_variable([size,size,channels,filters], 
-                                             name+'_weights')
-    b = self._conv_bias_variable([filters], size, size, channels,
-                                           name+'_biases')
+    w = conv_weight_variable([size,size,channels,filters], name+'_weights')
+    b = conv_bias_variable([filters], size, size, channels, name+'_biases')
     conv = tf.nn.conv2d(_input, w, strides=[1, stride, stride, 1], 
-            padding=padding, name=name+'_convs')
-        
+            padding=padding, name=name+'_convs') + b
 
-        if self.use_layer_norm:
-            conv = tf.contrib.layers.layer_norm(conv, center=False, scope=self.name+'/'+name) + b
-            # conv = layer_norm(conv, b, name)
-        else:
-            conv += b
-
-        out = tf.nn.relu(conv, 
-                name=name+'_activations')
+    out = tf.nn.relu(conv, name=name+'_activations')
         
-        return w, b, out
+    return w, b, out
 
 
 def conv_weight_variable(shape, name):
@@ -45,15 +35,9 @@ def conv_bias_variable(shape, w, h, input_channels, name):
 
 def fc(name, _input, output_dim, activation='relu'):
     input_dim = _input.get_shape().as_list()[1]
-    w = fc_weight_variable([input_dim, output_dim], 
-                                           name+'_weights')
-    b = fc_bias_variable([output_dim], input_dim,
-                                           name+'_biases')
-    out = tf.matmul(_input, w)
-    if self.use_layer_norm:
-        out = tf.contrib.layers.layer_norm(out, center=False, scope=self.name+'/'+name) + b
-    else:
-        out += b
+    w = fc_weight_variable([input_dim, output_dim], name+'_weights')
+    b = fc_bias_variable([output_dim], input_dim, name+'_biases')
+    out = tf.matmul(_input, w) + b
 
     if activation == 'relu':
         out = tf.nn.relu(out, name=name+'_relu')

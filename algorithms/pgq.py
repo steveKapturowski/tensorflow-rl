@@ -89,7 +89,7 @@ class PGQLearner(BaseA3CLearner):
         network_output_v, network_output_pi, q_tilde = self.session.run(
                 [self.local_network.output_layer_v,
                  self.local_network.output_layer_pi,
-                 self.local_network.q_tilde], 
+                 self.q_tilde], 
                 feed_dict={self.local_network.input_ph: [state]})
             
         network_output_pi = network_output_pi.reshape(-1)
@@ -100,8 +100,7 @@ class PGQLearner(BaseA3CLearner):
         new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
 
-
-        return new_action, network_output_v, network_output_pi, q_tilde[action_index]
+        return new_action, network_output_v, network_output_pi, q_tilde[0, action_index]
 
 
     def _run(self):
