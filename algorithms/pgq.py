@@ -113,10 +113,6 @@ class PGQLearner(BaseA3CLearner):
 
         s = self.emulator.get_initial_state()
         total_episode_reward = 0
-        
-        reset_game = False
-        episode_over = False
-        start_time = time.time()
         steps_at_last_reward = self.local_step
         
         while (self.global_step.value() < self.max_global_steps):
@@ -124,7 +120,9 @@ class PGQLearner(BaseA3CLearner):
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
             self.save_vars()
 
-            local_step_start = self.local_step 
+            local_step_start = self.local_step
+            reset_game = False
+            episode_over = False
             
             states    = list()
             rewards   = list()
@@ -209,34 +207,8 @@ class PGQLearner(BaseA3CLearner):
             if self.local_step > 1000:
                 self.apply_batch_q_update()
             
+            s, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
-
-            # prevent the agent from getting stuck
-            if (self.local_step - steps_at_last_reward > 5000
-                or (self.emulator.env.ale.lives() == 0
-                    and self.emulator.game not in ONE_LIFE_GAMES)):
-
-                steps_at_last_reward = self.local_step
-                episode_over = True
-                reset_game = True
-
-            # Start a new game on reaching terminal state
-            if episode_over:
-                elapsed_time = time.time() - start_time
-                global_t = self.global_step.value()
-                steps_per_sec = global_t / elapsed_time
-                perf = "{:.0f}".format(steps_per_sec)
-                logger.info("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
-                
-                self.log_summary(total_episode_reward)
-
-                self.reset_hidden_state()
-                steps_at_last_reward = self.local_step
-                total_episode_reward = 0
-                episode_over = False
-
-                if reset_game or self.emulator.game in ONE_LIFE_GAMES:
-                    s = self.emulator.get_initial_state()
-                    reset_game = False
 

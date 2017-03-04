@@ -20,12 +20,6 @@ class BaseA3CLearner(ActorLearner):
 
 
     def sample_policy_action(self, probs, temperature=0.5):
-        """
-        Sample an action from an action probability distribution output by
-        the policy network.
-        """
-        # Subtract a tiny value from probabilities in order to avoid
-        # "ValueError: sum(pvals[:-1]) > 1.0" in numpy.multinomial
         probs = probs - np.finfo(np.float32).epsneg
     
         histogram = np.random.multinomial(1, probs)
@@ -45,6 +39,38 @@ class BaseA3CLearner(ActorLearner):
             feed_dict = {self.summary_ph[0]: total_episode_reward}
             res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
             self.summary_writer.add_summary(res[-1], self.global_step.value())
+
+
+    def prepare_state(self, state, total_episode_reward, steps_at_last_reward, sel_actions, episode_over):
+        # prevent the agent from getting stuck
+        reset_game = False
+
+        if (self.local_step - steps_at_last_reward > 5000
+            or (self.emulator.env.ale.lives() == 0
+                and self.emulator.game not in ONE_LIFE_GAMES)):
+
+            steps_at_last_reward = self.local_step
+            episode_over = True
+            reset_game = True
+
+        # Start a new game on reaching terminal state
+        if episode_over:
+            elapsed_time = time.time() - self.start_time
+            global_t = self.global_step.value()
+            steps_per_sec = global_t / elapsed_time
+            perf = "{:.0f}".format(steps_per_sec)
+            logger.info("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
+                
+            self.log_summary(total_episode_reward)
+
+            self.reset_hidden_state()
+            steps_at_last_reward = self.local_step
+            total_episode_reward = 0
+
+            if reset_game or self.emulator.game in ONE_LIFE_GAMES:
+                state = self.emulator.get_initial_state()
+
+        return state, total_episode_reward, steps_at_last_reward
 
 
 class A3CLearner(BaseA3CLearner):
@@ -91,15 +117,6 @@ class A3CLearner(BaseA3CLearner):
 
         s = self.emulator.get_initial_state()
         total_episode_reward = 0
-
-        s_batch = []
-        a_batch = []
-        y_batch = []
-        adv_batch = []
-        
-        reset_game = False
-        episode_over = False
-        start_time = time.time()
         steps_at_last_reward = self.local_step
         
         while (self.global_step.value() < self.max_global_steps):
@@ -109,10 +126,17 @@ class A3CLearner(BaseA3CLearner):
 
             local_step_start = self.local_step 
             
-            rewards = []
-            states = []
-            actions = []
-            values = []
+            reset_game = False
+            episode_over = False
+
+            rewards   = list()
+            states    = list()
+            actions   = list()
+            values    = list()
+            s_batch   = list()
+            a_batch   = list()
+            y_batch   = list()
+            adv_batch = list()
             
             while not (episode_over 
                 or (self.local_step - local_step_start 
@@ -172,54 +196,21 @@ class A3CLearner(BaseA3CLearner):
                 self.local_network.selected_action_ph: a_batch,
                 self.local_network.adv_actor_ph: adv_batch,
             }
-
-
             grads = self.session.run(
                                 self.local_network.get_gradients,
                                 feed_dict=feed_dict)
 
             self.apply_gradients_to_shared_memory_vars(grads)     
-            
-            s_batch = []
-            a_batch = []
-            y_batch = []          
-            adv_batch = []
-            
 
-            
-            # prevent the agent from getting stuck
-            if (self.local_step - steps_at_last_reward > 5000
-                or (self.emulator.env.ale.lives() == 0
-                    and self.emulator.game not in ONE_LIFE_GAMES)):
-
-                steps_at_last_reward = self.local_step
-                episode_over = True
-                reset_game = True
-
-
-            # Start a new game on reaching terminal state
-            if episode_over:
-                elapsed_time = time.time() - start_time
-                global_t = self.global_step.value()
-                steps_per_sec = global_t / elapsed_time
-                perf = "{:.0f}".format(steps_per_sec)
-                logger.info("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
-                
-                self.log_summary(total_episode_reward)
-
-                self.reset_hidden_state()
-                steps_at_last_reward = self.local_step
-                total_episode_reward = 0
-                episode_over = False
-
-                if reset_game or self.emulator.game in ONE_LIFE_GAMES:
-                    s = self.emulator.get_initial_state()
-                    reset_game = False
+            s, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
 
 class A3CLSTMLearner(BaseA3CLearner):
     def __init__(self, args):
+        super(A3CLSTMLearner, self).__init__(args)
+
         conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
                          'num_act': self.num_actions,
                          'args': args}
@@ -273,10 +264,6 @@ class A3CLSTMLearner(BaseA3CLearner):
 
         s = self.emulator.get_initial_state()
         total_episode_reward = 0
-        
-        reset_game = False
-        episode_over = False
-        start_time = time.time()
         steps_at_last_reward = self.local_step
         
         while (self.global_step.value() < self.max_global_steps):
@@ -286,6 +273,8 @@ class A3CLSTMLearner(BaseA3CLearner):
 
             local_step_start = self.local_step
             local_lstm_state = np.copy(self.lstm_state_out)
+            reset_game = False
+            episode_over = False
             
             rewards   = list()
             states    = list()
@@ -378,36 +367,7 @@ class A3CLSTMLearner(BaseA3CLearner):
 
             self.apply_gradients_to_shared_memory_vars(grads)     
             
+            s, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
-
-
-
-            # prevent the agent from getting stuck
-            if (self.local_step - steps_at_last_reward > 5000
-                or (self.emulator.env.ale.lives() == 0
-                    and self.emulator.game not in ONE_LIFE_GAMES)):
-
-                steps_at_last_reward = self.local_step
-                episode_over = True
-                reset_game = True
-
-
-            # Start a new game on reaching terminal state
-            if episode_over:
-                elapsed_time = time.time() - start_time
-                global_t = self.global_step.value()
-                steps_per_sec = global_t / elapsed_time
-                perf = "{:.0f}".format(steps_per_sec)
-                logger.info("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
-                
-                self.log_summary(total_episode_reward)
-
-                self.reset_hidden_state()
-                steps_at_last_reward = self.local_step
-                total_episode_reward = 0
-                episode_over = False
-
-                if reset_game or self.emulator.game in ONE_LIFE_GAMES:
-                    s = self.emulator.get_initial_state()
-                    reset_game = False
 

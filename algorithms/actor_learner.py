@@ -200,6 +200,7 @@ class ActorLearner(Process):
         # Introduce a different start delay for each actor, so that they do not run in synchronism.
         # This is to avoid concurrent updates of parameters as much as possible 
         time.sleep(0.1877 * self.actor_id)
+        self.start_time = time.time()
 
     def save_vars(self):
         if self.actor_id == 0 and self.global_step.value()-self.last_saving_step >= CHECKPOINT_INTERVAL:

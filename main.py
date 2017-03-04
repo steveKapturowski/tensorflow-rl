@@ -126,7 +126,7 @@ if __name__ == '__main__':
     parser.add_argument('--clip_loss', default=0.0, type=float, help='If bigger than 0.0, the loss will be clipped at +/-clip_loss', dest='clip_loss_delta')
     parser.add_argument('--entropy', default=0.01, type=float, help='Strength of the entropy regularization term (needed for actor-critic)', dest='entropy_regularisation_strength')
     parser.add_argument('--eta_pgq', default=0.5, type=float, help='Weight governing trade-off between policy gradient and q-learning updates. Eta=1.0 will result in pure batch Q-learning updates', dest='eta_pgq')
-    parser.add_argument('--replay_size', default=50000, type=int, help='Maximum capacity of replay memory', dest='replay_size')
+    parser.add_argument('--replay_size', default=20000, type=int, help='Maximum capacity of replay memory', dest='replay_size')
     parser.add_argument('--clip_norm', default=40, type=float, help='If clip_norm_type is local/global, grads will be clipped at the specified maximum (avaerage) L2-norm', dest='clip_norm')
     parser.add_argument('--clip_norm_type', default='global', help='Whether to clip grads by their norm or not. Values: ignore (no clipping), local (layer-wise norm), global (global norm)', dest='clip_norm_type')
     parser.add_argument('--alg_type', default="a3c", help='Type of algorithm: q (for Q-learning), sarsa, a3c (for actor-critic)', dest='alg_type') 
