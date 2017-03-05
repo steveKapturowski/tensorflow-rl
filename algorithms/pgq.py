@@ -17,6 +17,7 @@ class PGQLearner(BaseA3CLearner):
         super(PGQLearner, self).__init__(args)
 
         conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
+                         'input_shape': self.input_shape,
                          'num_act': self.num_actions,
                          'args': args}
         

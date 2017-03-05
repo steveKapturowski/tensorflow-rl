@@ -11,8 +11,9 @@ from multiprocessing import Process
 from hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam
 
 
-CHECKPOINT_INTERVAL = 10000
+CHECKPOINT_INTERVAL = 100000
 ONE_LIFE_GAMES = [
+    #Atari
     'Bowling-v0',
     'Boxing-v0',
     'Carnival-v0',
@@ -26,6 +27,16 @@ ONE_LIFE_GAMES = [
     'PrivateEye-v0',
     'Skiing-v0',
     'Tennis-v0',
+    #Classic Control
+    'CartPole-v0',
+    'MountainCar-v0',
+    'Pendulum-v0,'
+]
+CONTINUOUS_CONTROL = [
+    'LunarLanderContinuous-v2',
+    'BipedalWalker-v2',
+    'BipedalWalkerHardcore-v2',
+    'CarRacing-v0',
 ]
  
 logger = utils.logger.getLogger('actor_learner')
@@ -58,6 +69,7 @@ class ActorLearner(Process):
         self.lr_annealing_steps = args.lr_annealing_steps
         self.num_actor_learners = args.num_actor_learners
         self.is_train = args.is_train
+        self.input_shape = args.input_shape
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
@@ -79,16 +91,16 @@ class ActorLearner(Process):
         self.b2 = args.b2
         self.e = args.e
         
-        if args.env == "GYM":
-            from atari_environment import AtariEnvironment
+        if args.env == 'GYM':
+            from environments.atari_environment import AtariEnvironment
             self.emulator = AtariEnvironment(
                 args.game,
                 args.visualize,
                 frame_skip=args.frame_skip,
                 single_life_episodes=args.single_life_episodes,
             )
-        else:
-            from emulator import Emulator
+        elif args.env == 'ALE':
+            from environments.emulator import Emulator
             self.emulator = Emulator(
                 args.rom_path, 
                 args.game, 
@@ -96,6 +108,8 @@ class ActorLearner(Process):
                 self.actor_id,
                 args.random_seed,
                 args.single_life_episodes)
+        else:
+            raise Exception('Invalid environment `{}`'.format(args.env))
             
         self.grads_update_steps = args.grads_update_steps
         self.max_global_steps = args.max_global_steps

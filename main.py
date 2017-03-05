@@ -40,8 +40,9 @@ def main(args):
     
     """ Set up the graph, the agents, and run the agents in parallel. """
     if args.env == 'GYM':
-        from algorithms import atari_environment
+        from environments import atari_environment
         num_actions = atari_environment.get_num_actions(args.game)
+        input_shape = atari_environment.get_input_shape(args.game)
     else:
         num_actions = get_num_actions(args.rom_path, args.game)
     
@@ -63,6 +64,7 @@ def main(args):
     T = SharedCounter(0)
     network = Network({
         'name': 'shared_vars_network',
+        'input_shape': input_shape,
         'num_act': num_actions,
         'args': args
     })
@@ -98,6 +100,7 @@ def main(args):
         args.random_seed = rng.randint(1000)
             
         #pass in gpu name to learner here and wrap each learner in device context
+        args.input_shape = input_shape
         actor_learners.append(Learner(args))
         actor_learners[-1].start()
 

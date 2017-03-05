@@ -3,8 +3,8 @@ import numpy as np
 
 
 def flatten(_input):
-    shape = _input.get_shape().as_list() 
-    dim = shape[1]*shape[2]*shape[3] 
+    shape = _input.get_shape().as_list()
+    dim = reduce(lambda a, b: a*b, shape[1:])
     return tf.reshape(_input, [-1, dim], name='_flattened')
             
 def conv2d(name, _input, filters, size, channels, stride, padding='VALID'):

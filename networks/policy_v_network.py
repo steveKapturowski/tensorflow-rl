@@ -34,10 +34,10 @@ class PolicyVNetwork(Network):
                     self.initial_lstm_state = tf.placeholder(
                         tf.float32, [1, 2*self.hidden_state_size], name='initital_state')
                     
-                    o3_reshaped = tf.reshape(self.o3, [1,-1,256])
+                    ox_reshaped = tf.reshape(self.ox, [1,-1,256])
                     lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(
                         self.lstm_cell,
-                        o3_reshaped,
+                        ox_reshaped,
                         initial_state=self.initial_lstm_state,
                         sequence_length=self.step_size,
                         time_major=False,
@@ -48,11 +48,7 @@ class PolicyVNetwork(Network):
                     # Get all LSTM trainable params
                     self.lstm_trainable_variables = [v for v in 
                         tf.trainable_variables() if v.name.startswith(vs.name)]
-            else:
-                if self.arch == 'NIPS':
-                    self.ox = self.o3
-                else: #NATURE
-                    self.ox = self.o4
+
 
             # Final actor layer
             layer_name = 'softmax_policy4'            
