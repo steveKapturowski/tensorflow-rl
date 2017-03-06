@@ -16,13 +16,8 @@ class DuelingNetwork(Network):
         
             self.target_ph = tf.placeholder('float32', [None], name='target')
     
-            o_conv = self.o3 if self.arch == 'NIPS' else self.o4
-
-
-            self.w_value, self.b_value, self.value = layers.fc(
-                'fc5', o_conv, 1, activation='linear')
-            self.w_adv, self.b_adv, self.advantage = layers.fc(
-                'fc6', o_conv, self.num_actions, activation='linear')
+            self.w_value, self.b_value, self.value = layers.fc('fc_value', self.ox, 1, activation='linear')
+            self.w_adv, self.b_adv, self.advantage = layers.fc('fc_advantage', self.ox, self.num_actions, activation='linear')
             
             self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
             

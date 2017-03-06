@@ -30,7 +30,7 @@ ONE_LIFE_GAMES = [
     #Classic Control
     'CartPole-v0',
     'MountainCar-v0',
-    'Pendulum-v0,'
+    'LunarLander-v2'
 ]
 CONTINUOUS_CONTROL = [
     'LunarLanderContinuous-v2',
@@ -318,14 +318,14 @@ class ActorLearner(Process):
     def setup_summaries(self):
         episode_reward = tf.Variable(0., name='episode_reward')
         s1 = tf.summary.scalar('Episode Reward {}'.format(self.actor_id), episode_reward)
-        if not hasattr(self, 'target_vars'):
-            summary_vars = [episode_reward]
-        else:
+        if self.alg_type in ['sarsa', 'q', 'dueling']:
             episode_avg_max_q = tf.Variable(0., name='episode_avg_max_q')
             s2 = tf.summary.scalar('Max Q Value {}'.format(self.actor_id), episode_avg_max_q)
             logged_epsilon = tf.Variable(0., name='epsilon_'.format(self.actor_id))
             s3 = tf.summary.scalar('Epsilon {}'.format(self.actor_id), logged_epsilon)
             summary_vars = [episode_reward, episode_avg_max_q, logged_epsilon]
+        else:
+            summary_vars = [episode_reward]
 
         summary_placeholders = [tf.placeholder('float') for _ in range(len(summary_vars))]
         update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]

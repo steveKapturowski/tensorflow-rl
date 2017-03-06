@@ -22,12 +22,14 @@ class ValueBasedLearner(ActorLearner):
         self.scores = list()
         
         conf_learning = {'name': "local_learning_{}".format(self.actor_id),
+                         'input_shape': self.input_shape,
                          'num_act': self.num_actions,
                          'args': args}
 
         conf_target = {'name': "local_target_{}".format(self.actor_id),
-                         'num_act': self.num_actions,
-                         'args': args}
+                       'input_shape': self.input_shape,
+                       'num_act': self.num_actions,
+                       'args': args}
         
 
         if args.alg_type == 'dueling':
@@ -209,7 +211,7 @@ class NStepQLearner(ValueBasedLearner):
 
 
             if (self.local_step - steps_at_last_reward > 5000
-                or (self.emulator.env.ale.lives() == 0
+                or (self.emulator.get_lives() == 0
                     and self.emulator.game not in ONE_LIFE_GAMES)):
             
                 steps_at_last_reward = self.local_step

@@ -14,18 +14,8 @@ class QNetwork(Network):
                 
         with tf.name_scope(self.name):
         
-            self.target_ph = tf.placeholder(
-                "float32", [None], name='target')
-    
-            if self.arch == "NIPS":
-                self.w4, self.b4, self.output_layer = layers.fc('fc4', self.o3, self.num_actions, activation="linear")
-                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3, 
-                                           self.w4, self.b4]
-            else: #NATURE
-                self.w5, self.b5, self.output_layer = layers.fc('fc5', self.o4, self.num_actions, activation="linear")
-                self.params = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3, 
-                                           self.w4, self.b4, self.w5, self.b5]
-                   
+            self.target_ph = tf.placeholder('float32', [None], name='target')
+            self.w_out, self.b_out, self.output_layer = layers.fc('fc_out', self.ox, self.num_actions, activation="linear")
 
             self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
 
