@@ -81,8 +81,8 @@ class AtariEnvironment(object):
         self.visualize = visualize
         
     def get_lives(self):
-        if hasattr(self.env, 'ale'):
-            return self.env.ale.lives()
+        if hasattr(self.env.env, 'ale'):
+            return self.env.env.ale.lives()
         else:
             return 0
 
