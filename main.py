@@ -104,7 +104,6 @@ def main(args):
         actor_learners.append(Learner(args))
         actor_learners[-1].start()
 
-
     for t in actor_learners:
         t.join()
     

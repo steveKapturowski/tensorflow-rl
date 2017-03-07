@@ -6,7 +6,7 @@ from network import Network
 from custom_lstm import CustomBasicLSTMCell
 
 
-class PolicyVNetwork(Network):
+class PolicyRepeatNetwork(Network):
  
     def __init__(self, conf):
         """ Set up remaining layers, objective and loss functions, gradient 
@@ -50,7 +50,147 @@ class PolicyVNetwork(Network):
                         tf.trainable_variables() if v.name.startswith(vs.name)]
 
 
-            # p = lambda k, t, l: np.exp(-(k-l)**2/(2*t**2)-l)*l**k/np.math.gamma(k+1)
+            # Final actor layer
+            layer_name = 'softmax_policy4'            
+            self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = layers.softmax_and_log_softmax(
+                layer_name, self.ox, self.num_actions)
+
+            # Compute Poisson x Discrete Gaussian
+            self.t = tf.placeholder(tf.float32, num_actions)
+            self.l = tf.placeholder(tf.float32, num_actions)
+            k = np.array(range(10))
+            t_hat = tf.log(1+tf.exp(self.t))
+            l_hat = tf.log(1+tf.exp(self.l))
+            self.action_repeat_probs = tf.exp(-(k-l_hat)**2/(2*t_hat) - l_hat - tf.lgamma(k+1)) * l_hat**k
+            self.log_action_repeat_probs = -(k-l_hat)**2/(2*t_hat) - l_hat - tf.lgamma(k+1) + k*tf.log(l_hat)
+
+            self.selected_repeat = self.placeholder(tf.int32)
+            self.selected_repeat_prob = self.action_repeat_probs[self.selected_repeat]
+            
+            # Entropy: ∑_a[-p_a ln p_a]
+            self.output_layer_entropy = tf.reduce_sum(
+                - 1.0 * tf.multiply(
+                    self.output_layer_pi * self.action_repeat_probs,
+                    self.log_output_layer_pi + self.log_action_repeat_probs
+                ), axis=1)
+
+            
+            # Final critic layer
+            self.wv, self.bv, self.output_layer_v = layers.fc(
+                'fc_value4', self.ox, 1, activation='linear')
+
+            self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
+
+
+            # Advantage critic
+            self.adv_critic = tf.subtract(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
+            
+            # Actor objective
+            # Multiply the output of the network by a one hot vector, 1 for the 
+            # executed action. This will make the non-regularised objective 
+            # term for non-selected actions to be zero.
+            self.log_output_selected_action = tf.reduce_sum(
+                (self.log_output_layer_pi + self.selected_repeat_prob) * self.selected_action_ph, 
+                axis=1
+            )
+            actor_objective_advantage_term = tf.multiply(
+                self.log_output_selected_action, self.adv_actor_ph
+            )
+            actor_objective_entropy_term = self.beta * self.output_layer_entropy
+            self.actor_objective = -tf.reduce_mean(
+                actor_objective_advantage_term
+                + actor_objective_entropy_term
+            )
+            
+            # Critic loss
+            if self.clip_loss_delta > 0:
+                quadratic_part = tf.reduce_mean(tf.pow(
+                    tf.minimum(
+                        tf.abs(self.adv_critic), self.clip_loss_delta
+                    ), 2))
+                linear_part = tf.subtract(tf.abs(self.adv_critic), quadratic_part)
+                #OBS! For the standard L2 loss, we should multiply by 0.5. However, the authors of the paper
+                # recommend multiplying the gradients of the V function by 0.5. Thus the 0.5 
+                self.critic_loss = tf.multiply(tf.constant(0.5), tf.nn.l2_loss(quadratic_part) + \
+                    self.clip_loss_delta * linear_part)
+            else:
+                self.critic_loss = 0.5 * tf.reduce_mean(tf.pow(self.adv_critic, 2))          
+            
+            self.loss = self.actor_objective + self.critic_loss
+            
+            # Optimizer
+            grads = tf.gradients(self.loss, self.params)
+
+            if self.clip_norm_type == 'ignore':
+                # Unclipped gradients
+                self.get_gradients = grads
+            elif self.clip_norm_type == 'global':
+                # Clip network grads by network norm
+                self.get_gradients = tf.clip_by_global_norm(
+                            grads, self.clip_norm)[0]
+            elif self.clip_norm_type == 'local':
+                # Clip layer grads by layer norm
+                self.get_gradients = [tf.clip_by_norm(
+                            g, self.clip_norm) for g in grads]
+
+            # Placeholders for shared memory vars
+            self.params_ph = []
+            for p in self.params:
+                self.params_ph.append(tf.placeholder(tf.float32, 
+                    shape=p.get_shape(), 
+                    name="shared_memory_for_{}".format(
+                        (p.name.split("/", 1)[1]).replace(":", "_"))))
+            
+            # Ops to sync net with shared memory vars
+            self.sync_with_shared_memory = []
+            for i in xrange(len(self.params)):
+                self.sync_with_shared_memory.append(
+                    self.params[i].assign(self.params_ph[i]))
+
+
+class PolicyVNetwork(Network):
+ 
+    def __init__(self, conf):
+        """ Set up remaining layers, objective and loss functions, gradient 
+        compute and apply ops, network parameter synchronization ops, and 
+        summary ops. """
+
+        super(PolicyVNetwork, self).__init__(conf)
+        
+        self.beta = conf['args'].entropy_regularisation_strength
+        self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
+                
+        with tf.name_scope(self.name):
+
+            self.critic_target_ph = tf.placeholder(
+                'float32', [None], name='target')
+            self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')
+
+            if self.use_recurrent:
+                layer_name = 'lstm_layer'
+                self.hidden_state_size = 256
+                with tf.variable_scope(self.name+'/'+layer_name) as vs:
+                    self.lstm_cell = CustomBasicLSTMCell(self.hidden_state_size, forget_bias=1.0)
+
+                    self.step_size = tf.placeholder(tf.float32, [1], name='step_size')
+                    self.initial_lstm_state = tf.placeholder(
+                        tf.float32, [1, 2*self.hidden_state_size], name='initital_state')
+                    
+                    ox_reshaped = tf.reshape(self.ox, [1,-1,256])
+                    lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(
+                        self.lstm_cell,
+                        ox_reshaped,
+                        initial_state=self.initial_lstm_state,
+                        sequence_length=self.step_size,
+                        time_major=False,
+                        scope=vs)
+
+                    self.ox = tf.reshape(lstm_outputs, [-1,256])
+
+                    # Get all LSTM trainable params
+                    self.lstm_trainable_variables = [v for v in 
+                        tf.trainable_variables() if v.name.startswith(vs.name)]
+
 
             # Final actor layer
             layer_name = 'softmax_policy4'            
@@ -136,136 +276,6 @@ class PolicyVNetwork(Network):
             for i in xrange(len(self.params)):
                 self.sync_with_shared_memory.append(
                     self.params[i].assign(self.params_ph[i]))
-
-
-# class PolicyVNetwork(Network):
- 
-#     def __init__(self, conf):
-#         """ Set up remaining layers, objective and loss functions, gradient 
-#         compute and apply ops, network parameter synchronization ops, and 
-#         summary ops. """
-
-#         super(PolicyVNetwork, self).__init__(conf)
-        
-#         self.beta = conf['args'].entropy_regularisation_strength
-#         self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
-                
-#         with tf.name_scope(self.name):
-
-#             self.critic_target_ph = tf.placeholder(
-#                 'float32', [None], name='target')
-#             self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')
-
-#             if self.use_recurrent:
-#                 layer_name = 'lstm_layer'
-#                 self.hidden_state_size = 256
-#                 with tf.variable_scope(self.name+'/'+layer_name) as vs:
-#                     self.lstm_cell = CustomBasicLSTMCell(self.hidden_state_size, forget_bias=1.0)
-
-#                     self.step_size = tf.placeholder(tf.float32, [1], name='step_size')
-#                     self.initial_lstm_state = tf.placeholder(
-#                         tf.float32, [1, 2*self.hidden_state_size], name='initital_state')
-                    
-#                     ox_reshaped = tf.reshape(self.ox, [1,-1,256])
-#                     lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(
-#                         self.lstm_cell,
-#                         ox_reshaped,
-#                         initial_state=self.initial_lstm_state,
-#                         sequence_length=self.step_size,
-#                         time_major=False,
-#                         scope=vs)
-
-#                     self.ox = tf.reshape(lstm_outputs, [-1,256])
-
-#                     # Get all LSTM trainable params
-#                     self.lstm_trainable_variables = [v for v in 
-#                         tf.trainable_variables() if v.name.startswith(vs.name)]
-
-
-#             # Final actor layer
-#             layer_name = 'softmax_policy4'            
-#             self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = layers.softmax_and_log_softmax(
-#                 layer_name, self.ox, self.num_actions)
-            
-#             # Entropy: ∑_a[-p_a ln p_a]
-#             self.output_layer_entropy = tf.reduce_sum(
-#                 - 1.0 * tf.multiply(
-#                     self.output_layer_pi,
-#                     self.log_output_layer_pi
-#                 ), axis=1)
-
-            
-#             # Final critic layer
-#             self.wv, self.bv, self.output_layer_v = layers.fc(
-#                 'fc_value4', self.ox, 1, activation='linear')
-
-#             self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
-
-
-#             # Advantage critic
-#             self.adv_critic = tf.subtract(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
-            
-#             # Actor objective
-#             # Multiply the output of the network by a one hot vector, 1 for the 
-#             # executed action. This will make the non-regularised objective 
-#             # term for non-selected actions to be zero.
-#             self.log_output_selected_action = tf.reduce_sum(
-#                 self.log_output_layer_pi*self.selected_action_ph, 
-#                 axis=1
-#             )
-#             actor_objective_advantage_term = tf.multiply(
-#                 self.log_output_selected_action, self.adv_actor_ph
-#             )
-#             actor_objective_entropy_term = self.beta * self.output_layer_entropy
-#             self.actor_objective = -tf.reduce_mean(
-#                 actor_objective_advantage_term
-#                 + actor_objective_entropy_term
-#             )
-            
-#             # Critic loss
-#             if self.clip_loss_delta > 0:
-#                 quadratic_part = tf.reduce_mean(tf.pow(
-#                     tf.minimum(
-#                         tf.abs(self.adv_critic), self.clip_loss_delta
-#                     ), 2))
-#                 linear_part = tf.subtract(tf.abs(self.adv_critic), quadratic_part)
-#                 #OBS! For the standard L2 loss, we should multiply by 0.5. However, the authors of the paper
-#                 # recommend multiplying the gradients of the V function by 0.5. Thus the 0.5 
-#                 self.critic_loss = tf.multiply(tf.constant(0.5), tf.nn.l2_loss(quadratic_part) + \
-#                     self.clip_loss_delta * linear_part)
-#             else:
-#                 self.critic_loss = 0.5 * tf.reduce_mean(tf.pow(self.adv_critic, 2))          
-            
-#             self.loss = self.actor_objective + self.critic_loss
-            
-#             # Optimizer
-#             grads = tf.gradients(self.loss, self.params)
-
-#             if self.clip_norm_type == 'ignore':
-#                 # Unclipped gradients
-#                 self.get_gradients = grads
-#             elif self.clip_norm_type == 'global':
-#                 # Clip network grads by network norm
-#                 self.get_gradients = tf.clip_by_global_norm(
-#                             grads, self.clip_norm)[0]
-#             elif self.clip_norm_type == 'local':
-#                 # Clip layer grads by layer norm
-#                 self.get_gradients = [tf.clip_by_norm(
-#                             g, self.clip_norm) for g in grads]
-
-#             # Placeholders for shared memory vars
-#             self.params_ph = []
-#             for p in self.params:
-#                 self.params_ph.append(tf.placeholder(tf.float32, 
-#                     shape=p.get_shape(), 
-#                     name="shared_memory_for_{}".format(
-#                         (p.name.split("/", 1)[1]).replace(":", "_"))))
-            
-#             # Ops to sync net with shared memory vars
-#             self.sync_with_shared_memory = []
-#             for i in xrange(len(self.params)):
-#                 self.sync_with_shared_memory.append(
-#                     self.params[i].assign(self.params_ph[i]))
 
 
 def gumbel_noise(shape, epsilon=1e-30):
