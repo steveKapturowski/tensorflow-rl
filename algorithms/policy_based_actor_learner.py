@@ -34,14 +34,15 @@ class BaseA3CLearner(ActorLearner):
 
 
     @checkpoint_utils.only_on_train()
-    def log_summary(self, total_episode_reward):
+    def log_summary(self, total_episode_reward, mean_entropy):
         if (self.actor_id == 0):
-            feed_dict = {self.summary_ph[0]: total_episode_reward}
+            feed_dict = {self.summary_ph[0]: total_episode_reward, self.summary_ph[1]: mean_entropy}
             res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
             self.summary_writer.add_summary(res[-1], self.global_step.value())
 
 
-    def prepare_state(self, state, total_episode_reward, steps_at_last_reward, sel_actions, episode_over):
+    def prepare_state(self, state, mean_entropy, episode_start_step, total_episode_reward, 
+                      steps_at_last_reward, sel_actions, episode_over):
         # prevent the agent from getting stuck
         reset_game = False
 
@@ -56,21 +57,29 @@ class BaseA3CLearner(ActorLearner):
         # Start a new game on reaching terminal state
         if episode_over:
             elapsed_time = time.time() - self.start_time
-            global_t = self.global_step.value()
-            steps_per_sec = global_t / elapsed_time
+            steps_per_sec = self.global_step.value() / elapsed_time
             perf = "{:.0f}".format(steps_per_sec)
-            logger.info("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
+            logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s, Actions {}".format(
+                self.actor_id,
+                self.local_episode,
+                self.global_step.value()/1000,
+                total_episode_reward,
+                perf,
+                sel_actions))
                 
-            self.log_summary(total_episode_reward)
+            self.log_summary(total_episode_reward, mean_entropy)
 
             self.reset_hidden_state()
+            self.local_episode += 1
+            episode_start_step = self.local_step
             steps_at_last_reward = self.local_step
-            total_episode_reward = 0
+            total_episode_reward = 0.0
+            mean_entropy = 0.0
 
             if reset_game or self.emulator.game in ONE_LIFE_GAMES:
                 state = self.emulator.get_initial_state()
 
-        return state, total_episode_reward, steps_at_last_reward
+        return state, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward
 
 
 class A3CLearner(BaseA3CLearner):
@@ -117,8 +126,10 @@ class A3CLearner(BaseA3CLearner):
             self.global_step.value()))
 
         s = self.emulator.get_initial_state()
-        total_episode_reward = 0
         steps_at_last_reward = self.local_step
+        total_episode_reward = 0.0
+        mean_entropy = 0.0
+        episode_start_step = 0
         
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
@@ -197,15 +208,18 @@ class A3CLearner(BaseA3CLearner):
                 self.local_network.selected_action_ph: a_batch,
                 self.local_network.adv_actor_ph: adv_batch,
             }
-            grads = self.session.run(
-                                self.local_network.get_gradients,
-                                feed_dict=feed_dict)
+            grads, entropy = self.session.run(
+                [self.local_network.get_gradients, self.local_network.entropy],
+                feed_dict=feed_dict)
 
             self.apply_gradients_to_shared_memory_vars(grads)     
 
-            s, total_episode_reward, steps_at_last_reward = self.prepare_state(
-                s, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
+            delta_old = local_step_start - episode_start_step
+            delta_new = self.local_step -  local_step_start
+            mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
 
+            s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
 class A3CLSTMLearner(BaseA3CLearner):
@@ -265,8 +279,10 @@ class A3CLSTMLearner(BaseA3CLearner):
             self.global_step.value()))
 
         s = self.emulator.get_initial_state()
-        total_episode_reward = 0
         steps_at_last_reward = self.local_step
+        total_episode_reward = 0.0
+        mean_entropy = 0.0
+        episode_start_step = 0
         
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
@@ -363,13 +379,17 @@ class A3CLSTMLearner(BaseA3CLearner):
                 self.local_network.step_size : [len(s_batch)],
                 self.local_network.initial_lstm_state: local_lstm_state,
             }
-            grads = self.session.run(
-                                self.local_network.get_gradients,
-                                feed_dict=feed_dict)
+            grads, entropy = self.session.run(
+                [self.local_network.get_gradients, self.local_network.entropy],
+                feed_dict=feed_dict)
 
-            self.apply_gradients_to_shared_memory_vars(grads)     
+            self.apply_gradients_to_shared_memory_vars(grads)
+
+            delta_old = local_step_start - episode_start_step
+            delta_new = self.local_step -  local_step_start
+            mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)  
             
-            s, total_episode_reward, steps_at_last_reward = self.prepare_state(
-                s, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
+            s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 

@@ -19,7 +19,6 @@ class Network(object):
         self.clip_loss_delta = conf['args'].clip_loss_delta
         self.clip_norm = conf['args'].clip_norm
         self.clip_norm_type = conf['args'].clip_norm_type
-        self.use_layer_norm = conf['args'].use_layer_norm
         self.input_shape = conf['input_shape']
 
         with tf.name_scope(self.name):
@@ -28,8 +27,8 @@ class Network(object):
                 
             if self.arch == 'FC':
                 self.input_ph = tf.placeholder('float32', [self.batch_size]+self.input_shape+[4], name='input')
-                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 30, activation='relu')
-                self.w2, self.b2, self.o2 = layers.fc('fc2', self.o1, 30, activation='relu')
+                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 40, activation='relu')
+                self.w2, self.b2, self.o2 = layers.fc('fc2', self.o1, 40, activation='relu')
                 self.ox = self.o2
             elif self.arch == 'NIPS':
                 self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, 4], name='input')

@@ -1,8 +1,7 @@
 #from cython.parallel import prange
 import cython
 cimport cython
-#import numpy as np
-#cimport numpy as np
+from libc.math cimport fabs 
 #from libc.stdlib cimport memcpy
 
 cdef extern from "math.h" nogil:
@@ -60,6 +59,7 @@ cdef void c_apply_grads_adam(float[::1] m,
                         float b2, 
                         float e) nogil:
      
+    cdef unsigned int i
     for i in range(p_size):
         m[i] = b1 * m[i] + (1 - b1) * g[i]
         v[i] = b2 * v[i] + (1 - b2) * (g[i] ** 2)
@@ -68,7 +68,37 @@ cdef void c_apply_grads_adam(float[::1] m,
         
 def apply_grads_adam(m, v, g, p, p_size, lr, b1, b2, e):
     c_apply_grads_adam(m, v, g, p, p_size, lr, b1, b2, e)
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+cdef void c_apply_grads_adamax(float[::1] m,
+                        float[::1] u,
+                        float[::1] g,
+                        float[::1] p,
+                        unsigned int p_size,
+                        float lr,
+                        float beta_1,
+                        float beta_2,
+                        unsigned int t) nogil:
     
+    cdef float term1, term2
+    cdef unsigned int i
+    
+    for i in range(p_size):
+        m[i] = beta_1 * m[i] + (1 - beta_1) * g[i]
+        term1 = beta_2 * u[i]
+        term2 = fabs(g[i])
+
+        u[i] = term1
+        if term2 > term1:
+            u[i] = term2
+
+        p[i] -= (lr / (1 - beta_1)) * m[i] / u[i]
+        
+def apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, t):
+    c_apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, t)
+
 
     
     

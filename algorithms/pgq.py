@@ -39,26 +39,25 @@ class PGQLearner(BaseA3CLearner):
 
         self.Qi, self.Qi_plus_1 = tf.split(axis=0, num_or_size_splits=2, value=self.q_tilde)
         self.V, _ = tf.split(axis=0, num_or_size_splits=2, value=self.local_network.output_layer_v)
-        self.pi, _ = tf.split(axis=0, num_or_size_splits=2, value=tf.expand_dims(self.local_network.log_output_selected_action, 1))
+        self.log_pi, _ = tf.split(axis=0, num_or_size_splits=2, value=tf.expand_dims(self.local_network.log_output_selected_action, 1))
         self.R = tf.placeholder('float32', [None], name='1-step_reward')
 
         self.terminal_indicator = tf.placeholder(tf.float32, [None], name='terminal_indicator')
         self.max_TQ = self.gamma*tf.reduce_max(self.Qi_plus_1, 1) * (1 - self.terminal_indicator)
         self.Q_a = tf.reduce_sum(self.Qi * tf.split(axis=0, num_or_size_splits=2, value=self.local_network.selected_action_ph)[0], 1)
-        self.q_objective = 0.5 * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V + self.pi))
+        self.q_objective = 0.5 * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V + self.log_pi))
 
 
-        self.V_params = self.local_network.params #[var for var in self.local_network.params if 'policy' not in var.name]
+
+        self.V_params = self.local_network.params
         self.q_gradients = tf.gradients(self.q_objective, self.V_params)
 
-        # if self.clip_norm_type == 'global':
-        #     # Clip network grads by network norm
-        #     self.q_gradients = tf.clip_by_global_norm(
-        #                 self.q_gradients, self.clip_norm)[0]
-        # elif self.clip_norm_type == 'local':
-        #     # Clip layer grads by layer norm
-        #     self.q_gradients = [tf.clip_by_norm(
-        #                 g, self.clip_norm) for g in self.q_gradients]
+        if self.local_network.clip_norm_type == 'global':
+            self.q_gradients = tf.clip_by_global_norm(
+                self.q_gradients, self.local_network.clip_norm)[0]
+        elif self.local_network.clip_norm_type == 'local':
+            self.q_gradients = [tf.clip_by_norm(
+                g, self.local_network.clip_norm) for g in self.q_gradients]
 
 
         if (self.optimizer_mode == "local"):
@@ -73,8 +72,8 @@ class PGQLearner(BaseA3CLearner):
     def apply_batch_q_update(self):
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-        batch_grads = self.session.run(
-            self.q_gradients,
+        batch_grads, max_TQ, Q_a = self.session.run(
+            [self.q_gradients, self.max_TQ, self.Q_a],
             feed_dict={
                 self.R: r_i,
                 self.local_network.selected_action_ph: np.vstack([a_i, a_i]),
@@ -82,6 +81,7 @@ class PGQLearner(BaseA3CLearner):
                 self.terminal_indicator: is_terminal.astype(np.int),
             }
         )
+        # print 'max_TQ={}, Q_a={}'.format(max_TQ[:5], Q_a[:5])
 
         self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
 
@@ -101,6 +101,8 @@ class PGQLearner(BaseA3CLearner):
         new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
 
+        # print 'q_tilde:', q_tilde[0, action_index], network_output_v
+
         return new_action, network_output_v, network_output_pi, q_tilde[0, action_index]
 
 
@@ -113,8 +115,11 @@ class PGQLearner(BaseA3CLearner):
             self.global_step.value()))
 
         s = self.emulator.get_initial_state()
-        total_episode_reward = 0
         steps_at_last_reward = self.local_step
+        total_episode_reward = 0.0
+        mean_entropy = 0.0
+        q_update_counter = 0
+        episode_start_step = 0
         
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
@@ -198,18 +203,22 @@ class PGQLearner(BaseA3CLearner):
             }
 
 
-            grads = self.session.run(
-                                self.local_network.get_gradients,
-                                feed_dict=feed_dict)
+            grads, entropy = self.session.run(
+                [self.local_network.get_gradients, self.local_network.entropy],
+                feed_dict=feed_dict)
 
             self.apply_gradients_to_shared_memory_vars(grads)
 
-            # let the replay buffer fill up a bit before we start sampling
-            if self.local_step > 1000:
+            q_update_counter += 1
+            if q_update_counter % 4 == 0:
                 self.apply_batch_q_update()
+
+            delta_old = local_step_start - episode_start_step
+            delta_new = self.local_step -  local_step_start
+            mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
             
-            s, total_episode_reward, steps_at_last_reward = self.prepare_state(
-                s, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
+            s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
 

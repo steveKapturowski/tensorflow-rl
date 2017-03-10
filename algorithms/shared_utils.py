@@ -53,6 +53,10 @@ class SharedVars(object):
             self.ms = self.malloc_contiguous(self.size)
             self.vs = self.malloc_contiguous(self.size)
             self.lr = RawValue(ctypes.c_float, lr)
+        elif opt_type == 'adamax':
+            self.ms = self.malloc_contiguous(self.size)
+            self.vs = self.malloc_contiguous(self.size)
+            self.lr = RawValue(ctypes.c_float, lr)
         elif opt_type == 'rmsprop':
             self.vars = self.malloc_contiguous(self.size, np.ones(self.size, dtype=np.float))
         elif opt_type == 'momentum':

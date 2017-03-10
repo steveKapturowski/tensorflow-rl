@@ -46,7 +46,8 @@ def main(args):
     else:
         num_actions = get_num_actions(args.rom_path, args.game)
     
-    args.summ_base_dir = '/tmp/summary_logs/{}/{}'.format(args.game, time.time())
+    args.summ_base_dir = '/tmp/summary_logs/{}/{}'.format(args.game, time.strftime('%m.%d/%H.%M'))
+    logger.info('logging summaries to {}'.format(args.summ_base_dir))
 
     algorithms = {
         'q': (NStepQLearner, QNetwork),
@@ -127,7 +128,6 @@ if __name__ == '__main__':
     parser.add_argument('-lra', '--lr_annealing_steps', default=640000000, type=int, help='Nr. of global steps during which the learning rate will be linearly annealed towards zero', dest='lr_annealing_steps')
     parser.add_argument('--clip_loss', default=0.0, type=float, help='If bigger than 0.0, the loss will be clipped at +/-clip_loss', dest='clip_loss_delta')
     parser.add_argument('--entropy', default=0.01, type=float, help='Strength of the entropy regularization term (needed for actor-critic)', dest='entropy_regularisation_strength')
-    parser.add_argument('--eta_pgq', default=0.5, type=float, help='Weight governing trade-off between policy gradient and q-learning updates. Eta=1.0 will result in pure batch Q-learning updates', dest='eta_pgq')
     parser.add_argument('--replay_size', default=20000, type=int, help='Maximum capacity of replay memory', dest='replay_size')
     parser.add_argument('--clip_norm', default=40, type=float, help='If clip_norm_type is local/global, grads will be clipped at the specified maximum (avaerage) L2-norm', dest='clip_norm')
     parser.add_argument('--clip_norm_type', default='global', help='Whether to clip grads by their norm or not. Values: ignore (no clipping), local (layer-wise norm), global (global norm)', dest='clip_norm_type')
@@ -143,9 +143,9 @@ if __name__ == '__main__':
     parser.add_argument('--rescale_rewards', action='store_true', help='If True, rewards will be rescaled (dividing by the max. possible reward) to be in the range [-1, 1]. If False, rewards will be clipped to be in the range [-1, 1]', dest='rescale_rewards')  
     parser.add_argument('--arch', default='NIPS', help='Which network architecture to use: from the NIPS or NATURE paper', dest='arch')
     parser.add_argument('--single_life_episodes', action='store_true', help='if true, training episodes will be terminated when a life is lost (for games)', dest='single_life_episodes')
-    parser.add_argument('--layer_norm', action='store_true', help='if true, apply layer normalization to all layers', dest='use_layer_norm')
     parser.add_argument('--frame_skip', default=[4], type=int, nargs='+', help='number of frames to repeat action', dest='frame_skip')
     parser.add_argument('--test', action='store_false', help='if not set train agents in parallel, otherwise follow optimal policy with single agent', dest='is_train')
+    parser.add_argument('--restore_checkpoint', action='store_true', help='resume training from last checkpoint', dest='restore_checkpoint')
 
     args = parser.parse_args()
     if (args.env=='ALE' and args.rom_path is None):

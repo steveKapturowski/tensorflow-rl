@@ -8,7 +8,7 @@ import time
 import checkpoint_utils
 import tempfile
 from multiprocessing import Process
-from hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam
+from hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
 
 
 CHECKPOINT_INTERVAL = 100000
@@ -57,6 +57,7 @@ class ActorLearner(Process):
         
         self.local_step = 0
         self.global_step = args.global_step
+        self.local_episode = 0
         self.last_saving_step = 0
 
         self.actor_id = args.actor_id
@@ -70,6 +71,7 @@ class ActorLearner(Process):
         self.num_actor_learners = args.num_actor_learners
         self.is_train = args.is_train
         self.input_shape = args.input_shape
+        self.restore_checkpoint = args.restore_checkpoint
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
@@ -190,7 +192,7 @@ class ActorLearner(Process):
                             "{}/{}".format(self.summ_base_dir, self.actor_id), self.session.graph) 
 
             # Initialize network parameters
-            g_step = checkpoint_utils.restore_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps)
+            g_step = checkpoint_utils.restore_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps, self.restore_checkpoint)
             self.global_step.val.value = g_step
             self.last_saving_step = g_step   
             logger.debug("T{}: Initializing shared memory...".format(self.actor_id))
@@ -268,6 +270,18 @@ class ActorLearner(Process):
                 opt_st.lr.value =  1.0 * opt_st.lr.value * (1 - self.b2**T)**0.5 / (1 - self.b1**T) 
                 
                 apply_grads_adam(m, v, g, p, p_size, opt_st.lr.value, self.b1, self.b2, self.e)
+
+            elif self.optimizer_type == "adamax" and self.optimizer_mode == "shared":
+                beta_1 = .9
+                beta_2 = .999
+
+                p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
+                p_size = self.learning_vars.size
+                m = np.frombuffer(opt_st.ms, ctypes.c_float)
+                u = np.frombuffer(opt_st.vs, ctypes.c_float)
+                T = self.global_step.value()
+
+                apply_grads_adamax(m, u, g, p, p_size, opt_st.lr.value, beta_1, beta_2, T)
                     
             else: #local or shared rmsprop/momentum
                 lr = self.decay_lr()
@@ -279,7 +293,7 @@ class ActorLearner(Process):
                 p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
                 p_size = self.learning_vars.size
                 _type = 0 if self.optimizer_type == "momentum" else 1
-                    
+                
                 #print "BEFORE", "RMSPROP m", m[0], "GRAD", g[0], self.flat_grads[0], self.flat_grads2[0]
                 apply_grads_mom_rmsprop(m, g, p, p_size, _type, lr, self.alpha, self.e)
                 #print "AFTER", "RMSPROP m", m[0], "GRAD", g[0], self.flat_grads[0], self.flat_grads2[0]
@@ -317,15 +331,17 @@ class ActorLearner(Process):
     
     def setup_summaries(self):
         episode_reward = tf.Variable(0., name='episode_reward')
-        s1 = tf.summary.scalar('Episode Reward {}'.format(self.actor_id), episode_reward)
+        s1 = tf.summary.scalar('Episode_Reward_{}'.format(self.actor_id), episode_reward)
         if self.alg_type in ['sarsa', 'q', 'dueling']:
             episode_avg_max_q = tf.Variable(0., name='episode_avg_max_q')
-            s2 = tf.summary.scalar('Max Q Value {}'.format(self.actor_id), episode_avg_max_q)
+            s2 = tf.summary.scalar('Max_Q_Value_{}'.format(self.actor_id), episode_avg_max_q)
             logged_epsilon = tf.Variable(0., name='epsilon_'.format(self.actor_id))
-            s3 = tf.summary.scalar('Epsilon {}'.format(self.actor_id), logged_epsilon)
+            s3 = tf.summary.scalar('Epsilon_{}'.format(self.actor_id), logged_epsilon)
             summary_vars = [episode_reward, episode_avg_max_q, logged_epsilon]
         else:
-            summary_vars = [episode_reward]
+            mean_entropy = tf.Variable(0., name='episode_avg_max_q')
+            s2 = tf.summary.scalar('Mean_Entropy_{}'.format(self.actor_id), mean_entropy)
+            summary_vars = [episode_reward, mean_entropy]
 
         summary_placeholders = [tf.placeholder('float') for _ in range(len(summary_vars))]
         update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
