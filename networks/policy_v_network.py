@@ -34,7 +34,7 @@ class PolicyVNetwork(Network):
                     self.initial_lstm_state = tf.placeholder(
                         tf.float32, [1, 2*self.hidden_state_size], name='initital_state')
                     
-                    ox_reshaped = tf.reshape(self.ox, [1,-1,256])
+                    ox_reshaped = tf.reshape(self.ox, [1,-1,self.ox.get_shape().as_list()[-1]])
                     lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(
                         self.lstm_cell,
                         ox_reshaped,

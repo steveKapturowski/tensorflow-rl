@@ -90,14 +90,15 @@ class A3CLearner(BaseA3CLearner):
                          'input_shape': self.input_shape,
                          'num_act': self.num_actions,
                          'args': args}
-        
+
         self.local_network = PolicyVNetwork(conf_learning)
         self.reset_hidden_state()
-            
+
         if self.actor_id == 0:
             var_list = self.local_network.params
-            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
+            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
+
 
     def choose_next_action(self, state):
         network_output_v, network_output_pi = self.session.run(
@@ -112,7 +113,6 @@ class A3CLearner(BaseA3CLearner):
         action_index = self.sample_policy_action(network_output_pi)
         new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
-
 
         return new_action, network_output_v, network_output_pi
 
@@ -161,7 +161,6 @@ class A3CLearner(BaseA3CLearner):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                 new_s, reward, episode_over = self.emulator.next(a)
-
                 if reward != 0.0:
                     steps_at_last_reward = self.local_step
 
@@ -230,13 +229,13 @@ class A3CLSTMLearner(BaseA3CLearner):
                          'input_shape': self.input_shape,
                          'num_act': self.num_actions,
                          'args': args}
-        
+
         self.local_network = PolicyVNetwork(conf_learning)
         self.reset_hidden_state()
-            
+
         if self.actor_id == 0:
             var_list = self.local_network.params
-            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
+            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
 
 
@@ -260,7 +259,7 @@ class A3CLSTMLearner(BaseA3CLearner):
 
         network_output_pi = network_output_pi.reshape(-1)
         network_output_v = np.asscalar(network_output_v)
-            
+
 
         action_index = self.sample_policy_action(network_output_pi)
         new_action = np.zeros([self.num_actions])
@@ -272,7 +271,6 @@ class A3CLSTMLearner(BaseA3CLearner):
     def _run(self):
         if not self.is_train:
             return self.test()
-
 
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
@@ -311,7 +309,6 @@ class A3CLSTMLearner(BaseA3CLearner):
                 a, readout_v_t, readout_pi_t = self.choose_next_action(s)
                 
                 assert not np.allclose(local_lstm_state, self.lstm_state_out)
-
 
                 if (self.actor_id == 0) and (self.local_step % 100 == 0):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
