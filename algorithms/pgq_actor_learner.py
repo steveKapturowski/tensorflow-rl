@@ -32,6 +32,7 @@ class BasePGQLearner(BaseA3CLearner):
 
         # pgq specific initialization
         self.batch_size = 32
+        self.pgq_fraction = args.pgq_fraction
         self.replay_memory = ReplayMemory(args.replay_size)
         self.q_tilde = self.local_network.beta * (
             self.local_network.log_output_layer_pi
@@ -46,7 +47,7 @@ class BasePGQLearner(BaseA3CLearner):
         self.terminal_indicator = tf.placeholder(tf.float32, [None], name='terminal_indicator')
         self.max_TQ = self.gamma*tf.reduce_max(self.Qi_plus_1, 1) * (1 - self.terminal_indicator)
         self.Q_a = tf.reduce_sum(self.Qi * tf.split(axis=0, num_or_size_splits=2, value=self.local_network.selected_action_ph)[0], 1)
-        self.q_objective = -0.5 * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V + self.log_pi))
+        self.q_objective = - self.pgq_fraction * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V + self.log_pi))
 
 
 

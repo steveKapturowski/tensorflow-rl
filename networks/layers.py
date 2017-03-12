@@ -72,3 +72,5 @@ def softmax_and_log_softmax(name, _input, output_dim):
     log_out = tf.nn.log_softmax(xformed, name=name+'_log_policy')
 
     return w, b, out, log_out
+
+

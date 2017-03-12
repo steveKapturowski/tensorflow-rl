@@ -2,8 +2,8 @@
 import time
 import numpy as np
 import utils.logger
-import checkpoint_utils
 import tensorflow as tf
+from utils import checkpoint_utils
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
 from networks.policy_v_network import PolicyVNetwork
 

@@ -4,11 +4,11 @@ import utils.logger
 import tensorflow as tf
 import ctypes
 import pyximport; pyximport.install()
-import time
-import checkpoint_utils
 import tempfile
+import time
+from utils import checkpoint_utils
 from multiprocessing import Process
-from hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
+from utils.hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
 
 
 CHECKPOINT_INTERVAL = 100000
@@ -71,6 +71,7 @@ class ActorLearner(Process):
         self.num_actor_learners = args.num_actor_learners
         self.is_train = args.is_train
         self.input_shape = args.input_shape
+        self.reward_clip = args.reward_clip
         self.restore_checkpoint = args.restore_checkpoint
         
         # Shared mem vars
@@ -274,8 +275,7 @@ class ActorLearner(Process):
             elif self.optimizer_type == "adamax" and self.optimizer_mode == "shared":
                 beta_1 = .9
                 beta_2 = .999
-                # lr = opt_st.lr.value
-                lr = .0003
+                lr = opt_st.lr.value
 
                 p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
                 p_size = self.learning_vars.size
@@ -303,8 +303,8 @@ class ActorLearner(Process):
     def rescale_reward(self, reward):
         if self.rescale_rewards:
             """ Rescale immediate reward by max reward encountered thus far. """
-            if reward > self.thread_max_reward:
-                self.thread_max_reward = reward
+            if np.abs(reward) > self.thread_max_reward:
+                self.thread_max_reward = np.abs(reward)
             return reward/self.thread_max_reward
         else:
             """ Clip immediate reward """

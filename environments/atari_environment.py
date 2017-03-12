@@ -32,11 +32,16 @@ from skimage.color import rgb2gray
 import numpy as np
 from collections import deque
 import gym
+import gym_pull #Doom environments
 
 
 def get_num_actions(game):
     env = gym.make(game)
-    num_actions = env.action_space.n
+    if hasattr(env.action_space, 'n'):
+        num_actions = env.action_space.n
+    else:
+        num_actions = env.action_space.num_discrete_space
+
     if game in ['Pong-v0', 'Breakout-v0']:
         # Gym currently specifies 6 actions for pong
         # and breakout when only 3 are needed. This
@@ -66,7 +71,12 @@ class AtariEnvironment(object):
         self.agent_history_length = agent_history_length
         self.single_life_episodes = single_life_episodes
 
-        self.gym_actions = range(self.env.action_space.n)
+        if hasattr(self.env.action_space, 'n'):
+            num_actions = self.env.action_space.n
+        else:
+            num_actions = self.env.action_space.num_discrete_space
+
+        self.gym_actions = range(num_actions)
         if self.env.spec.id in ['Pong-v0', 'Breakout-v0']:
             print 'Doing workaround for pong or breakout'
             # Gym returns 6 possible actions for breakout and pong.
