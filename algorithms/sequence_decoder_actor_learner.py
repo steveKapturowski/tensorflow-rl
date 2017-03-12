@@ -23,6 +23,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
         self.learning_vars = args.learning_vars
 
         conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
+                         'input_shape': args.input_shape,
                          'num_act': self.num_actions,
                          'args': args}
         
@@ -55,7 +56,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 self.local_network.temperature:           1.0,
                 self.local_network.action_outputs:        np.zeros((1,self.local_network.max_decoder_steps,self.num_actions+1)),
                 self.local_network.action_inputs:         action_inputs,
-                self.local_network.decoder_initial_state: np.zeros((1, 256*2)),
+                self.local_network.decoder_initial_state: np.zeros((1, self.local_network.decoder_hidden_state_size*2)),
             }
         )
 
@@ -183,7 +184,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 self.local_network.input_ph:              s_batch, 
                 self.local_network.critic_target_ph:      y_batch,
                 self.local_network.adv_actor_ph:          adv_batch,
-                self.local_network.decoder_initial_state: np.zeros((len(s_batch), 256*2)),
+                self.local_network.decoder_initial_state: np.zeros((len(s_batch), self.local_network.decoder_hidden_state_size*2)),
                 self.local_network.action_inputs:         padded_input_sequences,
                 self.local_network.action_outputs:        padded_output_sequences,
                 self.local_network.allowed_actions:       allowed_actions,
@@ -212,7 +213,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             
             # prevent the agent from getting stuck
             if (self.local_step - steps_at_last_reward > 5000
-                or (self.emulator.env.ale.lives() == 0
+                or (self.emulator.get_lives() == 0
                     and self.emulator.game not in ONE_LIFE_GAMES)):
 
                 steps_at_last_reward = self.local_step
@@ -228,7 +229,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 perf = "{:.0f}".format(steps_per_sec)
                 logger.info("T{} / STEP {} / REWARD {} / {} STEPS/s, Actions {}".format(self.actor_id, global_t, total_episode_reward, perf, sel_actions))
                 
-                self.log_summary(total_episode_reward)
+                self.log_summary(total_episode_reward, entropy)
 
                 episode_over = False
                 total_episode_reward = 0

@@ -203,11 +203,6 @@ class SequencePolicyVNetwork(Network):
                 'float32', [self.batch_size], name='target')
             self.adv_actor_ph = tf.placeholder("float", [self.batch_size], name='advantage')
 
-            if self.arch == 'NIPS':
-                self.ox = self.o3
-            else: #NATURE
-                self.ox = self.o4
-
             with tf.variable_scope(self.name+'/lstm_decoder') as vs:
                 self.action_outputs = tf.placeholder(tf.float32, [self.batch_size, None, self.num_actions+1], name='action_outputs')
                 self.action_inputs = tf.placeholder(tf.float32, [self.batch_size, None, self.num_actions+1], name='action_inputs')
@@ -217,7 +212,7 @@ class SequencePolicyVNetwork(Network):
                 self.use_fixed_action = tf.placeholder(tf.bool, name='use_fixed_action')
                 self.temperature = tf.placeholder(tf.float32, name='temperature')
 
-                self.decoder_hidden_state_size = 256
+                self.decoder_hidden_state_size = self.ox.get_shape().as_list()[-1]
                 self.decoder_lstm_cell = CustomBasicLSTMCell(self.decoder_hidden_state_size, forget_bias=1.0)
                 self.decoder_initial_state = tf.placeholder(tf.float32, [self.batch_size, 2*self.decoder_hidden_state_size], name='decoder_initial_state')
 
@@ -267,7 +262,6 @@ class SequencePolicyVNetwork(Network):
             self.entropy = - tf.reduce_mean(log_sequence_probs)
 
             print 'sp, lsp:', sequence_probs.get_shape(), log_sequence_probs.get_shape()
-
 
 
             # Final critic layer
