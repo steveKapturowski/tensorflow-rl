@@ -16,7 +16,7 @@ from algorithms.shared_utils import SharedCounter, SharedVars, SharedFlags, Barr
 from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
 from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner
 from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
-from algorithms.pgq import PGQLearner
+from algorithms.pgq import PGQLearner, PGQLSTMLearner
 
 logger = utils.logger.getLogger('main')
 
@@ -57,7 +57,7 @@ def main(args):
         'a3c-lstm': (A3CLSTMLearner, PolicyVNetwork),
         'a3c-sequence-decoder': (ActionSequenceA3CLearner, SequencePolicyVNetwork),
         'pgq': (PGQLearner, PolicyVNetwork),
-        # 'pgq-lstm': (PGQLearner, PolicyVNetwork),
+        'pgq-lstm': (PGQLSTMLearner, PolicyVNetwork),
     }
 
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)

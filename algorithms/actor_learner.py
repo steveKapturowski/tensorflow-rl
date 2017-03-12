@@ -274,6 +274,8 @@ class ActorLearner(Process):
             elif self.optimizer_type == "adamax" and self.optimizer_mode == "shared":
                 beta_1 = .9
                 beta_2 = .999
+                # lr = opt_st.lr.value
+                lr = .0003
 
                 p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
                 p_size = self.learning_vars.size
@@ -281,7 +283,7 @@ class ActorLearner(Process):
                 u = np.frombuffer(opt_st.vs, ctypes.c_float)
                 T = self.global_step.value()
 
-                apply_grads_adamax(m, u, g, p, p_size, opt_st.lr.value, beta_1, beta_2, T)
+                apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, T)
                     
             else: #local or shared rmsprop/momentum
                 lr = self.decay_lr()

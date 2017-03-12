@@ -87,14 +87,15 @@ cdef void c_apply_grads_adamax(float[::1] m,
     
     for i in range(p_size):
         m[i] = beta_1 * m[i] + (1 - beta_1) * g[i]
-        term1 = beta_2 * u[i]
+        term1 = beta_2 * u[i] + 1e-7
         term2 = fabs(g[i])
 
         u[i] = term1
         if term2 > term1:
             u[i] = term2
 
-        p[i] -= (lr / (1 - beta_1)) * m[i] / u[i]
+        p[i] -= (lr / (1 - beta_1**t)) * m[i] / u[i]
+
         
 def apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, t):
     c_apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, t)
