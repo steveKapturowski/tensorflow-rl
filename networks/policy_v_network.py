@@ -16,7 +16,7 @@ class PolicyVNetwork(Network):
         super(PolicyVNetwork, self).__init__(conf)
         
         self.beta = conf['args'].entropy_regularisation_strength
-        self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
+        self.use_recurrent = conf['args'].alg_type.endswith('-lstm')
                 
         with tf.name_scope(self.name):
 
@@ -148,7 +148,7 @@ class PolicyRepeatNetwork(Network):
         super(PolicyVNetwork, self).__init__(conf)
         
         self.beta = conf['args'].entropy_regularisation_strength
-        self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
+        self.use_recurrent = conf['args'].alg_type.endswith('-lstm')
                 
         with tf.name_scope(self.name):
 
@@ -166,7 +166,7 @@ class PolicyRepeatNetwork(Network):
                     self.initial_lstm_state = tf.placeholder(
                         tf.float32, [1, 2*self.hidden_state_size], name='initital_state')
                     
-                    ox_reshaped = tf.reshape(self.ox, [1,-1,256])
+                    ox_reshaped = tf.reshape(self.ox, [1,-1,self.ox.get_shape().as_list()[-1]])
                     lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(
                         self.lstm_cell,
                         ox_reshaped,
@@ -399,7 +399,7 @@ class SequencePolicyVNetwork(Network):
         self.max_decoder_steps = conf['args'].max_decoder_steps
 
         self.max_local_steps = conf['args'].max_local_steps
-        self.use_recurrent = conf['args'].alg_type == 'a3c-lstm'
+        self.use_recurrent = conf['args'].alg_type.endswith('-lstm')
         
         with tf.name_scope(self.name):
 

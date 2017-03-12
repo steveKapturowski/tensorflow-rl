@@ -57,6 +57,7 @@ def main(args):
         'a3c-lstm': (A3CLSTMLearner, PolicyVNetwork),
         'a3c-sequence-decoder': (ActionSequenceA3CLearner, SequencePolicyVNetwork),
         'pgq': (PGQLearner, PolicyVNetwork),
+        # 'pgq-lstm': (PGQLearner, PolicyVNetwork),
     }
 
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)
