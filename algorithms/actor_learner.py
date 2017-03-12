@@ -71,7 +71,7 @@ class ActorLearner(Process):
         self.num_actor_learners = args.num_actor_learners
         self.is_train = args.is_train
         self.input_shape = args.input_shape
-        self.reward_clip = args.reward_clip
+        self.reward_clip_val = args.reward_clip_val
         self.restore_checkpoint = args.restore_checkpoint
         
         # Shared mem vars
@@ -308,11 +308,7 @@ class ActorLearner(Process):
             return reward/self.thread_max_reward
         else:
             """ Clip immediate reward """
-            if reward > 1.0:
-                reward = 1.0
-            elif reward < -1.0:
-                reward = -1.0
-            return reward
+            return np.sign(reward) * np.minimum(self.reward_clip_val, np.abs(reward))
             
 
     def sync_net_with_shared_memory(self, dest_net, shared_mem_vars):

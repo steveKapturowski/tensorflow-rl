@@ -142,7 +142,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_local_steps', default=5, type=int, help='Number of steps to gain experience from before every update for the Q learning/A3C algorithm', dest='max_local_steps')
     parser.add_argument('--max_decoder_steps', default=20, type=int, help='max number of steps that sequence decoder will be allowed to take', dest='max_decoder_steps')
     parser.add_argument('--rescale_rewards', action='store_true', help='If True, rewards will be rescaled (dividing by the max. possible reward) to be in the range [-1, 1]. If False, rewards will be clipped to be in the range [-REWARD_CLIP, REWARD_CLIP]', dest='rescale_rewards')
-    parser.add_argument('--reward_clip', default=1.0, type=float, help='Clip rewards outside of [-REWARD_CLIP, REWARD_CLIP]', dest='reward_clip')
+    parser.add_argument('--reward_clip_val', default=1.0, type=float, help='Clip rewards outside of [-REWARD_CLIP, REWARD_CLIP]', dest='reward_clip_val')
     parser.add_argument('--arch', default='NIPS', help='Which network architecture to use: from the NIPS or NATURE paper', dest='arch')
     parser.add_argument('--single_life_episodes', action='store_true', help='if true, training episodes will be terminated when a life is lost (for games)', dest='single_life_episodes')
     parser.add_argument('--frame_skip', default=[4], type=int, nargs='+', help='number of frames to repeat action', dest='frame_skip')
@@ -154,6 +154,9 @@ if __name__ == '__main__':
     if (args.env=='ALE' and args.rom_path is None):
         raise argparse.ArgumentTypeError('Need to specify the directory where the game roms are located, via --rom_path')         
     
+    if args.reward_clip_val <= 0:
+        raise argparse.ArgumentTypeError('value of --reward_clip_val option must be non-negative')
+
     # fix up frame_skip depending on whether it was an int or tuple 
     if len(args.frame_skip) == 1:
         args.frame_skip = args.frame_skip[0]
