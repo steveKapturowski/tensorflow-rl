@@ -253,6 +253,29 @@ class PGQLSTMLearner(BasePGQLearner):
         return new_action, network_output_v, network_output_pi, q_tilde[0, action_index]
 
 
+    def apply_batch_q_update(self):
+        s_i_tuple, a_i, r_i, s_f_tuple, is_terminal = self.replay_memory.sample_batch(self.batch_size)
+
+        s_i = [e[0] for e in s_i_tuple]
+        lstm_state_i = [e[1] for e in s_i_tuple]
+        s_f = [e[0] for e in s_f_tuple]
+        lstm_state_f = [e[1] for e in s_f_tuple]
+
+        batch_grads, max_TQ, Q_a = self.session.run(
+            [self.q_gradients, self.max_TQ, self.Q_a],
+            feed_dict={
+                self.R: r_i,
+                self.local_network.selected_action_ph: np.vstack([a_i, a_i]),
+                self.local_network.input_ph: np.vstack([s_i, s_f]),
+                self.local_network.initial_lstm_state: np.vstack([lstm_state_i, lstm_state_f]),
+                self.terminal_indicator: is_terminal.astype(np.int),
+            }
+        )
+        # print 'max_TQ={}, Q_a={}'.format(max_TQ[:5], Q_a[:5])
+
+        self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
+
+
     def _run(self):
         if not self.is_train:
             return self.test()
@@ -293,7 +316,9 @@ class PGQLSTMLearner(BasePGQLearner):
                     == self.max_local_steps)):
                 
                 # Choose next action and execute it
+                previous_lstm_state = np.copy(self.lstm_state_out)
                 a, readout_v_t, readout_pi_t, q_tilde = self.choose_next_action(s)
+                new_lstm_state = np.copy(self.lstm_state_out)
                 
                 assert not np.allclose(local_lstm_state, self.lstm_state_out)
 
@@ -308,6 +333,12 @@ class PGQLSTMLearner(BasePGQLearner):
                 total_episode_reward += reward
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(reward)
+                self.replay_memory.append((
+                    (s, previous_lstm_state),
+                    a,
+                    reward,
+                    (new_s, new_lstm_state),
+                    episode_over))
                 
                 rewards.append(reward)
                 states.append(s)
