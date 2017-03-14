@@ -25,34 +25,50 @@ class TRPOLearner(BaseA3CLearner):
 	'''
 
 	def __init__(self, args):
+		args.entropy_regularisation_strength = 0.0
 		super(TRPOLearner, self).__init__(args)
 
 		#we use separate networks as in the paper since so we don't do damage to the trust region updates
 		self.policy_network = PolicyVNetwork(args, use_value_head=False)
 		# self.value_network = ValueNetwork(args)
 
+		self.max_kl = .01
 		self.cg_damping = 0.001
 		self._build_ops()
 
 
+	def flatten_vars(self, var_list):
+		return tf.concat(0, [
+			tf.reshape([np.prod(v.get_shape().as_list())])
+			for v in var_list
+		])
+
+
+	def assign_vars(self, flat_params, var_list):
+		'''
+		restruture flat array into corrects shapes and assign new values
+		'''
+
+
 	def _build_ops(self):
         eps = 1e-10
-        action_dist_n = self.policy_network.output_layer_pi
-        N = tf.shape(obs)[0]
-        ratio_n = self.distribution.likelihood_ratio_sym(action, action_dist_n, oldaction_dist)
-        Nf = tf.cast(N, dtype)
-        surr = -tf.reduce_mean(ratio_n * advant)  # Surrogate loss
-        kl = self.distribution.kl_sym(oldaction_dist, action_dist_n)
-        ent = self.distribution.entropy(action_dist_n)
+        self.action_dist_n = self.policy_network.output_layer_pi
+        self.old_action_dist = tf.placeholder(
+        	dtype, shape=[None, self.env.action_space.n], name="old_action_dist")
+        ratio_n = self.distribution.likelihood_ratio_sym(
+        	action, self.action_dist_n, self.old_action_dist)
+        Nf = tf.cast(tf.shape(obs)[0], dtype)
+        self.policy_loss = -tf.reduce_mean(ratio_n * advant)
+        kl = self.distribution.kl_sym(self.old_action_dist, self.action_dist_n)
+        ent = self.distribution.entropy(self.action_dist_n)
 
-        self.losses = [surr, kl, ent]
 
-        var_list = tf.trainable_variables()
-        self.pg = flatgrad(surr, var_list)
+        var_list = self.policy_network.params
+        self.pg = tf.gradients(self.policy_loss, self.policy_network.params)
         # KL divergence where first arg is fixed
         # replace old->tf.stop_gradient from previous kl
         kl_firstfixed = tf.reduce_sum(tf.stop_gradient(
-            action_dist_n) * tf.log(tf.stop_gradient(action_dist_n + eps) / (action_dist_n + eps))) / Nf
+            action_dist_n) * tf.log(tf.stop_gradient(self.action_dist_n + eps) / (self.action_dist_n + eps))) / Nf
         grads = tf.gradients(kl_firstfixed, var_list)
         self.flat_tangent = tf.placeholder(dtype, shape=[None])
         shapes = map(var_shape, var_list)
@@ -65,6 +81,12 @@ class TRPOLearner(BaseA3CLearner):
             start += size
         gvp = [tf.reduce_sum(g * t) for (g, t) in zip(grads, tangents)]
         self.fvp = flatgrad(gvp, var_list)
+
+        self.policy_assign_placeholders = [
+        	tf.placeholder(v.get_shape().as_list())
+        	for v in self.policy_network.params]
+        self.policy_assign_ops = [tf.assign(v) for v in self.policy_network.params]
+        self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops()
 
 
 	def _conjugate_gradient_ops(self, grads, max_iterations=20, residual_tol=1e-10):
@@ -89,7 +111,7 @@ class TRPOLearner(BaseA3CLearner):
 
 			return i+1, r, p, x, new_rdotr
 
-		_, r, p, x, rdotr = tf.while_loop(
+		_, r, p, stepdir, rdotr = tf.while_loop(
 			loop_condition,
 			body,
 			loop_vars=[i0,
@@ -98,52 +120,26 @@ class TRPOLearner(BaseA3CLearner):
 					   tf.zeros_like(grads),
 					   tf.reduce_sum(grads*grads)])
 
-		return x
+		shs = 0.5 * stepdir.dot(fisher_vector_product(stepdir))
+		fullstep = stepdir * np.sqrt(2.0 * self.max_kl / shs)
+		neggdotstepdir = -grads.dot(stepdir)
+
+		return fullstep, neggdotstepdir
 
 
-	def conjugate_gradient(self, b, cg_iters=20, residual_tol=1e-10):
-		'''Testing reference implementation from https://github.com/jjkke88/trpo'''
-		def _fisher_vector_product(p):
-			feed[self.flat_tangent] = p
-			return self.session.run(self.fvp, feed) + config.cg_damping * p
-
-		p = b.copy()
-		r = b.copy()
-		x = np.zeros_like(b)
-		rdotr = r.dot(r)
-
-		fmtstr = "%10i %10.3g %10.3g"
-		titlestr = "%10s %10s %10s"
-		if verbose: print titlestr % ("iter", "residual norm", "soln norm")
-
-		for i in xrange(cg_iters):
-			if callback is not None:
-				callback(x)
-			if verbose:
-				print fmtstr % (i, rdotr, np.linalg.norm(x))
-			z = _fisher_vector_product(p)
-			v = rdotr / (p.dot(z) + 1e-8)
-			x += v * p
-			r -= v * z
-			newrdotr = r.dot(r)
-			mu = newrdotr / (rdotr + 1e-8)
-			p = r + mu * p
-
-			rdotr = newrdotr
-			if rdotr < residual_tol:
-				break
-
-		print fmtstr % (i + 1, rdotr, np.linalg.norm(x))
-		return x
-
-
-	def linesearch(f, x, fullstep, expected_improve_rate):
+	#There doesn't seem to be a clean way to build the line search into the computation graph
+	#so we'll have to hop back and forth between cpu and gpu each iteration
+	def linesearch(self, feed, fullstep, expected_improve_rate):
 		accept_ratio = .1
 		max_backtracks = 10
-		fval = f(x)
+
+		fval = self.session.run(self.policy_loss, feed_dict=feed)
+
 		for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
 		    xnew = x + stepfrac * fullstep
-		    newfval = f(xnew)
+		    self.assign_vars(xnew, self.policy_network.params)
+		    newfval = self.session.run(self.policy_loss, feed_dict=feed)
+
 		    actual_improve = fval - newfval
 		    expected_improve = expected_improve_rate * stepfrac
 		    ratio = actual_improve / expected_improve
@@ -173,20 +169,16 @@ class TRPOLearner(BaseA3CLearner):
 		feed_dict = {
 
 		}
-		# grads = self.session.run(self.cg_ops, feed_dict=feed_dict)
-		grads = self.session_run(self.local_network.get_gradients)
+		fullstep, neggdotstepdir = self.session.run(
+			[self.fullstep, self.neggdotstepdir], feed_dict=feed_dict)
+
+		new_theta = linesearch(fullstep, neggdotstepdir)
+		self.assign_vars(new_theta, self.policy_network.params)
 
 
-
-		# magic happens
-
-
-
-		self.apply_gradients_to_shared_memory_vars(grads)
 
 		new_distributions = self.session.run(
-			self.local_network.output_layer_pi,
-			feed_dict=feed_dict)
+			self.policy_network.output_layer_pi, feed_dict=feed_dict)
 
 		kl_divergence = np.array([
 			utils.stats.kl_divergence(p, q)

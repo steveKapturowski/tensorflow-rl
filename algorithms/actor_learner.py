@@ -8,7 +8,7 @@ import tempfile
 import time
 from utils import checkpoint_utils
 from multiprocessing import Process
-from utils.hogupdatemv import copy, apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
+from utils.hogupdatemv import apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
 
 
 CHECKPOINT_INTERVAL = 100000
@@ -180,7 +180,6 @@ class ActorLearner(Process):
 
     def run(self):
         gpu_options = tf.GPUOptions(
-            # per_process_gpu_memory_fraction=0.99/self.num_actor_learners
             allow_growth=True
         )
         self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
