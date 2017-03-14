@@ -5,7 +5,7 @@ import utils.logger
 import tensorflow as tf
 from actor_learner import ONE_LIFE_GAMES
 from utils.replay_memory import ReplayMemory
-from networks.policy_v_network import PolicyVNetwork
+from networks.policy_v_network import PolicyValueNetwork
 from policy_based_actor_learner import BaseA3CLearner
 
 
@@ -22,7 +22,7 @@ class BasePGQLearner(BaseA3CLearner):
                          'num_act': self.num_actions,
                          'args': args}
         
-        self.local_network = PolicyVNetwork(conf_learning)
+        self.local_network = PolicyValueNetwork(conf_learning)
         self.reset_hidden_state()
             
         if self.actor_id == 0:

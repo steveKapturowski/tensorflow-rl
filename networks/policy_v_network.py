@@ -7,10 +7,10 @@ from custom_lstm import CustomBasicLSTMCell
 from sequence_decoder import decoder, loop_gumbel_softmax
 
 
-class PolicyVNetwork(Network):
+class PolicyValueNetwork(Network):
  
     def __init__(self, conf, use_policy_head=True, use_value_head=True):
-        super(PolicyVNetwork, self).__init__(conf)
+        super(PolicyValueNetwork, self).__init__(conf)
         
         self.beta = conf['args'].entropy_regularisation_strength
                 
@@ -77,7 +77,12 @@ class PolicyVNetwork(Network):
         self.setup_shared_memory_ops()
 
 
-class PolicyRepeatNetwork(PolicyVNetwork):
+class PolicyNetwork(PolicyValueNetwork):
+    def __init__(self, conf,):
+        super(PolicyNetwork, self).__init__(conf, use_value_head=False)
+
+
+class PolicyRepeatNetwork(PolicyValueNetwork):
  
     def __init__(self, conf):
         '''
@@ -124,7 +129,7 @@ class PolicyRepeatNetwork(PolicyVNetwork):
 
 
 #This is still experimental
-class SequencePolicyVNetwork(PolicyVNetwork):
+class SequencePolicyVNetwork(PolicyValueNetwork):
 
     def __init__(self, conf):
         '''Uses lstm decoder to output action sequences'''

@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from actor_learner import ONE_LIFE_GAMES
 from policy_based_actor_learner import BaseA3CLearner
-from networks.policy_v_network import PolicyVNetwork
+from networks.policy_v_network import PolicyValueNetwork
 from utils.replay_memory import ReplayMemory
 
 
@@ -29,8 +29,8 @@ class TRPOLearner(BaseA3CLearner):
 		super(TRPOLearner, self).__init__(args)
 
 		#we use separate networks as in the paper since so we don't do damage to the trust region updates
-		self.policy_network = PolicyVNetwork(args, use_value_head=False)
-		# self.value_network = ValueNetwork(args)
+		self.policy_network = PolicyValueNetwork(args, use_value_head=False)
+		# self.value_network = PolicyValueNetwork(args, use_policy_head=False)
 
 		self.max_kl = .01
 		self.cg_damping = 0.001
@@ -51,42 +51,43 @@ class TRPOLearner(BaseA3CLearner):
 
 
 	def _build_ops(self):
-        eps = 1e-10
-        self.action_dist_n = self.policy_network.output_layer_pi
-        self.old_action_dist = tf.placeholder(
-        	dtype, shape=[None, self.env.action_space.n], name="old_action_dist")
-        ratio_n = self.distribution.likelihood_ratio_sym(
-        	action, self.action_dist_n, self.old_action_dist)
-        Nf = tf.cast(tf.shape(obs)[0], dtype)
-        self.policy_loss = -tf.reduce_mean(ratio_n * advant)
-        kl = self.distribution.kl_sym(self.old_action_dist, self.action_dist_n)
-        ent = self.distribution.entropy(self.action_dist_n)
+		eps = 1e-10
+		self.action_probs = self.policy_network.output_layer_pi
+		self.old_action_probs = tf.placeholder(tf.float32, shape=[None, self.num_actions], name="old_action_probs")
+		ratio_n = self.distribution.likelihood_ratio_sym(
+			action, self.action_probs, self.old_action_probs)
+
+		self.policy_loss = -tf.reduce_mean(ratio_n * advant)
+        
+		kl = utils.stats.kl_divergence(self.old_action_probs, self.action_probs)
 
 
-        var_list = self.policy_network.params
-        self.pg = tf.gradients(self.policy_loss, self.policy_network.params)
-        # KL divergence where first arg is fixed
-        # replace old->tf.stop_gradient from previous kl
-        kl_firstfixed = tf.reduce_sum(tf.stop_gradient(
-            action_dist_n) * tf.log(tf.stop_gradient(self.action_dist_n + eps) / (self.action_dist_n + eps))) / Nf
-        grads = tf.gradients(kl_firstfixed, var_list)
-        self.flat_tangent = tf.placeholder(dtype, shape=[None])
-        shapes = map(var_shape, var_list)
-        start = 0
-        tangents = []
-        for shape in shapes:
-            size = np.prod(shape)
-            param = tf.reshape(self.flat_tangent[start:(start + size)], shape)
-            tangents.append(param)
-            start += size
-        gvp = [tf.reduce_sum(g * t) for (g, t) in zip(grads, tangents)]
-        self.fvp = flatgrad(gvp, var_list)
+		var_list = self.policy_network.params
+		self.pg = tf.gradients(self.policy_loss, self.policy_network.params)
+		N_obs = tf.cast(tf.shape(self.policy_network.input_ph)[0], tf.float32)
+		# KL divergence where first arg is fixed
+		# replace old->tf.stop_gradient from previous kl
+		kl_firstfixed = tf.reduce_sum(tf.stop_gradient(
+			action_probs) * tf.log(tf.stop_gradient(self.action_probs + eps) / (self.action_probs + eps))) / N_obs
+		grads = tf.gradients(kl_firstfixed, var_list)
+		self.flat_tangent = tf.placeholder(dtype, shape=[None])
+		shapes = map(var_shape, var_list)
+		start = 0
 
-        self.policy_assign_placeholders = [
-        	tf.placeholder(v.get_shape().as_list())
-        	for v in self.policy_network.params]
-        self.policy_assign_ops = [tf.assign(v) for v in self.policy_network.params]
-        self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops()
+		tangents = []
+		for shape in shapes:
+			size = np.prod(shape)
+			param = tf.reshape(self.flat_tangent[start:(start + size)], shape)
+			tangents.append(param)
+			start += size
+		gvp = [tf.reduce_sum(g * t) for (g, t) in zip(grads, tangents)]
+		self.fvp = flatgrad(gvp, var_list)
+
+		self.policy_assign_placeholders = [
+			tf.placeholder(v.get_shape().as_list())
+			for v in self.policy_network.params]
+		self.policy_assign_ops = [tf.assign(v) for v in self.policy_network.params]
+		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops()
 
 
 	def _conjugate_gradient_ops(self, grads, max_iterations=20, residual_tol=1e-10):
@@ -148,6 +149,7 @@ class TRPOLearner(BaseA3CLearner):
 		return x
 
 
+	#TODO: move this into utils so it can be used with other algorithms
 	def compute_gae(self, rewards, values, next_val):
 		values = values + [next_val]
 
@@ -186,6 +188,56 @@ class TRPOLearner(BaseA3CLearner):
 		]).mean()
 
 		return kl_divergence
+
+
+	def choose_next_action(self, state):
+		action_probs = self.session.run(
+			self.policy_network.output_layer_pi,
+			feed_dict={self.policy_network.input_ph: [state]})
+            
+		action_probs = action_probs.reshape(-1)
+
+		action_index = self.sample_policy_action(action_probs)
+		new_action = np.zeros([self.num_actions])
+		new_action[action_index] = 1
+
+		return new_action, action_probs
+
+
+	def run(self):
+		for epoch in range(100):
+			episode_over = False
+			data = {
+				'state':  list(),
+				'pi':     list(),
+				'action': list(),
+				'reward': list(),
+			}
+
+			for episdoe in range(10):
+				s = self.emulator.get_initial_state()
+
+				while not episode_over:
+					a, pi = self.choose_next_action(s)
+					new_s, reward, episode_over = self.emulator.next(a)
+					reward = self.rescale_reward(reward)
+
+					data['state'].append(s)
+					data['pi'].append(pi)
+					data['action'].append(a)
+					data['reward'].append(reward)
+
+					s = new_s
+					
+			self.update_grads(data)
+
+
+
+
+
+
+
+
 
                 
 

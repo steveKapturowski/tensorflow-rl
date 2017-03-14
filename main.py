@@ -11,12 +11,13 @@ import tensorflow as tf
 from multiprocessing import Process
 from networks.q_network import QNetwork
 from networks.dueling_network import DuelingNetwork
-from networks.policy_v_network import PolicyVNetwork, SequencePolicyVNetwork
+from networks.policy_v_network import PolicyNetwork, PolicyValueNetwork, SequencePolicyVNetwork
 from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
 from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
 from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner
 from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
 from algorithms.pgq_actor_learner import PGQLearner, PGQLSTMLearner
+from algorithms.trpo_actor_learner import TRPOLearner
 
 logger = utils.logger.getLogger('main')
 
@@ -53,11 +54,12 @@ def main(args):
         'q': (NStepQLearner, QNetwork),
         'sarsa': (OneStepSARSALearner, QNetwork),
         'dueling': (DuelingLearner, DuelingNetwork),
-        'a3c': (A3CLearner, PolicyVNetwork),
-        'a3c-lstm': (A3CLSTMLearner, PolicyVNetwork),
+        'a3c': (A3CLearner, PolicyValueNetwork),
+        'a3c-lstm': (A3CLSTMLearner, PolicyValueNetwork),
         'a3c-sequence-decoder': (ActionSequenceA3CLearner, SequencePolicyVNetwork),
-        'pgq': (PGQLearner, PolicyVNetwork),
-        'pgq-lstm': (PGQLSTMLearner, PolicyVNetwork),
+        'pgq': (PGQLearner, PolicyValueNetwork),
+        'pgq-lstm': (PGQLSTMLearner, PolicyValueNetwork),
+        'trpo': (TRPOLearner, PolicyNetwork),
     }
 
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)

@@ -5,7 +5,7 @@ import utils.logger
 import tensorflow as tf
 from utils import checkpoint_utils
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
-from networks.policy_v_network import PolicyVNetwork
+from networks.policy_v_network import PolicyValueNetwork
 
 
 logger = utils.logger.getLogger('policy_based_actor_learner')
@@ -91,7 +91,7 @@ class A3CLearner(BaseA3CLearner):
                          'num_act': self.num_actions,
                          'args': args}
 
-        self.local_network = PolicyVNetwork(conf_learning)
+        self.local_network = PolicyValueNetwork(conf_learning)
         self.reset_hidden_state()
 
         if self.actor_id == 0:
@@ -230,7 +230,7 @@ class A3CLSTMLearner(BaseA3CLearner):
                          'num_act': self.num_actions,
                          'args': args}
 
-        self.local_network = PolicyVNetwork(conf_learning)
+        self.local_network = PolicyValueNetwork(conf_learning)
         self.reset_hidden_state()
 
         if self.actor_id == 0:

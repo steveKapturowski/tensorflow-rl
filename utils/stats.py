@@ -7,7 +7,7 @@ def kl_divergence(P, Q):
 	return (P * np.log((P + eps) / (Q + eps))).sum()
 
 
-def jenson_shannon_divergence(P, Q)
+def jenson_shannon_divergence(P, Q):
 	M = 0.5 * (P + Q)
 	return 0.5 * (kl_divergence(P, M) + kl_divergence(Q, M))
 
