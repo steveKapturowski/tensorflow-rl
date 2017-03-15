@@ -60,7 +60,7 @@ class CEMLearner(BaseA3CLearner):
 
 		self.mu = population[elite].mean(axis=0)
 		self.sigma = population[elite].std(axis=0)
-		
+
 		return np.array(rewards)[elite].mean()
 
 
@@ -88,10 +88,6 @@ class CEMLearner(BaseA3CLearner):
 			elite_mean_reward = self.update_sample_distribution(population, episode_rewards)
 			logger.info('Epoch {} / Population Mean {} / Elite Mean {}'.format(
 				epoch+1, population_mean_reward, elite_mean_reward))
-
-
-
-
 
 
 		
