@@ -18,6 +18,7 @@ from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner
 from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
 from algorithms.pgq_actor_learner import PGQLearner, PGQLSTMLearner
 from algorithms.trpo_actor_learner import TRPOLearner
+from algorithms.cem_actor_learner import CEMLearner
 
 logger = utils.logger.getLogger('main')
 
@@ -60,6 +61,7 @@ def main(args):
         'pgq': (PGQLearner, PolicyValueNetwork),
         'pgq-lstm': (PGQLSTMLearner, PolicyValueNetwork),
         'trpo': (TRPOLearner, PolicyNetwork),
+        'cem': (CEMLearner, PolicyNetwork),
     }
 
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)

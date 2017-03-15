@@ -310,6 +310,21 @@ class ActorLearner(Process):
             return np.sign(reward) * np.minimum(self.reward_clip_val, np.abs(reward))
             
 
+    def assign_vars(self, dest_net, params):
+        feed_dict = {}
+        offset = 0
+
+        for i, var in enumerate(dest_net.params):
+            shape = var.get_shape().as_list()
+            size = np.prod(shape)
+            feed_dict[dest_net.params_ph[i]] = \
+                    params[offset:offset+size].reshape(shape)
+            offset += size
+        
+        self.session.run(dest_net.sync_with_shared_memory, 
+            feed_dict=feed_dict)
+
+
     def sync_net_with_shared_memory(self, dest_net, shared_mem_vars):
         feed_dict = {}
         offset = 0

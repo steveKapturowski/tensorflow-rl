@@ -6,10 +6,8 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 
-from actor_learner import ONE_LIFE_GAMES
 from policy_based_actor_learner import BaseA3CLearner
 from networks.policy_v_network import PolicyValueNetwork
-from utils.replay_memory import ReplayMemory
 
 
 logger = utils.logger.getLogger('trpo_actor_learner')
@@ -72,7 +70,8 @@ class TRPOLearner(BaseA3CLearner):
 		self.kl = utils.stats.mean_kl_divergence_op(self.old_action_probs, self.action_probs)
 
 		var_list = self.policy_network.params
-		self.pg = tf.gradients(self.policy_loss, self.policy_network.params)
+		self.pg = utils.ops.flatten_vars(
+			tf.gradients(self.policy_loss, self.policy_network.params))
 
 		kl_firstfixed = tf.reduce_mean(tf.reduce_sum(tf.multiply(
 			tf.stop_gradient(self.action_probs),
@@ -94,12 +93,15 @@ class TRPOLearner(BaseA3CLearner):
 		gvp = [tf.reduce_sum(g * t) for (g, t) in zip(grads, tangents)]
 		self.fvp = utils.ops.flatten_vars(tf.gradients(gvp, var_list))
 
+
+
+
 		self.policy_assign_placeholders = [
 			tf.placeholder(tf.float32, v.get_shape().as_list())
 			for v in self.policy_network.params]
 		self.policy_assign_ops = [tf.assign(v, p)
 			for v, p in zip(self.policy_network.params, self.policy_assign_placeholders)]
-		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(grads)
+		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(self.pg)
 
 
 	def _conjugate_gradient_ops(self, grads, max_iterations=20, residual_tol=1e-10):
@@ -118,7 +120,7 @@ class TRPOLearner(BaseA3CLearner):
 			x += alpha * p
 			r -= alpha * z
 
-			new_rdotr = r.dot(r)
+			new_rdotr = tf.reduce_sum(r*r)
 			beta = new_rdotr / (rdotr + 1e-8)
 			p = r + beta * p
 
@@ -132,6 +134,8 @@ class TRPOLearner(BaseA3CLearner):
 					   grads,
 					   tf.zeros_like(grads),
 					   tf.reduce_sum(grads*grads)])
+
+		self.fvp + stepdir
 
 		shs = 0.5 * stepdir.dot(fisher_vector_product(stepdir))
 		fullstep = stepdir * np.sqrt(2.0 * self.max_kl / shs)
@@ -209,7 +213,6 @@ class TRPOLearner(BaseA3CLearner):
 
 	def run(self):
 		for epoch in range(100):
-			episode_over = False
 			data = {
 				'state':  list(),
 				'pi':     list(),
@@ -221,6 +224,7 @@ class TRPOLearner(BaseA3CLearner):
 				print 'Epoch {} / Episode {}'.format(epoch, episode)
 				s = self.emulator.get_initial_state()
 
+				episode_over = False
 				while not episode_over:
 					a, pi = self.choose_next_action(s)
 					new_s, reward, episode_over = self.emulator.next(a)
