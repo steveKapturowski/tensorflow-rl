@@ -1,16 +1,18 @@
 # async-deep-rl
 
 Tensorflow based implementations of [A3C](https://arxiv.org/abs/1602.01783) and
-[PGQ](https://arxiv.org/abs/1611.01626) originally based on https://github.com/traai/async-deep-rl
+[PGQ](https://arxiv.org/abs/1611.01626) originally based on https://github.com/traai/async-deep-rl.
+The [Cross-Entropy Method](http://www.aaai.org/Papers/ICML/2003/ICML03-068.pdf) is implemented
+for use as a baseline on simple environments like Cart-Pole. 
+
 I did some heavy refactoring and added some additional options including the a3c-lstm model, a fully-connected 
-architecture to allow training on non-image-based gym environments, as well as support for the AdaMax optimizer
+architecture to allow training on non-image-based gym environments, and support for the AdaMax optimizer.
 
 The code also includes some experimental ideas I'm toying with and I'm planning on adding the following implementations
 in the near future:
 - [High-Dimensional Continuous Control Using Generalized Advantage Estimation](https://arxiv.org/abs/1506.02438)
 - [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/abs/1606.01868)
 - [Reinforcement Learning with Unsupervised Auxiliary Tasks](https://arxiv.org/abs/1611.05397)
-- [Cross-Entropy Method](http://www.aaai.org/Papers/ICML/2003/ICML03-068.pdf) for use as a baseline
 
 I've tested the implementations based on the A3C paper pretty extensively and some of my agent evaluations can be
 found at https://gym.openai.com/users/steveKapturowski. They *should* work but I can't guarantee I won't accidentally
