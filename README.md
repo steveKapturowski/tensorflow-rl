@@ -3,8 +3,9 @@
 Tensorflow based implementations of [A3C](https://arxiv.org/abs/1602.01783),
 [PGQ](https://arxiv.org/abs/1611.01626), and
 [Cross-Entropy Method](http://www.aaai.org/Papers/ICML/2003/ICML03-068.pdf)
-originally based on https://github.com/traai/async-deep-rl. I did some heavy refactoring and added some additional options including the a3c-lstm model, a fully-connected 
-architecture to allow training on non-image-based gym environments, and support for the AdaMax optimizer.
+originally based on https://github.com/traai/async-deep-rl. I did some heavy refactoring and added a number
+of additional options including the a3c-lstm model, a fully-connected architecture to allow training on
+non-image-based gym environments, and support for the AdaMax optimizer.
 
 The code also includes some experimental ideas I'm toying with and I'm planning on adding the following implementations
 in the near future:
