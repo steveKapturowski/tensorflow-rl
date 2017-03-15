@@ -69,7 +69,6 @@ class TRPOLearner(BaseA3CLearner):
         
 		self.kl = utils.stats.mean_kl_divergence_op(self.old_action_probs, self.action_probs)
 
-		var_list = self.policy_network.params
 		self.pg = utils.ops.flatten_vars(
 			tf.gradients(self.policy_loss, self.policy_network.params))
 
@@ -78,21 +77,8 @@ class TRPOLearner(BaseA3CLearner):
 			tf.log(tf.stop_gradient(self.action_probs + eps) / (self.action_probs + eps)
 		)), axis=1))
 
-		grads = tf.gradients(kl_firstfixed, var_list)
-		self.flat_tangent = tf.placeholder(tf.float32, shape=[None])
-		
-
-		start = 0
-		tangents = []
-		for var in var_list:
-			shape = var.get_shape().as_list()
-			size = np.prod(shape)
-			param = tf.reshape(self.flat_tangent[start:(start + size)], shape)
-			tangents.append(param)
-			start += size
-		gvp = [tf.reduce_sum(g * t) for (g, t) in zip(grads, tangents)]
-		self.fvp = utils.ops.flatten_vars(tf.gradients(gvp, var_list))
-
+		kl_grads = tf.gradients(kl_firstfixed, self.policy_network.params)
+		flat_kl_grads = utils.ops.flatten_vars(kl_grads)
 
 
 
@@ -101,10 +87,10 @@ class TRPOLearner(BaseA3CLearner):
 			for v in self.policy_network.params]
 		self.policy_assign_ops = [tf.assign(v, p)
 			for v, p in zip(self.policy_network.params, self.policy_assign_placeholders)]
-		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(self.pg)
+		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(self.pg, flat_kl_grads)
 
 
-	def _conjugate_gradient_ops(self, grads, max_iterations=20, residual_tol=1e-10):
+	def _conjugate_gradient_ops(self, pg_grads, kl_grads, max_iterations=20, residual_tol=1e-10):
 		'''
 		Construct conjugate gradient descent algorithm inside computation graph for improved efficiency
 		'''
@@ -114,7 +100,8 @@ class TRPOLearner(BaseA3CLearner):
 
 
 		def body(i, r, p, x, rdotr):
-			z = self.fvp + self.cg_damping * p
+			fvp = tf.gradients(tf.reduce_sum(p*kl_grads), self.policy_network.params)
+			z = fvp + self.cg_damping * p
 
 			alpha = rdotr / (tf.reduce_sum(p*z) + 1e-8)
 			x += alpha * p
@@ -130,14 +117,13 @@ class TRPOLearner(BaseA3CLearner):
 			loop_condition,
 			body,
 			loop_vars=[i0,
-					   grads,
-					   grads,
-					   tf.zeros_like(grads),
-					   tf.reduce_sum(grads*grads)])
+					   pg_grads,
+					   pg_grads,
+					   tf.zeros_like(pg_grads),
+					   tf.reduce_sum(pg_grads*pg_grads)])
 
-		self.fvp + stepdir
-
-		shs = 0.5 * stepdir.dot(fisher_vector_product(stepdir))
+		fvp = tf.gradients(tf.reduce_sum(stepdir*kl_grads), self.policy_network.params)
+		shs = 0.5 * tf.reduce_sum(stepdir*fvp)
 		fullstep = stepdir * np.sqrt(2.0 * self.max_kl / shs)
 		neggdotstepdir = -grads.dot(stepdir)
 
@@ -240,12 +226,4 @@ class TRPOLearner(BaseA3CLearner):
 			self.update_grads(data)
 
 
-
-
-
-
-
-
-
-                
 
