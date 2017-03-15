@@ -69,14 +69,14 @@ class TRPOLearner(BaseA3CLearner):
 
 		kl_firstfixed = tf.reduce_mean(tf.reduce_sum(tf.multiply(
 			tf.stop_gradient(self.action_probs),
-			tf.log(tf.stop_gradient(self.action_probs + eps) / (self.action_probs + eps)
-		)), axis=1))
+			tf.log(tf.stop_gradient(self.action_probs + eps) / (self.action_probs + eps))
+		), axis=1))
 
 		kl_grads = tf.gradients(kl_firstfixed, self.policy_network.params)
 		flat_kl_grads = utils.ops.flatten_vars(kl_grads)
 
 
-		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(self.pg, flat_kl_grads)
+		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(-self.pg, flat_kl_grads)
 
 
 	def _conjugate_gradient_ops(self, pg_grads, kl_grads, max_iterations=20, residual_tol=1e-10):
@@ -116,33 +116,13 @@ class TRPOLearner(BaseA3CLearner):
 
 		fvp = utils.ops.flatten_vars(tf.gradients(
 			tf.reduce_sum(tf.stop_gradient(stepdir)*kl_grads),
-			self.policy_network.params))
+			self.policy_network.params)) + self.cg_damping * stepdir
+
 		shs = 0.5 * tf.reduce_sum(stepdir*fvp)
 		fullstep = stepdir * tf.sqrt(2.0 * self.max_kl / shs)
 		neggdotstepdir = -tf.reduce_sum(pg_grads*stepdir)
 
-		return fullstep, neggdotstepdir
-
-
-	#There doesn't seem to be a clean way to build the line search into the computation graph
-	#so we'll have to hop back and forth between cpu and gpu each iteration
-	def linesearch(self, feed, x, fullstep, expected_improve_rate):
-		accept_ratio = .1
-		max_backtracks = 10
-
-		fval = self.session.run(self.policy_loss, feed_dict=feed)
-
-		for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
-		    xnew = x + stepfrac * fullstep
-		    self.assign_vars(self.policy_network, xnew)
-		    newfval = self.session.run(self.policy_loss, feed_dict=feed)
-
-		    actual_improve = fval - newfval
-		    expected_improve = expected_improve_rate * stepfrac
-		    ratio = actual_improve / expected_improve
-		    if ratio > accept_ratio and actual_improve > 0:
-		        return xnew
-		return x
+		return fullstep, -neggdotstepdir
 
 
 	#TODO: move this into utils so it can be used with other algorithms
@@ -175,6 +155,29 @@ class TRPOLearner(BaseA3CLearner):
 		return new_action, action_probs
 
 
+	#There doesn't seem to be a clean way to build the line search into the computation graph
+	#so we'll have to hop back and forth between cpu and gpu each iteration
+	def linesearch(self, feed, x, fullstep, expected_improve_rate):
+		accept_ratio = .05
+		max_backtracks = 10
+
+		fval = self.session.run(self.policy_loss, feed_dict=feed)
+
+		for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
+			xnew = x + stepfrac * fullstep
+			self.assign_vars(self.policy_network, xnew)
+			newfval, kl = self.session.run([self.policy_loss, self.kl], feed_dict=feed)
+
+			improvement = fval - newfval
+			logger.debug('Improvement {} / Mean KL'.format(improvement, kl))
+
+			if improvement > 0 and kl < self.max_kl:
+				return xnew
+
+		logger.debug('No update')
+		return x
+
+
 	def update_grads(self, data):
 		feed_dict={
 			self.policy_network.input_ph:           data['state'],
@@ -192,7 +195,7 @@ class TRPOLearner(BaseA3CLearner):
 
 
 	def _run(self):
-		for epoch in range(100):
+		for epoch in range(500):
 			data = {
 				'state':  list(),
 				'pi':     list(),
@@ -205,27 +208,26 @@ class TRPOLearner(BaseA3CLearner):
 				s = self.emulator.get_initial_state()
 
 				episode_over = False
-				episode_reward = 0.0
-				while not episode_over:
+				accumulated_rewards = list()
+				while not episode_over and len(accumulated_rewards) < 5000:
 					a, pi = self.choose_next_action(s)
 					new_s, reward, episode_over = self.emulator.next(a)
-					# reward = self.rescale_reward(reward)
-					episode_reward += reward
+					accumulated_rewards.append(self.rescale_reward(reward))
 
 					data['state'].append(s)
 					data['pi'].append(pi)
 					data['action'].append(a)
-					data['reward'].append(episode_reward)
 
 					s = new_s
 
-				episode_rewards.append(episode_reward)
+				mc_returns = np.array(accumulated_rewards)[::-1].cumsum()[::-1]
+				episode_rewards.append(mc_returns[0])
+				data['reward'].extend(mc_returns)
 					
 			kl = self.update_grads(data)
 			mean_episode_reward = np.array(episode_rewards).mean()
 
-			print episode_rewards[:5]
-			logger.info('Epoch {} / KL Divergence {} / Mean Reward {}'.format(
+			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {}'.format(
 				epoch+1, kl, mean_episode_reward))
 
 

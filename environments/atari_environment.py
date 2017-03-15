@@ -35,6 +35,10 @@ import gym
 import gym_pull #Doom environments
 
 
+RESIZE_WIDTH = 84
+RESIZE_HEIGHT = 84
+
+
 def get_num_actions(game):
     env = gym.make(game)
     if hasattr(env.action_space, 'n'):
@@ -52,7 +56,10 @@ def get_num_actions(game):
 
 def get_input_shape(game):
     env = gym.make(game)
-    return list(env.observation_space.shape)
+    if len(env.observation_space.shape) == 1:
+        return list(env.observation_space.shape)
+    else:
+        return [RESIZE_WIDTH, RESIZE_HEIGHT]
 
 
 class AtariEnvironment(object):
@@ -62,7 +69,7 @@ class AtariEnvironment(object):
     of size agent_history_length from which environment state
     is constructed.
     """
-    def __init__(self, game, visualize=False, resized_width=84, resized_height=84, agent_history_length=4, frame_skip=4, single_life_episodes=False):
+    def __init__(self, game, visualize=False, resized_width=RESIZE_WIDTH, resized_height=RESIZE_HEIGHT, agent_history_length=4, frame_skip=4, single_life_episodes=False):
         self.game = game
         self.env = gym.make(game)
         self.env.frameskip = frame_skip
