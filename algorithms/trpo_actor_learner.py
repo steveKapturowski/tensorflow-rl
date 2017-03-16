@@ -169,7 +169,7 @@ class TRPOLearner(BaseA3CLearner):
 			newfval, kl = self.session.run([self.policy_loss, self.kl], feed_dict=feed)
 
 			improvement = fval - newfval
-			logger.debug('Improvement {} / Mean KL'.format(improvement, kl))
+			logger.debug('Improvement {} / Mean KL {}'.format(improvement, kl))
 
 			if improvement > 0 and kl < self.max_kl:
 				return xnew
@@ -195,7 +195,7 @@ class TRPOLearner(BaseA3CLearner):
 
 
 	def _run(self):
-		for epoch in range(500):
+		for epoch in range(10000):
 			data = {
 				'state':  list(),
 				'pi':     list(),
