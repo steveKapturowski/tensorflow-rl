@@ -42,8 +42,9 @@ class TRPOLearner(BaseA3CLearner):
 			self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
 
-		self.max_kl = .01
 		self.cg_damping = 0.001
+		self.max_kl = args.max_kl
+		self.episodes_per_batch = args.trpo_episodes
 		self._build_ops()
 
 
@@ -203,7 +204,7 @@ class TRPOLearner(BaseA3CLearner):
 			}
 
 			episode_rewards = list()
-			for episode in range(50):
+			for episode in range(self.episodes_per_batch):
 				s = self.emulator.get_initial_state()
 
 				episode_over = False
