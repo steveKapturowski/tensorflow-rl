@@ -32,7 +32,6 @@ from skimage.color import rgb2gray
 import numpy as np
 from collections import deque
 import gym
-import gym_pull #Doom environments
 
 
 RESIZE_WIDTH = 84
