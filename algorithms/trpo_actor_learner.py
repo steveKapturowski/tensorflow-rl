@@ -203,7 +203,7 @@ class TRPOLearner(BaseA3CLearner):
 			}
 
 			episode_rewards = list()
-			for episode in range(20):
+			for episode in range(50):
 				s = self.emulator.get_initial_state()
 
 				episode_over = False
