@@ -153,7 +153,7 @@ if __name__ == '__main__':
     parser.add_argument('--test', action='store_false', help='if not set train agents in parallel, otherwise follow optimal policy with single agent', dest='is_train')
     parser.add_argument('--restore_checkpoint', action='store_true', help='resume training from last checkpoint', dest='restore_checkpoint')
     parser.add_argument('--pgq_fraction', default=0.5, type=float, help='fraction by which to multiply q gradients', dest='pgq_fraction')
-    parser.add_argument('--trpo_episodes', default=20, type=int, help='number of episodes to batch for TRPO updates', dest='trpo_episodes')
+    parser.add_argument('--trpo_episodes', default=50, type=int, help='number of episodes to batch for TRPO updates', dest='trpo_episodes')
     parser.add_argument('--max_kl', default=0.01, type=float, help='max kl divergence for TRPO updates', dest='max_kl')
 
     args = parser.parse_args()

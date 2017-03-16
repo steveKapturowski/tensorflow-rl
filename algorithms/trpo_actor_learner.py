@@ -50,6 +50,7 @@ class TRPOLearner(BaseA3CLearner):
 
 	def _build_ops(self):
 		eps = 1e-10
+		cg_subsample = 0.1
 		self.action_probs = self.policy_network.output_layer_pi
 		self.old_action_probs = tf.placeholder(tf.float32, shape=[None, self.num_actions], name="old_action_probs")
 
@@ -195,7 +196,7 @@ class TRPOLearner(BaseA3CLearner):
 
 
 	def _run(self):
-		for epoch in range(10000):
+		for epoch in range(1000):
 			data = {
 				'state':  list(),
 				'pi':     list(),
@@ -209,7 +210,7 @@ class TRPOLearner(BaseA3CLearner):
 
 				episode_over = False
 				accumulated_rewards = list()
-				while not episode_over and len(accumulated_rewards) < 2000:
+				while not episode_over and len(accumulated_rewards) < 1000:
 					a, pi = self.choose_next_action(s)
 					new_s, reward, episode_over = self.emulator.next(a)
 					accumulated_rewards.append(self.rescale_reward(reward))
@@ -220,8 +221,13 @@ class TRPOLearner(BaseA3CLearner):
 
 					s = new_s
 
-				mc_returns = np.array(accumulated_rewards)[::-1].cumsum()[::-1]
-				episode_rewards.append(mc_returns[0])
+				mc_returns = list()
+				running_total = 0.0
+				for r in reversed(accumulated_rewards):
+					running_total = r + self.gamma*running_total
+					mc_returns.insert(0, running_total)
+
+				episode_rewards.append(sum(accumulated_rewards))
 				data['reward'].extend(mc_returns)
 					
 			kl = self.update_grads(data)
