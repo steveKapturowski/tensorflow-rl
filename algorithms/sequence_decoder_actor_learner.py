@@ -2,7 +2,6 @@
 import time
 import numpy as np
 import utils.logger
-import checkpoint_utils
 import tensorflow as tf
 
 from utils.forked_debugger import ForkedPdb as Pdb
