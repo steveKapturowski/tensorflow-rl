@@ -159,7 +159,7 @@ class TRPOLearner(BaseA3CLearner):
 
 	#There doesn't seem to be a clean way to build the line search into the computation graph
 	#so we'll have to hop back and forth between cpu and gpu each iteration
-	def linesearch(self, feed, x, fullstep, expected_improve_rate):
+	def linesearch(self, feed, x, fullstep):
 		max_backtracks = 10
 
 		fval = self.session.run(self.policy_loss, feed_dict=feed)
@@ -189,7 +189,7 @@ class TRPOLearner(BaseA3CLearner):
 		theta_prev, fullstep, neggdotstepdir = self.session.run(
 			[self.theta, self.fullstep, self.neggdotstepdir], feed_dict=feed_dict)
 
-		new_theta = self.linesearch(feed_dict, theta_prev, fullstep, neggdotstepdir)
+		new_theta = self.linesearch(feed_dict, theta_prev, fullstep)
 		self.assign_vars(self.policy_network, new_theta)
 
 		return self.session.run(self.kl, feed_dict)
