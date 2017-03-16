@@ -204,12 +204,12 @@ class TRPOLearner(BaseA3CLearner):
 			}
 
 			episode_rewards = list()
-			for episode in range(50):
+			for episode in range(20):
 				s = self.emulator.get_initial_state()
 
 				episode_over = False
 				accumulated_rewards = list()
-				while not episode_over and len(accumulated_rewards) < 5000:
+				while not episode_over and len(accumulated_rewards) < 2000:
 					a, pi = self.choose_next_action(s)
 					new_s, reward, episode_over = self.emulator.next(a)
 					accumulated_rewards.append(self.rescale_reward(reward))
