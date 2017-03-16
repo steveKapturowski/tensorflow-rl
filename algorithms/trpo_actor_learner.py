@@ -158,7 +158,6 @@ class TRPOLearner(BaseA3CLearner):
 	#There doesn't seem to be a clean way to build the line search into the computation graph
 	#so we'll have to hop back and forth between cpu and gpu each iteration
 	def linesearch(self, feed, x, fullstep, expected_improve_rate):
-		accept_ratio = .05
 		max_backtracks = 10
 
 		fval = self.session.run(self.policy_loss, feed_dict=feed)
