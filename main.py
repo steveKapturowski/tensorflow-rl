@@ -113,8 +113,7 @@ def main(args):
     for t in actor_learners:
         t.join()
     
-    logger.debug('All training threads finished')
-    logger.debug('All threads stopped')
+    logger.info('All training threads finished!')
 
 if __name__ == '__main__':
     

@@ -283,15 +283,13 @@ class NStepQLearner(ValueBasedLearner):
 
 
 class DuelingLearner(NStepQLearner):
-
-    def __init__(self, args):
-        super(DuelingLearner, self).__init__(args)
+    pass
 
 
 class OneStepSARSALearner(ValueBasedLearner):
 
     def generate_final_epsilon(self):
-        return 0.1
+        return 0.05
 
     def _run(self):
         """ Main actor learner loop for 1-step SARSA learning. """
