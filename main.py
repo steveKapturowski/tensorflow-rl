@@ -75,18 +75,18 @@ def main(args):
         'args': args
     })
 
-    args.learning_vars = SharedVars(num_actions, args.alg_type, network, arch=args.arch)
+    args.learning_vars = SharedVars(num_actions, args.alg_type, network)
     
     args.opt_state = SharedVars(
-        num_actions, args.alg_type, network, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr
+        num_actions, args.alg_type, network, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
 
     args.batch_opt_state = SharedVars(
-        num_actions, args.alg_type, network, arch=args.arch, opt_type=args.opt_type, lr=args.initial_lr
+        num_actions, args.alg_type, network, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
 
     if args.alg_type in ['q', 'sarsa', 'dueling']:
-        args.target_vars = SharedVars(num_actions, args.alg_type, network, arch=args.arch)
+        args.target_vars = SharedVars(num_actions, args.alg_type, network)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
     
     args.barrier = Barrier(args.num_actor_learners)

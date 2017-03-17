@@ -11,7 +11,7 @@ class SharedCounter(object):
         self.last_step_update_target = RawValue('i', initval)
         self.lock = Lock()
 
-    def increment(self, elapsed_steps = None):
+    def increment(self, elapsed_steps=None):
         self.val.value += 1
         if ((elapsed_steps is not None) 
             and ((self.val.value - self.last_step_update_target.value) 
@@ -39,7 +39,7 @@ class Barrier:
         self.barrier.release()
 
 class SharedVars(object):
-    def __init__(self, num_actions, alg_type, network, arch='NIPS', opt_type=None, lr=0):
+    def __init__(self, num_actions, alg_type, network, opt_type=None, lr=0):
         self.var_shapes = [
             var.get_shape().as_list()
             for var in tf.global_variables()

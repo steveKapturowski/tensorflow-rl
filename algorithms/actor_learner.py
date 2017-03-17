@@ -325,7 +325,7 @@ class ActorLearner(Process):
                 feed_dict=feed_dict)
 
     
-    def _get_summary_var(self):
+    def _get_summary_vars(self):
         episode_reward = tf.Variable(0., name='episode_reward')
         s1 = tf.summary.scalar('Episode_Reward_{}'.format(self.actor_id), episode_reward)
 
