@@ -11,7 +11,7 @@ import random
 import utils.logger
 logger = utils.logger.getLogger('emulator')
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 IMG_SCALE = 255.0
 IMG_SIZE_X = 84
@@ -104,7 +104,7 @@ class Emulator:
         if BLEND_METHOD == "max_pool":
             img = np.amax(self.frame_pool, axis=0)
         
-        #return resize(img[:210, :], (84, 84))
+        #img resize(img[:210, :], (84, 84))
         img = cv2.resize(img[:210, :], (84, 84), 
             interpolation=cv2.INTER_LINEAR)
         
@@ -163,8 +163,6 @@ class Emulator:
         if self.visualize:
             #io.imshow(image[:210, :], fancy=True)
             cv2.imshow(self.windowname, image[:210, :])
-            # plt.imshow(image[:210, :])
-            # plt.savefig("test.png")
         if self.visualize_processed:
             #io.imshow(self.screen_images_processed[:, :, 3], fancy=True)
             cv2.imshow(self.windowname + "_processed", self.screen_images_processed[:, :, 3])

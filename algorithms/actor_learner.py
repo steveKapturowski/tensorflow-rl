@@ -30,13 +30,24 @@ ONE_LIFE_GAMES = [
     #Classic Control
     'CartPole-v0',
     'MountainCar-v0',
-    'LunarLander-v2'
+    'LunarLander-v2',
 ]
 CONTINUOUS_CONTROL = [
     'LunarLanderContinuous-v2',
     'BipedalWalker-v2',
     'BipedalWalkerHardcore-v2',
     'CarRacing-v0',
+]
+DOOM_ENVIRONMENTS = [
+    'DoomBasic',
+    'DoomCorridor-v0',
+    'DoomDefendCenter-v0',
+    'DoomDefendLine-v0',
+    'DoomHealthGathering-v0',
+    'DoomMyWayHome-v0',
+    'DoomPredictPosition-v0',
+    'DoomTakeCover-v0',
+    'DoomDeathmatch-v0',
 ]
  
 logger = utils.logger.getLogger('actor_learner')
