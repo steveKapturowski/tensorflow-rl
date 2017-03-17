@@ -81,7 +81,17 @@ class Network(object):
                         tf.trainable_variables() if v.name.startswith(vs.name)]
 
 
-    def clip_grads(self, grads):
+    def _huber_loss(self, diff):
+        # DEFINE HUBER LOSS
+        if self.clip_loss_delta > 0:
+            quadratic_term = tf.minimum(tf.abs(diff), self.clip_loss_delta)
+            linear_term = tf.abs(diff) - quadratic_term
+            return tf.nn.l2_loss(quadratic_term) + self.clip_loss_delta*linear_term
+        else:
+            return tf.nn.l2_loss(diff)
+
+
+    def _clip_grads(self, grads):
         if self.clip_norm_type == 'ignore':
             return grads
         elif self.clip_norm_type == 'global':
@@ -93,7 +103,7 @@ class Network(object):
                     for g in grads]
 
 
-    def setup_shared_memory_ops(self):
+    def _setup_shared_memory_ops(self):
         # Placeholders for shared memory vars
         self.params_ph = []
         for p in self.params:
@@ -108,5 +118,12 @@ class Network(object):
             self.sync_with_shared_memory.append(
                 self.params[i].assign(self.params_ph[i]))
 
-    
+
+    def _build_gradient_ops(self):
+        self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
+
+        grads = tf.gradients(self.loss, self.params)
+        self.get_gradients = self._clip_grads(grads)
+        self._setup_shared_memory_ops()
+
         

@@ -60,9 +60,6 @@ class ValueBasedLearner(ActorLearner):
         if np.random.rand() <= self.epsilon:
             action_index = np.random.randint(0,self.num_actions)
         else:
-            #network_output = self.session.run(
-            #    self.local_network.output_layer, 
-            #    feed_dict={self.local_network.input_ph: [state]})[0]
             action_index = np.argmax(network_output)
                 
         new_action[action_index] = 1
@@ -133,11 +130,7 @@ class NStepQLearner(ValueBasedLearner):
                 
                 # Choose next action and execute it
                 a, readout_t = self.choose_next_action(s)
-                
-#                 if np.isnan(np.min(readout_t)):
-#                     logger.debug("READOUT is NAN")
-#                     self.max_global_steps = 0
-#                     return #sys.exit()
+
                 
                 new_s, reward, episode_over = self.emulator.next(a)
                 if reward != 0.0:
@@ -169,7 +162,6 @@ class NStepQLearner(ValueBasedLearner):
             if episode_over:
                 R = 0
             else:
-                # Q_target in the new state
                 q_target_values_next_state = self.session.run(
                     self.target_network.output_layer, 
                     feed_dict={self.target_network.input_ph: 
@@ -184,10 +176,12 @@ class NStepQLearner(ValueBasedLearner):
                 s_batch.append(states[i])
                 
             # Compute gradients on the local Q network     
-            feed_dict={self.local_network.input_ph: s_batch,
-                        self.local_network.target_ph: y_batch,
-                        self.local_network.selected_action_ph: a_batch}
-            
+            feed_dict={
+                self.local_network.input_ph: s_batch,
+                self.local_network.target_ph: y_batch,
+                self.local_network.selected_action_ph: a_batch
+            }
+
             grads = self.session.run(self.local_network.get_gradients,
                                           feed_dict=feed_dict)
             self.apply_gradients_to_shared_memory_vars(grads)
@@ -260,7 +254,6 @@ class NStepQLearner(ValueBasedLearner):
                 reset_game = False
 
 
-#This shouldn't really be using inheritance. Need to refactor to make the interfaces cleaner
 class DuelingLearner(NStepQLearner):
 
     def __init__(self, args):

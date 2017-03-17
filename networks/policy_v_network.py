@@ -15,15 +15,14 @@ class PolicyValueNetwork(Network):
         self.beta = conf['args'].entropy_regularisation_strength
                 
         with tf.name_scope(self.name):
-            self.actor_objective = 0.0
+            self.loss = 0.0
             if use_policy_head:
-                self._build_policy_head()
-            
-            self.critic_loss = 0.0
+                self.loss += self._build_policy_head()
+
             if use_value_head:
-                self._build_value_head()
-     
-        self._build_gradient_ops()
+                self.loss += self._build_value_head()
+
+            self._build_gradient_ops()
 
     def _build_policy_head(self):
         self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')       
@@ -46,6 +45,8 @@ class PolicyValueNetwork(Network):
             self.log_output_selected_action * self.adv_actor_ph
             + self.beta * self.output_layer_entropy)
 
+        return self.actor_objective
+
     def _build_value_head(self):
         self.critic_target_ph = tf.placeholder('float32', [None], name='target')
         self.wv, self.bv, self.output_layer_v = layers.fc(
@@ -65,16 +66,9 @@ class PolicyValueNetwork(Network):
             self.critic_loss = tf.multiply(tf.constant(0.5), tf.nn.l2_loss(quadratic_part) + \
                 self.clip_loss_delta * linear_part)
         else:
-            self.critic_loss = 0.5 * tf.reduce_mean(tf.pow(self.adv_critic, 2))    
+            self.critic_loss = 0.5 * tf.reduce_mean(tf.pow(self.adv_critic, 2))
 
-    def _build_gradient_ops(self):
-        self.loss = self.actor_objective + self.critic_loss
-            
-        self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
-
-        grads = tf.gradients(self.loss, self.params)
-        self.get_gradients = self.clip_grads(grads)
-        self.setup_shared_memory_ops()
+        return self.critic_loss
 
 
 class PolicyNetwork(PolicyValueNetwork):
@@ -126,6 +120,8 @@ class PolicyRepeatNetwork(PolicyValueNetwork):
         self.actor_objective = -tf.reduce_mean(
             self.log_output_selected_action * self.adv_actor_ph
             + self.beta * self.output_layer_entropy)
+
+        return self.actor_objective
 
 
 #This is still experimental
@@ -208,5 +204,7 @@ class SequencePolicyVNetwork(PolicyValueNetwork):
             self.actor_advantage_term
             + self.actor_entropy_term
         )
+
+        return self.actor_objective
             
 
