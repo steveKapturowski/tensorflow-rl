@@ -32,7 +32,6 @@ from skimage.color import rgb2gray
 import numpy as np
 from collections import deque
 import gym
-import ppaquette_gym_doom
 
 
 RESIZE_WIDTH = 84
