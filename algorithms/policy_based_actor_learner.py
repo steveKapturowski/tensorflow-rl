@@ -10,6 +10,7 @@ from networks.policy_v_network import PolicyValueNetwork
 
 logger = utils.logger.getLogger('policy_based_actor_learner')
 
+
 class BaseA3CLearner(ActorLearner):
     def __init__(self, args):
         super(BaseA3CLearner, self).__init__(args)

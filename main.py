@@ -15,7 +15,10 @@ from networks.policy_v_network import PolicyNetwork, PolicyValueNetwork, Sequenc
 from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
 from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
 from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner
-from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
+# from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
+from algorithms.policy_based_actor_learner import A3CLSTMLearner
+from algorithms.intrinsic_motivation_actor_learner import PseudoCountLearner as A3CLearner
+
 from algorithms.pgq_actor_learner import PGQLearner, PGQLSTMLearner
 from algorithms.trpo_actor_learner import TRPOLearner
 from algorithms.cem_actor_learner import CEMLearner

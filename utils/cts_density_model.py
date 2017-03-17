@@ -1,14 +1,24 @@
-from cts import CTS
+# -*- encoding: utf-8 -*-
 import numpy as np
+from cts import CTS
+from skimage.transform import resize
 
 
 class CTSDensityModel(object):
-	def __init__(self, height, width, beta=0.05):
+	'''
+	Implementation of CTS Density Model described in the paper
+	"Unifying Count-Based Exploration and Intrinsic Motivationhttps" (//arxiv.org/abs/1606.01868)
+	
+	Pure python implementation is too damn slow so I'll have to 
+	'''
+	def __init__(self, height=21, width=21, beta=0.05):
 		self.beta = beta
 		self.factors = np.array([[CTS(4) for _ in range(width)] for _ in range(height)])
 
 
 	def update(self, obs):
+		resize(obs, self.factors.shape)
+
 		context = [0, 0, 0, 0]
 		log_prob = 0.0
 		log_recoding_prob = 0.0
@@ -25,10 +35,16 @@ class CTSDensityModel(object):
 		return self.exploration_bonus(log_prob, log_recoding_prob)
 
 
-	def exploration_bonus(self, log_prob, log_recoding_prob)
+	def exploration_bonus(self, log_prob, log_recoding_prob):
 		prob = np.exp(log_prob)
 		recoding_prob = np.exp(log_recoding_prob)
 
-		pseudocount = prob * (1 - recoding_prob) / (recoding_prob - prob)
+		pseudocount = prob * (1 - recoding_prob) / np.maximum(recoding_prob - prob, 1e-10)
 		return self.beta / np.sqrt(pseudocount + .01)
 
+
+class FastCTSDensityModel(object):
+	'''
+	TODO: use cython to make this nice and speedy
+	'''
+	pass
