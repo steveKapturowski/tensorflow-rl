@@ -39,26 +39,55 @@ class ValueBasedLearner(ActorLearner):
             self.local_network = QNetwork(conf_learning)
             self.target_network = QNetwork(conf_target)
         
-
         if self.actor_id == 0:
             var_list = self.local_network.params + self.target_network.params            
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
+
+        # Exploration epsilons 
+        self.epsilon = 1.0
+        self.initial_epsilon = 1.0
+        self.final_epsilon = self.generate_final_epsilon()
+        self.epsilon_annealing_steps = args.epsilon_annealing_steps
+
+
+    def generate_final_epsilon(self):
+        epsilon = {'limits': [0.1, 0.01, 0.5], 'probs': [0.4, 0.3, 0.3]}
+        return np.random.choice(epsilon['limits'], p=epsilon['probs']) 
+
+
+    def reduce_thread_epsilon(self):
+        """ Linear annealing """
+        if self.epsilon > self.final_epsilon:
+            self.epsilon -= (self.initial_epsilon - self.final_epsilon) / self.epsilon_annealing_steps
         
+
+    def _get_summary_vars(self):
+        episode_reward = tf.Variable(0., name='episode_reward')
+        s1 = tf.summary.scalar('Episode_Reward_{}'.format(self.actor_id), episode_reward)
+
+        episode_avg_max_q = tf.Variable(0., name='episode_avg_max_q')
+        s2 = tf.summary.scalar('Max_Q_Value_{}'.format(self.actor_id), episode_avg_max_q)
+        
+        logged_epsilon = tf.Variable(0., name='epsilon_'.format(self.actor_id))
+        s3 = tf.summary.scalar('Epsilon_{}'.format(self.actor_id), logged_epsilon)
+        
+        return [episode_reward, episode_avg_max_q, logged_epsilon]
+
 
     def choose_next_action(self, state):
         """ Epsilon greedy """
         new_action = np.zeros([self.num_actions])
         
         network_output = self.session.run(
-                    self.local_network.output_layer, 
-                    feed_dict={self.local_network.input_ph: [state]})[0]
+            self.local_network.output_layer, 
+            feed_dict={self.local_network.input_ph: [state]})[0]
             
         if not self.is_train:
             self.epsilon = 0.0
 
         if np.random.rand() <= self.epsilon:
-            action_index = np.random.randint(0,self.num_actions)
+            action_index = np.random.randint(0, self.num_actions)
         else:
             action_index = np.argmax(network_output)
                 
@@ -75,18 +104,69 @@ class ValueBasedLearner(ActorLearner):
         # Set shared flags
         for i in xrange(len(self.target_update_flags.updated)):
             self.target_update_flags.updated[i] = 1
+
+
+    def run(self):
+        super(ValueBasedLearner, self).run()
+        #cProfile.runctx('self._run()', globals(), locals(), 'profile-{}.out'.format(self.actor_id))
+        self._run()
+
+
+    def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
+                      ep_t, episode_ave_max_q, episode_over):
+        # prevent the agent from getting stuck
+        reset_game = False
+        if (self.local_step - steps_at_last_reward > 5000
+            or (self.emulator.get_lives() == 0
+                and self.emulator.game not in ONE_LIFE_GAMES)):
+            
+            steps_at_last_reward = self.local_step
+            episode_over = True
+            reset_game = True
+
+        # Start a new game on reaching terminal state
+        if episode_over:
+            T = self.global_step.value()
+            t = self.local_step
+            e_prog = float(t)/self.epsilon_annealing_steps
+            episode_ave_max_q = episode_ave_max_q/float(ep_t)
+            s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
+            s2 = "EPS {0:.4f}".format(self.epsilon)
+
+            self.scores.insert(0, total_episode_reward)
+            if len(self.scores) > 100:
+                self.scores.pop()
+
+            logger.info('T{0} / STEP {1} / REWARD {2} / {3} / {4}'.format(
+                self.actor_id, T, total_episode_reward, s1, s2))
+            logger.info('ID: {0} -- RUNNING AVG: {1:.0f} ± {2:.0f} -- BEST: {3:.0f}'.format(
+                self.actor_id,
+                np.array(self.scores).mean(),
+                2*np.array(self.scores).std(),
+                max(self.scores),
+            ))
+
+            if self.actor_id == 0 and self.is_train:
+                stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
+                feed_dict = {}
+                for i in range(len(stats)):
+                    feed_dict[self.summary_ph[i]] = float(stats[i])
+                res = self.session.run(self.update_ops + [self.summary_op], feed_dict = feed_dict)
+    
+                self.summary_writer.add_summary(res[-1], self.global_step.value())
+                
+            if reset_game or self.emulator.game in ONE_LIFE_GAMES:
+                state = self.emulator.get_initial_state()
+
+            ep_t = 0
+            total_episode_reward = 0
+            episode_ave_max_q = 0
+            episode_over = False
+
+        return state, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over
         
         
 class NStepQLearner(ValueBasedLearner):
-
-    def __init__(self, args):
-        
-        super(NStepQLearner, self).__init__(args)
-        
-    def run(self):
-        super(NStepQLearner, self).run()
-        #cProfile.runctx('self._run()', globals(), locals(), 'profile-{}.out'.format(self.actor_id))
-        self._run()
 
     def _run(self):
         """ Main actor learner loop for n-step Q learning. """
@@ -102,7 +182,6 @@ class NStepQLearner(ValueBasedLearner):
         a_batch = []
         y_batch = []
         
-        reset_game = False
         steps_at_last_reward = self.local_step
         exec_update_target = False
         total_episode_reward = 0
@@ -193,65 +272,14 @@ class NStepQLearner(ValueBasedLearner):
             if exec_update_target:
                 self.update_target()
                 exec_update_target = False
-                #logger.debug("Actor {} updating target at Global Step {}".format(
-                #    self.actor_id, global_step))
 
             # Sync local tensorflow target network params with shared target network params
             if self.target_update_flags.updated[self.actor_id] == 1:
                 self.sync_net_with_shared_memory(self.target_network, self.target_vars)
                 self.target_update_flags.updated[self.actor_id] = 0
-                #logger.debug("Actor {} syncing target at Global Step {}".format(
-                #    self.actor_id, global_step))
 
-
-            if (self.local_step - steps_at_last_reward > 5000
-                or (self.emulator.get_lives() == 0
-                    and self.emulator.game not in ONE_LIFE_GAMES)):
-            
-                steps_at_last_reward = self.local_step
-                episode_over = True
-                reset_game = True
-
-
-            # Start a new game on reaching terminal state
-            if episode_over:
-                T = self.global_step.value()
-                t = self.local_step
-                e_prog = float(t)/self.epsilon_annealing_steps
-                episode_ave_max_q = episode_ave_max_q/float(ep_t)
-                s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
-                s2 = "EPS {0:.4f}".format(self.epsilon)
-
-                self.scores.insert(0, total_episode_reward)
-                if len(self.scores) > 100:
-                    self.scores.pop()
-
-                logger.info('T{0} / STEP {1} / REWARD {2} / {3} / {4}'.format(
-                    self.actor_id, T, total_episode_reward, s1, s2))
-                logger.info('ID: {0} -- RUNNING AVG: {1:.0f} ± {2:.0f} -- BEST: {3:.0f}'.format(
-                    self.actor_id,
-                    np.array(self.scores).mean(),
-                    2*np.array(self.scores).std(),
-                    max(self.scores),
-                ))
-
-                if self.actor_id == 0 and self.is_train:
-                    stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
-                    feed_dict = {}
-                    for i in range(len(stats)):
-                        feed_dict[self.summary_ph[i]] = float(stats[i])
-                    res = self.session.run(self.update_ops + [self.summary_op], feed_dict = feed_dict)
-    
-                    self.summary_writer.add_summary(res[-1], self.global_step.value())
-                
-                if reset_game or self.emulator.game in ONE_LIFE_GAMES:
-                    s = self.emulator.get_initial_state()
-
-                ep_t = 0
-                total_episode_reward = 0
-                episode_ave_max_q = 0
-                episode_over = False
-                reset_game = False
+            s, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over = \
+                self.prepare_state(s, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over)
 
 
 class DuelingLearner(NStepQLearner):
@@ -262,14 +290,8 @@ class DuelingLearner(NStepQLearner):
 
 class OneStepSARSALearner(ValueBasedLearner):
 
-    def __init__(self, args):
-        
-        super(OneStepSARSALearner, self).__init__(args)
-        
-    def run(self):
-        super(OneStepSARSALearner, self).run()
-        #cProfile.runctx('self._run()', globals(), locals(), 'profile-{}.out'.format(self.actor_id))
-        self._run()
+    def generate_final_epsilon(self):
+        return 0.1
 
     def _run(self):
         """ Main actor learner loop for 1-step SARSA learning. """
@@ -281,8 +303,8 @@ class OneStepSARSALearner(ValueBasedLearner):
         s_batch = []
         a_batch = []
         y_batch = []
-        sel_actions = []
         
+        steps_at_last_reward = self.local_step
         exec_update_target = False
         total_episode_reward = 0
         episode_ave_max_q = 0
@@ -293,33 +315,37 @@ class OneStepSARSALearner(ValueBasedLearner):
         low_qmax = 0
         ep_t = 0
 
-        # Choose next action
+        # Choose initial action
         a, readout_t = self.choose_next_action(s)
         
         while (self.global_step.value() < self.max_global_steps):
             s_prime, reward, episode_over = self.emulator.next(a)
-            total_episode_reward += reward
+            if reward != 0.0:
+                steps_at_last_reward = self.local_step
             
             ep_t += 1
             episode_ave_max_q += np.max(readout_t)
 
             a_batch.append(a)
             s_batch.append(s)
-            sel_actions.append(np.argmax(a)) # For debugging purposes
+            s = s_prime
 
-            # Rescale or clip immediate reward
+            total_episode_reward += reward
             reward = self.rescale_reward(reward)
             if episode_over:
                 y = reward
             else:
                 # Choose action that we will execute in the next step 
                 a_prime, readout_t = self.choose_next_action(s_prime)
+
+                q_prime = readout_t[a_prime.argmax()]
                 # Q_target in the new state for the next step action 
-                q_target_values_new_state = self.session.run(
+                q_prime = self.session.run(
                     self.target_network.output_layer, 
-                    feed_dict={self.target_network.input_ph: [s_prime]})[0]
-                y = reward + self.gamma * \
-                    q_target_values_new_state[np.argmax(a_prime)]
+                    feed_dict={self.target_network.input_ph: [s_prime]}
+                )[0][a_prime.argmax()]
+
+                y = reward + self.gamma * q_prime
                 a = a_prime
 
             y_batch.append(y)
@@ -338,59 +364,26 @@ class OneStepSARSALearner(ValueBasedLearner):
                            self.local_network.selected_action_ph: a_batch}
                            
                 grads = self.session.run(self.local_network.get_gradients,
-                                          feed_dict=feed_dict)
+                                         feed_dict=feed_dict)
                     
                 self.apply_gradients_to_shared_memory_vars(grads)
 
-                # Obs! This step is not in Alg. 1 of http://arxiv.org/pdf/1602.01783.pdf,
-                # since that algorithm does not use local network replicas. 
-                # However, when using them, we need to synchronize the local network parameters
-                # with the shared parameters (equivalent to the "synchronize 
-                # thread-specific parameters" step in Alg. 2)
                 self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
                 self.save_vars()
-                
+
                 s_batch = []
                 a_batch = []
                 y_batch = []
-                
+
             # Copy shared learning network params to shared target network params 
             if update_target:
                 self.update_target()
-                #logger.debug("Actor {} updating target at Global Step {}".format(
-                #    self.actor_id, global_step))
 
             # Sync local tensorflow target network params with shared target network params
             if self.target_update_flags.updated[self.actor_id] == 1:
                 self.sync_net_with_shared_memory(self.target_network, self.target_vars)
                 self.target_update_flags.updated[self.actor_id] = 0
-                #logger.debug("Actor {} syncing target at Global Step {}".format(
-                #    self.actor_id, global_step))
-            
-            # Prepare next state for the actor
-            if episode_over:
-                T = self.global_step.value()
-                t = self.local_step
-                episode_ave_max_q = episode_ave_max_q/float(ep_t)
-                s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
-                s2 = "EPS {0:.4f}".format(self.epsilon)
-                logger.info("T{} / STEP {} / REWARD {} / {} / {} / ACTIONS {}".format(self.actor_id, T, total_episode_reward, s1, s2, np.unique(sel_actions)))
-                
-                if self.actor_id == 0 and self.is_train:
-                    stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
-                    feed_dict = {}
-                    for i in range(len(stats)):
-                        feed_dict[self.summary_ph[i]] = float(stats[i])
-                    res = self.session.run(self.update_ops + [self.summary_op], feed_dict = feed_dict)
-    
-                    self.summary_writer.add_summary(res[-1], self.global_step.value())
-                
-                ep_t = 0
-                total_episode_reward = 0
-                episode_ave_max_q = 0
-                episode_over = False
-                sel_actions = []
-                s = self.emulator.get_initial_state()
-                a, readout_t = self.choose_next_action(s)
-            else:
-                s = s_prime
+
+            s, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over = \
+                self.prepare_state(s, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over)
+

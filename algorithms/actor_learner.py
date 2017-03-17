@@ -41,11 +41,6 @@ CONTINUOUS_CONTROL = [
  
 logger = utils.logger.getLogger('actor_learner')
 
-def generate_final_epsilon():
-    """ Generate lower limit for decaying epsilon. """
-    epsilon = {'limits': [0.1, 0.01, 0.5], 'probs': [0.4, 0.3, 0.3]}
-    return np.random.choice(epsilon['limits'], p=epsilon['probs']) 
-
 
 class ActorLearner(Process):
     
@@ -117,12 +112,6 @@ class ActorLearner(Process):
         self.grads_update_steps = args.grads_update_steps
         self.max_global_steps = args.max_global_steps
         self.gamma = args.gamma
-
-        # Exploration epsilons 
-        self.epsilon = 1.0
-        self.initial_epsilon = 1.0
-        self.final_epsilon = generate_final_epsilon()
-        self.epsilon_annealing_steps = args.epsilon_annealing_steps
 
         self.rescale_rewards = args.rescale_rewards
         self.max_achieved_reward = -1000000
@@ -234,12 +223,7 @@ class ActorLearner(Process):
             np.frombuffer(self.target_vars.vars, ctypes.c_float)[:] = params
         #memoryview(self.learning_vars.vars)[:] = params
         #memoryview(self.target_vars.vars)[:] = memoryview(self.learning_vars.vars)
-    
-    def reduce_thread_epsilon(self):
-        """ Linear annealing """
-        if self.epsilon > self.final_epsilon:
-            self.epsilon -= (self.initial_epsilon - self.final_epsilon) / self.epsilon_annealing_steps
-            
+                
     
     @checkpoint_utils.only_on_train(return_val=0.0)
     def decay_lr(self):
@@ -341,19 +325,18 @@ class ActorLearner(Process):
                 feed_dict=feed_dict)
 
     
-    def setup_summaries(self):
+    def _get_summary_var(self):
         episode_reward = tf.Variable(0., name='episode_reward')
         s1 = tf.summary.scalar('Episode_Reward_{}'.format(self.actor_id), episode_reward)
-        if self.alg_type in ['sarsa', 'q', 'dueling']:
-            episode_avg_max_q = tf.Variable(0., name='episode_avg_max_q')
-            s2 = tf.summary.scalar('Max_Q_Value_{}'.format(self.actor_id), episode_avg_max_q)
-            logged_epsilon = tf.Variable(0., name='epsilon_'.format(self.actor_id))
-            s3 = tf.summary.scalar('Epsilon_{}'.format(self.actor_id), logged_epsilon)
-            summary_vars = [episode_reward, episode_avg_max_q, logged_epsilon]
-        else:
-            mean_entropy = tf.Variable(0., name='episode_avg_max_q')
-            s2 = tf.summary.scalar('Mean_Entropy_{}'.format(self.actor_id), mean_entropy)
-            summary_vars = [episode_reward, mean_entropy]
+
+        mean_entropy = tf.Variable(0., name='mean_entropy')
+        s2 = tf.summary.scalar('Mean_Entropy_{}'.format(self.actor_id), mean_entropy)
+
+        return [episode_reward, mean_entropy]
+
+
+    def setup_summaries(self):
+        summary_vars = self._get_summary_vars()
 
         summary_placeholders = [tf.placeholder('float') for _ in range(len(summary_vars))]
         update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
@@ -361,3 +344,4 @@ class ActorLearner(Process):
             summary_ops = tf.summary.merge_all()
         return summary_placeholders, update_ops, summary_ops
     
+
