@@ -69,7 +69,7 @@ class PseudoCountLearner(A3CLearner):
 
                 total_episode_reward += reward
                 # Rescale or clip immediate reward
-                reward = self.rescale_reward(reward) + bonus
+                reward = self.rescale_reward(reward + bonus)
                 
                 rewards.append(reward)
                 states.append(s)
@@ -89,7 +89,7 @@ class PseudoCountLearner(A3CLearner):
                     self.local_network.output_layer_v,
                     feed_dict={self.local_network.input_ph:[new_s]})[0][0]
                             
-             
+
             sel_actions = []
             for i in reversed(xrange(len(states))):
                 R = rewards[i] + self.gamma * R
@@ -119,6 +119,8 @@ class PseudoCountLearner(A3CLearner):
             delta_new = self.local_step -  local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
 
+            logger.info('Bonuses: {}'.format(bonuses))
+            
             s, mean_entropy, episode_start_step, total_episode_reward, _ = self.prepare_state(
                 s, mean_entropy, episode_start_step, total_episode_reward, self.local_step, sel_actions, episode_over)
 
