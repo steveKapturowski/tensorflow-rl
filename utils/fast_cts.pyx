@@ -252,7 +252,7 @@ cdef class CTSDensityModel:
         
     def update(self, obs):
         obs = resize(obs, (self.height, self.width))
-        obs = (obs*64).astype(np.int32)
+        obs = (obs*16).astype(np.int32)
         log_prob, log_recoding_prob = self._update(obs)
         return self.exploration_bonus(log_prob, log_recoding_prob)
     
