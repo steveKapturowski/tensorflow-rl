@@ -122,7 +122,7 @@ class PseudoCountLearner(A3CLearner):
             delta_new = self.local_step -  local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
 
-            logger.info('Bonuses: {}'.format(bonuses))
+            logger.debug('Bonuses: {}'.format(bonuses))
             
             s, mean_entropy, episode_start_step, total_episode_reward, _ = self.prepare_state(
                 s, mean_entropy, episode_start_step, total_episode_reward, self.local_step, sel_actions, episode_over)
