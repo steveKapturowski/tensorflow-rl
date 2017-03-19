@@ -1,7 +1,7 @@
+# CTS code adapted from https://github.com/mgbellemare/SkipCTS
 cimport cython
 import numpy as np
 cimport numpy as np
-# np.import_array()
 
 from libc.math cimport log, exp
 
