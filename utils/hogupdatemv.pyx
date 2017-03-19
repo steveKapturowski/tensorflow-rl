@@ -1,7 +1,7 @@
 #from cython.parallel import prange
 import cython
 cimport cython
-from libc.math cimport fabs 
+from libc.math cimport fabs
 #from libc.stdlib cimport memcpy
 
 cdef extern from "math.h" nogil:

@@ -3,7 +3,6 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 import ctypes
-import pyximport; pyximport.install()
 import tempfile
 import time
 from utils import checkpoint_utils

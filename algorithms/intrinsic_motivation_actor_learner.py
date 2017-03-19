@@ -4,7 +4,8 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 from utils import checkpoint_utils
-from utils.cts_density_model import CTSDensityModel
+
+from utils.fast_cts import CTSDensityModel
 from policy_based_actor_learner import A3CLearner
 
 
@@ -15,7 +16,9 @@ class PseudoCountLearner(A3CLearner):
     def __init__(self, args):
         super(PseudoCountLearner, self).__init__(args)
 
-        self.density_model = CTSDensityModel()
+        #more cython tuning could useful here
+        self.density_model = CTSDensityModel(
+            height=21, width=21, beta=0.05)
 
 
     def _run(self):

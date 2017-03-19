@@ -7,9 +7,7 @@ from skimage.transform import resize
 class CTSDensityModel(object):
 	'''
 	Implementation of CTS Density Model described in the paper
-	"Unifying Count-Based Exploration and Intrinsic Motivationhttps" (//arxiv.org/abs/1606.01868)
-	
-	Pure python implementation is too damn slow so I'll have to 
+	"Unifying Count-Based Exploration and Intrinsic Motivation" (https//arxiv.org/abs/1606.01868)
 	'''
 	def __init__(self, height=21, width=21, beta=0.05):
 		self.beta = beta
@@ -17,17 +15,17 @@ class CTSDensityModel(object):
 
 
 	def update(self, obs):
-		resize(obs, self.factors.shape)
+		obs = resize(obs, self.factors.shape)
 
 		context = [0, 0, 0, 0]
 		log_prob = 0.0
 		log_recoding_prob = 0.0
 		for i in range(self.factors.shape[0]):
 			for j in range(self.factors.shape[1]):
-				context[0] = obs[i, j-1] if j > 0 else 0
-				context[1] = obs[i-1, j] if i > 0 else 0
-				context[2] = obs[i-1, j-1] if i > 0 and j > 0 else 0
-				context[3] = obs[i-1, j+1] if i > 0 and j < self.factors.shape[1]-1 else 0
+				context[3] = obs[i, j-1] if j > 0 else 0
+				context[2] = obs[i-1, j] if i > 0 else 0
+				context[1] = obs[i-1, j-1] if i > 0 and j > 0 else 0
+				context[0] = obs[i-1, j+1] if i > 0 and j < self.factors.shape[1]-1 else 0
 
 				log_prob += self.factors[i, j].update(context, obs[i, j])
 				log_recoding_prob += self.factors[i, j].log_prob(context, obs[i, j])
