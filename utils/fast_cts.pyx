@@ -233,15 +233,17 @@ cdef class CTS:
 
 
 cdef class CTSDensityModel:
+    cdef int num_bins
     cdef int height
     cdef int width
     cdef float beta
     cdef np.ndarray factors
 
-    def __init__(self, int height=42, int width=42, float beta=0.05):
+    def __init__(self, int height=42, int width=42, int num_bins=8, float beta=0.05):
         self.height = height
         self.width = width
         self.beta = beta
+        self.num_bins = num_bins
         self.factors = np.array([[CTS(4) for _ in range(width)] for _ in range(height)])
         
     def get_height(self):
@@ -252,7 +254,8 @@ cdef class CTSDensityModel:
         
     def update(self, obs):
         obs = resize(obs, (self.height, self.width))
-        obs = (obs*16).astype(np.int32)
+        obs = np.floor((obs*self.num_bins)).astype(np.int32)
+        
         log_prob, log_recoding_prob = self._update(obs)
         return self.exploration_bonus(log_prob, log_recoding_prob)
     

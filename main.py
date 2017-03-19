@@ -157,6 +157,8 @@ if __name__ == '__main__':
     parser.add_argument('--pgq_fraction', default=0.5, type=float, help='fraction by which to multiply q gradients', dest='pgq_fraction')
     parser.add_argument('--trpo_episodes', default=50, type=int, help='number of episodes to batch for TRPO updates', dest='trpo_episodes')
     parser.add_argument('--max_kl', default=0.01, type=float, help='max kl divergence for TRPO updates', dest='max_kl')
+    parser.add_argument('--cts_bins', default=8, type=int, help='number of bins to assign pixel values', dest='cts_bins')
+    parser.add_argument('--cts_rescale_dim', default=42, type=int, help='rescaled image size to use with cts density model', dest='cts_rescale_dim')
 
     args = parser.parse_args()
     if (args.env=='ALE' and args.rom_path is None):

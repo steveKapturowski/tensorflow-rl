@@ -18,7 +18,10 @@ class PseudoCountLearner(A3CLearner):
 
         #more cython tuning could useful here
         self.density_model = CTSDensityModel(
-            height=21, width=21, beta=0.05)
+            height=args.cts_rescale_dim,
+            width=args.cts_rescale_dim,
+            num_bins=args.cts_bins,
+            beta=0.05)
 
 
     def _run(self):
