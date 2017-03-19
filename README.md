@@ -1,3 +1,5 @@
+# Tensorflow-RL
+
 Tensorflow based implementations of [A3C](https://arxiv.org/abs/1602.01783),
 [PGQ](https://arxiv.org/abs/1611.01626), 
 [TRPO](https://arxiv.org/abs/1502.05477), and
@@ -20,3 +22,19 @@ I tried to match my PGQ implementation as closely as possible to what they descr
 average episode reward consitently exhibits a pathological oscillatory behavior during training and the entropy gets
 quite small far quicker than it should. If someone spots a flaw in my implementation I'd be extremely grateful to get 
 your feedback.
+
+# Running the code
+First you'll need to install the cython extensions needed for the hog updates and CTS density model:
+```bash
+./setup.py install build_ext --inplace
+```
+
+To train an a3c agent on Pong run:
+```bash
+python main.py Pong-v0 --alg_type a3c -n 8
+```
+
+To evaluate a trained agent simply add the --test flag:
+```bash
+python main.py Pong-v0 --alg_type a3c -n 1 --test
+```
