@@ -13,12 +13,10 @@ from networks.q_network import QNetwork
 from networks.dueling_network import DuelingNetwork
 from networks.policy_v_network import PolicyNetwork, PolicyValueNetwork, SequencePolicyVNetwork
 from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
-from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
 from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner
-# from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
-from algorithms.policy_based_actor_learner import A3CLSTMLearner
-from algorithms.intrinsic_motivation_actor_learner import PseudoCountLearner as A3CLearner
-
+from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
+from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
+from algorithms.intrinsic_motivation_actor_learner import PseudoCountA3CLearner, PseudoCountNStepQLearner
 from algorithms.pgq_actor_learner import PGQLearner, PGQLSTMLearner
 from algorithms.trpo_actor_learner import TRPOLearner
 from algorithms.cem_actor_learner import CEMLearner
@@ -65,6 +63,8 @@ def main(args):
         'pgq-lstm': (PGQLSTMLearner, PolicyValueNetwork),
         'trpo': (TRPOLearner, PolicyNetwork),
         'cem': (CEMLearner, PolicyNetwork),
+        'q-cts': (PseudoCountNStepQLearner, QNetwork),
+        'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
     }
 
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)
@@ -88,7 +88,7 @@ def main(args):
         num_actions, args.alg_type, network, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
 
-    if args.alg_type in ['q', 'sarsa', 'dueling']:
+    if args.alg_type in ['q', 'sarsa', 'dueling', 'q-cts']:
         args.target_vars = SharedVars(num_actions, args.alg_type, network)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
     
