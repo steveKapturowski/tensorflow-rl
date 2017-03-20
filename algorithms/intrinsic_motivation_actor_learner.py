@@ -7,6 +7,7 @@ from collections import deque
 from utils import checkpoint_utils
 
 from utils.fast_cts import CTSDensityModel
+from utils.replay_memory import ReplayMemory
 from policy_based_actor_learner import A3CLearner
 from value_based_actor_learner import ValueBasedLearner
 
@@ -133,10 +134,12 @@ class PseudoCountA3CLearner(A3CLearner):
                 s, mean_entropy, episode_start_step, total_episode_reward, self.local_step, sel_actions, episode_over)
 
 
-class PseudoCountNStepQLearner(ValueBasedLearner):
+class PseudoCountQLearner(ValueBasedLearner):
 
     def __init__(self, args):
         super(PseudoCountNStepQLearner, self).__init__(args)
+
+        self.replay_memory = ReplayMemory(args.replay_size)
 
         #more cython tuning could useful here
         self.density_model = CTSDensityModel(
@@ -144,6 +147,21 @@ class PseudoCountNStepQLearner(ValueBasedLearner):
             width=args.cts_rescale_dim,
             num_bins=args.cts_bins,
             beta=0.05)
+
+
+
+    def batch_update(self):
+        s_i_tuple, a_i, r_i, s_f_tuple, is_terminal = self.replay_memory.sample_batch(self.batch_size)
+        feed_dict={
+            self.local_network.input_ph: s_batch,
+            self.local_network.target_ph: y_batch,
+            self.local_network.selected_action_ph: a_batch
+        }
+
+        grads = self.session.run(self.local_network.get_gradients,
+                                 feed_dict=feed_dict)
+
+        self.apply_gradients_to_shared_memory_vars(grads)
 
 
     def _run(self):
@@ -160,7 +178,7 @@ class PseudoCountNStepQLearner(ValueBasedLearner):
         a_batch = []
         y_batch = []
         bonuses = deque(maxlen=100)
-        
+
         exec_update_target = False
         total_episode_reward = 0
         episode_ave_max_q = 0
@@ -182,13 +200,10 @@ class PseudoCountNStepQLearner(ValueBasedLearner):
             actions = []
             local_step_start = self.local_step
             
-            while not (episode_over 
-                or (self.local_step - local_step_start == self.max_local_steps)):
-                
+            while not episode_over:
                 # Choose next action and execute it
                 a, readout_t = self.choose_next_action(s)
 
-                
                 new_s, reward, episode_over = self.emulator.next(a)
                 total_episode_reward += reward
 
@@ -203,7 +218,6 @@ class PseudoCountNStepQLearner(ValueBasedLearner):
 
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(reward + bonus)
-
                 ep_t += 1
                 
                 rewards.append(reward)
@@ -220,39 +234,32 @@ class PseudoCountNStepQLearner(ValueBasedLearner):
                 if update_target:
                     update_target = False
                     exec_update_target = True
+
+                if self.local_step % 4 == 0:
+                    self.batch_update()
                 
                 self.local_network.global_step = global_step
 
-            if episode_over:
-                R = 0
             else:
-                q_target_values_next_state = self.session.run(
-                    self.target_network.output_layer, 
-                    feed_dict={self.target_network.input_ph: 
-                        [new_s]})
-                R = np.max(q_target_values_next_state)
-                   
-            for i in reversed(xrange(len(states))):
-                R = rewards[i] + self.gamma * R
-                
-                y_batch.append(R)
-                a_batch.append(actions[i])
-                s_batch.append(states[i])
-                
-            # Compute gradients on the local Q network     
-            feed_dict={
-                self.local_network.input_ph: s_batch,
-                self.local_network.target_ph: y_batch,
-                self.local_network.selected_action_ph: a_batch
-            }
+                mc_returns = list()
+                running_total = 0.0
+                for r in reversed(rewards):
+                    running_total = r + self.gamma*running_total
+                    mc_returns.insert(0, running_total)
 
-            grads = self.session.run(self.local_network.get_gradients,
-                                          feed_dict=feed_dict)
-            self.apply_gradients_to_shared_memory_vars(grads)
-            
-            s_batch = []
-            a_batch = []
-            y_batch = []
+                self.cts_eta = .9
+                mixed_returns = self.cts_eta*(
+                    np.array(rewards) + self.gamma*np.array(max_qs)
+                ) + (1-self.cts_eta)*np.array(mc_returns)
+
+                for i in range(len(rewards)):
+                    self.replay_memory.append((
+                        states[i],
+                        actions[i],
+                        mixed_returns[i],
+                        states[i+1]))
+
+
             
             if exec_update_target:
                 self.update_target()

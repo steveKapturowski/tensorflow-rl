@@ -11,12 +11,12 @@ import tensorflow as tf
 from multiprocessing import Process
 from networks.q_network import QNetwork
 from networks.dueling_network import DuelingNetwork
-from networks.policy_v_network import PolicyNetwork, PolicyValueNetwork, SequencePolicyVNetwork
+from networks.policy_v_network import PolicyNetwork, PolicyValueNetwork, PolicyRepeatNetwork, SequencePolicyVNetwork
 from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
-from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner
 from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
+from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner, ARA3CLearner
 from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
-from algorithms.intrinsic_motivation_actor_learner import PseudoCountA3CLearner, PseudoCountNStepQLearner
+from algorithms.intrinsic_motivation_actor_learner import PseudoCountA3CLearner, PseudoCountQLearner
 from algorithms.pgq_actor_learner import PGQLearner, PGQLSTMLearner
 from algorithms.trpo_actor_learner import TRPOLearner
 from algorithms.cem_actor_learner import CEMLearner
@@ -63,8 +63,9 @@ def main(args):
         'pgq-lstm': (PGQLSTMLearner, PolicyValueNetwork),
         'trpo': (TRPOLearner, PolicyNetwork),
         'cem': (CEMLearner, PolicyNetwork),
-        'q-cts': (PseudoCountNStepQLearner, QNetwork),
+        'q-cts': (PseudoCountQLearner, QNetwork),
         'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
+        'a3c-repeat': (ARA3CLearner, PolicyRepeatNetwork),
     }
 
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)
@@ -132,10 +133,10 @@ if __name__ == '__main__':
     parser.add_argument('--e', default=0.1, type=float, help='Epsilon for the Rmsprop and Adam optimizers', dest='e')
     parser.add_argument('--alpha', default=0.99, type=float, help='Discount factor for the history/coming gradient, for the Rmsprop optimizer', dest='alpha')
     parser.add_argument('-lr', '--initial_lr', default=0.001, type=float, help='Initial value for the learning rate. Default = LogUniform(10**-4, 10**-2)', dest='initial_lr')
-    parser.add_argument('-lra', '--lr_annealing_steps', default=640000000, type=int, help='Nr. of global steps during which the learning rate will be linearly annealed towards zero', dest='lr_annealing_steps')
+    parser.add_argument('-lra', '--lr_annealing_steps', default=200000000, type=int, help='Nr. of global steps during which the learning rate will be linearly annealed towards zero', dest='lr_annealing_steps')
     parser.add_argument('--clip_loss', default=0.0, type=float, help='If bigger than 0.0, the loss will be clipped at +/-clip_loss', dest='clip_loss_delta')
     parser.add_argument('--entropy', default=0.01, type=float, help='Strength of the entropy regularization term (needed for actor-critic)', dest='entropy_regularisation_strength')
-    parser.add_argument('--replay_size', default=20000, type=int, help='Maximum capacity of replay memory', dest='replay_size')
+    parser.add_argument('--replay_size', default=25000, type=int, help='Maximum capacity of replay memory', dest='replay_size')
     parser.add_argument('--clip_norm', default=40, type=float, help='If clip_norm_type is local/global, grads will be clipped at the specified maximum (avaerage) L2-norm', dest='clip_norm')
     parser.add_argument('--clip_norm_type', default='global', help='Whether to clip grads by their norm or not. Values: ignore (no clipping), local (layer-wise norm), global (global norm)', dest='clip_norm_type')
     parser.add_argument('--alg_type', default="a3c", help='Type of algorithm: q (for Q-learning), sarsa, a3c (for actor-critic)', dest='alg_type') 
@@ -143,7 +144,7 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor', dest='gamma')
     parser.add_argument('--q_target_update_steps', default=10000, type=int, help='Interval (in nr. of global steps) at which the parameters of the Q target network are updated (obs! 1 step = 4 video frames) (needed for Q-learning and Sarsa)', dest='q_target_update_steps') 
     parser.add_argument('--grads_update_steps', default=5, type=int, help='Nr. of local steps during which grads are accumulated before applying them to the shared network parameters (needed for 1-step Q/Sarsa learning)', dest='grads_update_steps')
-    parser.add_argument('--max_global_steps', default=640000000, type=int, help='Max. number of training steps', dest='max_global_steps')
+    parser.add_argument('--max_global_steps', default=200000000, type=int, help='Max. number of training steps', dest='max_global_steps')
     parser.add_argument('-ea', '--epsilon_annealing_steps', default=5000000, type=int, help='Nr. of global steps during which the exploration epsilon will be annealed', dest='epsilon_annealing_steps')
     parser.add_argument('--max_local_steps', default=5, type=int, help='Number of steps to gain experience from before every update for the Q learning/A3C algorithm', dest='max_local_steps')
     parser.add_argument('--max_decoder_steps', default=20, type=int, help='max number of steps that sequence decoder will be allowed to take', dest='max_decoder_steps')

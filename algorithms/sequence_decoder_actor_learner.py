@@ -6,7 +6,7 @@ import tensorflow as tf
 
 from utils.forked_debugger import ForkedPdb as Pdb
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
-from networks.policy_v_network import SequencePolicyVNetwork
+from networks.policy_v_network import SequencePolicyVNetwork, PolicyRepeatNetwork
 from algorithms.policy_based_actor_learner import BaseA3CLearner
 
 
@@ -237,5 +237,162 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 if reset_game or self.emulator.game in ONE_LIFE_GAMES:
                     s = self.emulator.get_initial_state()
                     reset_game = False
+
+
+class ARA3CLearner(BaseA3CLearner):
+    def __init__(self, args):
+        super(ARA3CLearner, self).__init__(args)
+
+        conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
+                         'input_shape': self.input_shape,
+                         'num_act': self.num_actions,
+                         'args': args}
+
+        self.local_network = PolicyRepeatNetwork(conf_learning)
+        self.reset_hidden_state()
+
+        if self.actor_id == 0:
+            var_list = self.local_network.params
+            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
+                                        keep_checkpoint_every_n_hours=2)
+
+
+    def choose_next_action(self, state):
+        network_output_v, network_output_pi, action_repeat_probs = self.session.run(
+            [
+                self.local_network.output_layer_v,
+                self.local_network.output_layer_pi,
+                self.local_network.action_repeat_probs,
+            ],
+            feed_dict={
+                self.local_network.input_ph: [state],
+            })
+
+        network_output_pi = network_output_pi.reshape(-1)
+        network_output_v = np.asscalar(network_output_v)
+
+        action_index = self.sample_policy_action(network_output_pi)
+        new_action = np.zeros([self.num_actions])
+        new_action[action_index] = 1
+
+        action_repeat = 1 + np.random.choice(
+            action_repeat_probs.shape[-1],
+            p=action_repeat_probs[0, action_index, :])
+
+        return new_action, network_output_v, network_output_pi, action_repeat
+
+
+    def _run(self):
+        if not self.is_train:
+            return self.test()
+
+        """ Main actor learner loop for advantage actor critic learning. """
+        logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
+            self.global_step.value()))
+
+        s = self.emulator.get_initial_state()
+        steps_at_last_reward = self.local_step
+        total_episode_reward = 0.0
+        mean_entropy = 0.0
+        episode_start_step = 0
+        
+        while (self.global_step.value() < self.max_global_steps):
+            # Sync local learning net with shared mem
+            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+            self.save_vars()
+
+            local_step_start = self.local_step 
+            
+            reset_game = False
+            episode_over = False
+
+            rewards        = list()
+            states         = list()
+            actions        = list()
+            values         = list()
+            s_batch        = list()
+            a_batch        = list()
+            y_batch        = list()
+            ar_batch       = list()
+            adv_batch      = list()
+            action_repeats = list()
+            
+            while not (episode_over 
+                or (self.local_step - local_step_start 
+                    == self.max_local_steps)):
+                
+                # Choose next action and execute it
+                a, readout_v_t, readout_pi_t, action_repeat = self.choose_next_action(s)
+                
+                if (self.actor_id == 0) and (self.local_step % 100 == 0):
+                    logger.debug("π_a={:.4f} / V={:.4f} repeat={}".format(
+                        readout_pi_t[a.argmax()], readout_v_t, action_repeat))
+
+                reward = 0.0
+                for _ in range(action_repeat):
+                    new_s, reward_i, episode_over = self.emulator.next(a)
+                    reward += reward_i
+
+                if reward != 0.0:
+                    steps_at_last_reward = self.local_step
+
+
+                total_episode_reward += reward
+                # Rescale or clip immediate reward
+                reward = self.rescale_reward(reward)
+                
+                rewards.append(reward)
+                states.append(s)
+                actions.append(a)
+                values.append(readout_v_t)
+                action_repeats.append(action_repeat)
+                
+                s = new_s
+                self.local_step += 1
+                self.global_step.increment()
+                
+            
+            # Calculate the value offered by critic in the new state.
+            if episode_over:
+                R = 0
+            else:
+                R = self.session.run(
+                    self.local_network.output_layer_v,
+                    feed_dict={self.local_network.input_ph:[new_s]})[0][0]
+                            
+             
+            sel_actions = []
+            for i in reversed(xrange(len(states))):
+                R = rewards[i] + self.gamma * R
+
+                y_batch.append(R)
+                a_batch.append(actions[i])
+                s_batch.append(states[i])
+                adv_batch.append(R - values[i])
+                ar_batch.append(action_repeats[i])
+                
+                sel_actions.append(np.argmax(actions[i]))
+                
+
+            # Compute gradients on the local policy/V network and apply them to shared memory  
+            feed_dict={
+                self.local_network.input_ph: s_batch, 
+                self.local_network.critic_target_ph: y_batch,
+                self.local_network.selected_action_ph: a_batch,
+                self.local_network.adv_actor_ph: adv_batch,
+                self.local_network.selected_repeat: ar_batch,
+            }
+            grads, entropy = self.session.run(
+                [self.local_network.get_gradients, self.local_network.entropy],
+                feed_dict=feed_dict)
+
+            self.apply_gradients_to_shared_memory_vars(grads)     
+
+            delta_old = local_step_start - episode_start_step
+            delta_new = self.local_step -  local_step_start
+            mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
+
+            s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 

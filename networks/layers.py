@@ -41,6 +41,9 @@ def fc(name, _input, output_dim, activation='relu'):
 
     if activation == 'relu':
         out = tf.nn.relu(out, name=name+'_relu')
+    elif activation == 'softplus':
+        out = tf.nn.softplus(out, name=name+'_softplus')
+    #else assume linear
 
     return w, b, out
     
