@@ -5,7 +5,6 @@ cimport numpy as np
 
 from libc.math cimport log, exp
 
-
 from skimage.transform import resize
 
 

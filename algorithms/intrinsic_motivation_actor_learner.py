@@ -137,8 +137,10 @@ class PseudoCountA3CLearner(A3CLearner):
 class PseudoCountQLearner(ValueBasedLearner):
 
     def __init__(self, args):
-        super(PseudoCountNStepQLearner, self).__init__(args)
+        super(PseudoCountQLearner, self).__init__(args)
 
+        self.cts_eta = .9
+        self.batch_size = 32
         self.replay_memory = ReplayMemory(args.replay_size)
 
         #more cython tuning could useful here
@@ -149,15 +151,26 @@ class PseudoCountQLearner(ValueBasedLearner):
             beta=0.05)
 
 
+    def generate_final_epsilon(self):
+        return 0.1
+
 
     def batch_update(self):
-        s_i_tuple, a_i, r_i, s_f_tuple, is_terminal = self.replay_memory.sample_batch(self.batch_size)
-        feed_dict={
-            self.local_network.input_ph: s_batch,
-            self.local_network.target_ph: y_batch,
-            self.local_network.selected_action_ph: a_batch
-        }
+        if len(self.replay_memory) < self.batch_size:
+            return
 
+        s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
+
+        q_target_values = self.session.run(
+            self.target_network.output_layer, 
+            feed_dict={self.target_network.input_ph: s_f})
+        y_target = r_i + self.cts_eta * self.gamma * q_target_values.max(axis=1) * (1 - is_terminal.astype(np.int))
+
+        feed_dict={
+            self.local_network.input_ph: s_i,
+            self.local_network.target_ph: y_target,
+            self.local_network.selected_action_ph: a_i
+        }
         grads = self.session.run(self.local_network.get_gradients,
                                  feed_dict=feed_dict)
 
@@ -247,28 +260,26 @@ class PseudoCountQLearner(ValueBasedLearner):
                     running_total = r + self.gamma*running_total
                     mc_returns.insert(0, running_total)
 
-                self.cts_eta = .9
-                mixed_returns = self.cts_eta*(
-                    np.array(rewards) + self.gamma*np.array(max_qs)
-                ) + (1-self.cts_eta)*np.array(mc_returns)
+                mixed_returns = self.cts_eta*np.array(rewards) + (1-self.cts_eta)*np.array(mc_returns)
 
-                for i in range(len(rewards)):
+                states.append(new_s)
+                episode_length = len(rewards)
+                for i in range(episode_length):
                     self.replay_memory.append((
                         states[i],
                         actions[i],
                         mixed_returns[i],
-                        states[i+1]))
-
+                        states[i+1],
+                        i+1 == episode_length))
 
             
             if exec_update_target:
                 self.update_target()
                 exec_update_target = False
-
-            # Sync local tensorflow target network params with shared target network params
-            if self.target_update_flags.updated[self.actor_id] == 1:
-                self.sync_net_with_shared_memory(self.target_network, self.target_vars)
-                self.target_update_flags.updated[self.actor_id] = 0
+                # Sync local tensorflow target network params with shared target network params
+                if self.target_update_flags.updated[self.actor_id] == 1:
+                    self.sync_net_with_shared_memory(self.target_network, self.target_vars)
+                    self.target_update_flags.updated[self.actor_id] = 0
 
             s, total_episode_reward, _, ep_t, episode_ave_max_q, episode_over = \
                 self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over)

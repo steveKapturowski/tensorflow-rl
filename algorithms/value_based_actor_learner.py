@@ -80,8 +80,8 @@ class ValueBasedLearner(ActorLearner):
         new_action = np.zeros([self.num_actions])
         
         network_output = self.session.run(
-            self.local_network.output_layer, 
-            feed_dict={self.local_network.input_ph: [state]})[0]
+            self.target_network.output_layer,
+            feed_dict={self.target_network.input_ph: [state]})[0]
             
         if not self.is_train:
             self.epsilon = 0.0
@@ -262,7 +262,7 @@ class NStepQLearner(ValueBasedLearner):
             }
 
             grads = self.session.run(self.local_network.get_gradients,
-                                          feed_dict=feed_dict)
+                                     feed_dict=feed_dict)
             self.apply_gradients_to_shared_memory_vars(grads)
             
             s_batch = []

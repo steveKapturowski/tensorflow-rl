@@ -99,15 +99,11 @@ class PolicyRepeatNetwork(PolicyValueNetwork):
         self.w_ar, self.b_ar, self.action_repeat_probs, self.log_action_repeat_probs = layers.softmax_and_log_softmax(
             'repeat_policy', self.ox, self.max_repeat)
 
-        print 'repeat probs:', self.action_repeat_probs.get_shape(), self.log_action_repeat_probs.get_shape()
-
         self.selected_repeat = tf.placeholder(tf.int32, [None], name='selected_repeat_placeholder')
         self.selected_repeat_onehot = tf.one_hot(self.selected_repeat, self.max_repeat)
 
         self.selected_repeat_prob = tf.reduce_sum(self.action_repeat_probs * self.selected_repeat_onehot, 1)
         self.log_selected_repeat_prob = tf.reduce_sum(self.log_action_repeat_probs * self.selected_repeat_onehot, 1)
-
-        print 'selected_repeat_prob:', self.selected_repeat_prob.get_shape()
 
         # Entropy: ∑_a[-p_a ln p_a]
         self.output_layer_entropy = tf.reduce_sum(
@@ -115,9 +111,8 @@ class PolicyRepeatNetwork(PolicyValueNetwork):
                 tf.expand_dims(self.output_layer_pi, 2) * tf.expand_dims(self.action_repeat_probs, 1),
                 tf.expand_dims(self.log_output_layer_pi, 2) + tf.expand_dims(self.log_action_repeat_probs, 1)
             ), axis=[1, 2])
-        print 'output_layer_entropy', self.output_layer_entropy.get_shape()
-        self.entropy = tf.reduce_mean(self.output_layer_entropy)
 
+        self.entropy = tf.reduce_mean(self.output_layer_entropy)
 
         self.log_output_selected_action = tf.reduce_sum(
             self.log_output_layer_pi*self.selected_action_ph,

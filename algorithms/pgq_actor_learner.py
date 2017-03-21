@@ -74,6 +74,8 @@ class BasePGQLearner(BaseA3CLearner):
     def apply_batch_q_update(self):
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
+        print s_i.shape, a_i.shape, r_i.shape, s_f.shape, is_terminal.shape
+
         batch_grads, max_TQ, Q_a = self.session.run(
             [self.q_gradients, self.max_TQ, self.Q_a],
             feed_dict={
