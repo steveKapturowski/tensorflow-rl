@@ -230,7 +230,8 @@ class PseudoCountQLearner(ValueBasedLearner):
                         bonus_array.mean(), bonus_array.max()))
 
                 # Rescale or clip immediate reward
-                reward = self.rescale_reward(reward + bonus)
+                # reward = self.rescale_reward(reward + bonus)
+                reward = self.rescale_reward(reward)
                 ep_t += 1
                 
                 rewards.append(reward)
