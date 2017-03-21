@@ -28,7 +28,6 @@ def conv_weight_variable(shape, name):
     return tf.Variable(initial, name=name, dtype='float32')
 
 
-
 def conv_bias_variable(shape, w, h, input_channels, name):
     initial = tf.zeros(shape)
     return tf.Variable(initial, name=name, dtype='float32')
@@ -43,6 +42,8 @@ def fc(name, _input, output_dim, activation='relu'):
         out = tf.nn.relu(out, name=name+'_relu')
     elif activation == 'softplus':
         out = tf.nn.softplus(out, name=name+'_softplus')
+    elif activation == 'tanh':
+        out = tf.nn.tanh(out, name=name+'_tanh')
     #else assume linear
 
     return w, b, out

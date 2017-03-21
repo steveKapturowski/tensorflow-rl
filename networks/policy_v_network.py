@@ -83,7 +83,7 @@ class PolicyRepeatNetwork(PolicyValueNetwork):
         Extends action space to parametrize a discrete distribution over repetion lengths
         for each original action
         '''
-        self.max_repeat = 10
+        self.max_repeat = 5
         super(PolicyRepeatNetwork, self).__init__(conf)
         
 
@@ -91,44 +91,37 @@ class PolicyRepeatNetwork(PolicyValueNetwork):
         self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')
 
         self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = layers.softmax_and_log_softmax(
-            'softmax_policy4', self.ox, self.num_actions)
+            'action_policy', self.ox, self.num_actions)
 
-        # Compute Poisson x Discrete Gaussian
-        self.t = tf.expand_dims(tf.abs(layers.fc('t_a', self.ox, self.num_actions, activation='linear')[-1]), -1)
-        self.l = tf.expand_dims(tf.abs(layers.fc('l_a', self.ox, self.num_actions, activation='linear')[-1]), -1)
-        k = tf.expand_dims(tf.expand_dims(tf.range(self.max_repeat, dtype=tf.float32), 0), 0)
+        # self.action_repeat_continuous = layers.fc(
+        #     'ar_continuous', self.ox, self.num_actions, activation='tanh')
 
-        print 't, l:', self.t.get_shape(), self.l.get_shape()
-
-        self.action_repeat_weights = tf.exp(-(k-self.l)**2/(2*self.t) - self.l - tf.lgamma(k+1)) * self.l**k
-        normalizer = tf.reduce_sum(self.action_repeat_weights, axis=2, keep_dims=True)
-        
-        self.action_repeat_probs = self.action_repeat_weights / normalizer
-        self.log_action_repeat_probs = -(k-self.l)**2/(2*self.t) - self.l - tf.lgamma(k+1) + k*tf.log(self.l) - tf.log(normalizer)
+        self.w_ar, self.b_ar, self.action_repeat_probs, self.log_action_repeat_probs = layers.softmax_and_log_softmax(
+            'repeat_policy', self.ox, self.max_repeat)
 
         print 'repeat probs:', self.action_repeat_probs.get_shape(), self.log_action_repeat_probs.get_shape()
 
         self.selected_repeat = tf.placeholder(tf.int32, [None], name='selected_repeat_placeholder')
-        self.selected_repeat_onehot = tf.expand_dims(tf.one_hot(self.selected_repeat, self.max_repeat), 1)
+        self.selected_repeat_onehot = tf.one_hot(self.selected_repeat, self.max_repeat)
 
-        self.selected_repeat_prob = tf.reduce_sum(self.action_repeat_probs * self.selected_repeat_onehot, -1)
-        self.log_selected_repeat_prob = tf.reduce_sum(self.log_action_repeat_probs * self.selected_repeat_onehot, -1)
+        self.selected_repeat_prob = tf.reduce_sum(self.action_repeat_probs * self.selected_repeat_onehot, 1)
+        self.log_selected_repeat_prob = tf.reduce_sum(self.log_action_repeat_probs * self.selected_repeat_onehot, 1)
 
         print 'selected_repeat_prob:', self.selected_repeat_prob.get_shape()
 
         # Entropy: ∑_a[-p_a ln p_a]
         self.output_layer_entropy = tf.reduce_sum(
             - 1.0 * tf.multiply(
-                tf.expand_dims(self.output_layer_pi, -1) * self.action_repeat_probs,
-                tf.expand_dims(self.log_output_layer_pi, -1) + self.log_action_repeat_probs
+                tf.expand_dims(self.output_layer_pi, 2) * tf.expand_dims(self.action_repeat_probs, 1),
+                tf.expand_dims(self.log_output_layer_pi, 2) + tf.expand_dims(self.log_action_repeat_probs, 1)
             ), axis=[1, 2])
         print 'output_layer_entropy', self.output_layer_entropy.get_shape()
         self.entropy = tf.reduce_mean(self.output_layer_entropy)
 
 
         self.log_output_selected_action = tf.reduce_sum(
-            (self.log_output_layer_pi + self.log_selected_repeat_prob) * self.selected_action_ph,
-            axis=1)
+            self.log_output_layer_pi*self.selected_action_ph,
+            axis=1) + self.log_selected_repeat_prob
 
         self.actor_objective = -tf.reduce_mean(
             self.log_output_selected_action * self.adv_actor_ph

@@ -275,9 +275,7 @@ class ARA3CLearner(BaseA3CLearner):
         new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
 
-        action_repeat = 1 + np.random.choice(
-            action_repeat_probs.shape[-1],
-            p=action_repeat_probs[0, action_index, :])
+        action_repeat = 1 + self.sample_policy_action(action_repeat_probs[0])
 
         return new_action, network_output_v, network_output_pi, action_repeat
 
