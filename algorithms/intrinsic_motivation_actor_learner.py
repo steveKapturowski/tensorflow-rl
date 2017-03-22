@@ -80,7 +80,7 @@ class PseudoCountA3CLearner(A3CLearner):
                         readout_pi_t[a.argmax()], readout_v_t, bonus_array.mean(), bonus_array.max()))
 
                 # Rescale or clip immediate reward
-                reward = self.rescale_reward(reward + bonus)
+                reward = self.rescale_reward(self.rescale_reward(reward) + bonus)
                 
                 rewards.append(reward)
                 states.append(s)
@@ -230,7 +230,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                         bonus_array.mean(), bonus_array.max()))
 
                 # Rescale or clip immediate reward
-                # reward = self.rescale_reward(reward + bonus)
+                # reward = self.rescale_reward(self.rescale_reward(reward) + bonus)
                 reward = self.rescale_reward(reward)
                 ep_t += 1
                 

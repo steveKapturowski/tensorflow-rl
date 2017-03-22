@@ -44,6 +44,7 @@ class TRPOLearner(BaseA3CLearner):
 
 		self.batch_size = 512
 		self.cg_damping = 0.001
+		self.cg_subsample = 0.1
 		self.max_kl = args.max_kl
 		self.max_rollout = args.max_rollout
 		self.episodes_per_batch = args.trpo_episodes
@@ -52,7 +53,6 @@ class TRPOLearner(BaseA3CLearner):
 
 	def _build_ops(self):
 		eps = 1e-10
-		cg_subsample = 0.1
 		self.action_probs = self.policy_network.output_layer_pi
 		self.old_action_probs = tf.placeholder(tf.float32, shape=[None, self.num_actions], name='old_action_probs')
 
