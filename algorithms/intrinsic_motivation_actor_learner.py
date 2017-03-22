@@ -213,7 +213,7 @@ class PseudoCountQLearner(ValueBasedLearner):
             local_step_start = self.local_step
             
             while not episode_over:
-                print 'steps: {} / {}'.format(self.global_step.value(), self.max_global_steps)
+                logger.debug('steps: {} / {}'.format(self.global_step.value(), self.max_global_steps))
                 # Choose next action and execute it
                 a, readout_t = self.choose_next_action(s)
 

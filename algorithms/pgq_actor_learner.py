@@ -74,8 +74,6 @@ class BasePGQLearner(BaseA3CLearner):
     def apply_batch_q_update(self):
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-        print s_i.shape, a_i.shape, r_i.shape, s_f.shape, is_terminal.shape
-
         batch_grads, max_TQ, Q_a = self.session.run(
             [self.q_gradients, self.max_TQ, self.Q_a],
             feed_dict={
@@ -256,12 +254,8 @@ class PGQLSTMLearner(BasePGQLearner):
 
 
     def apply_batch_q_update(self):
-        s_i_tuple, a_i, r_i, s_f_tuple, is_terminal = self.replay_memory.sample_batch(self.batch_size)
-
-        s_i = [e[0] for e in s_i_tuple]
-        lstm_state_i = [e[1] for e in s_i_tuple]
-        s_f = [e[0] for e in s_f_tuple]
-        lstm_state_f = [e[1] for e in s_f_tuple]
+        s_i, lstm_state_i, a_i, r_i, s_f, lstm_state_f, is_terminal = \
+            self.replay_memory.sample_batch(self.batch_size)
 
         batch_grads, max_TQ, Q_a = self.session.run(
             [self.q_gradients, self.max_TQ, self.Q_a],
@@ -271,6 +265,7 @@ class PGQLSTMLearner(BasePGQLearner):
                 self.local_network.input_ph: np.vstack([s_i, s_f]),
                 self.local_network.initial_lstm_state: np.vstack([lstm_state_i, lstm_state_f]),
                 self.terminal_indicator: is_terminal.astype(np.int),
+                self.local_network.step_size: np.ones(2*len(s_i)),
             }
         )
         # print 'max_TQ={}, Q_a={}'.format(max_TQ[:5], Q_a[:5])
@@ -336,10 +331,12 @@ class PGQLSTMLearner(BasePGQLearner):
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(reward)
                 self.replay_memory.append((
-                    (s, previous_lstm_state),
+                    s,
+                    previous_lstm_state[0],
                     a,
                     reward,
-                    (new_s, new_lstm_state),
+                    new_s,
+                    new_lstm_state[0],
                     episode_over))
                 
                 rewards.append(reward)

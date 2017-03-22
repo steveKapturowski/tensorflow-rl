@@ -61,11 +61,14 @@ class Network(object):
                 with tf.variable_scope(self.name+'/'+layer_name) as vs:
                     self.lstm_cell = CustomBasicLSTMCell(self.hidden_state_size, forget_bias=1.0)
 
-                    self.step_size = tf.placeholder(tf.float32, [1], name='step_size')
+                    self.step_size = tf.placeholder(tf.float32, [None], name='step_size')
                     self.initial_lstm_state = tf.placeholder(
-                        tf.float32, [1, 2*self.hidden_state_size], name='initital_state')
+                        tf.float32, [None, 2*self.hidden_state_size], name='initital_state')
                     
-                    ox_reshaped = tf.reshape(self.ox, [1,-1,self.ox.get_shape().as_list()[-1]])
+                    batch_size = tf.shape(self.step_size)[0]
+                    ox_reshaped = tf.reshape(self.ox,
+                        [batch_size, -1, self.ox.get_shape().as_list()[-1]])
+
                     lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(
                         self.lstm_cell,
                         ox_reshaped,
@@ -74,7 +77,7 @@ class Network(object):
                         time_major=False,
                         scope=vs)
 
-                    self.ox = tf.reshape(lstm_outputs, [-1,256])
+                    self.ox = tf.reshape(lstm_outputs, [-1,256], name='reshaped_lstm_outputs')
 
                     # Get all LSTM trainable params
                     self.lstm_trainable_variables = [v for v in 

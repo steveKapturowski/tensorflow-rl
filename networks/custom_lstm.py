@@ -46,7 +46,7 @@ class CustomBasicLSTMCell(RNNCell):
 			new_c = c * tf.sigmoid(f + self._forget_bias) + tf.sigmoid(i) * tf.tanh(j)
 			new_h = tf.tanh(new_c) * tf.sigmoid(o)
 
-			return new_h, tf.concat(axis=1, values=[new_c, new_h])
+			return new_h, tf.concat(axis=1, values=[new_c, new_h], name='cell_hidden_concat')
 
 	def _linear(self, args, output_size, bias, bias_start=0.0, scope=None):
 		'''
@@ -90,7 +90,7 @@ class CustomBasicLSTMCell(RNNCell):
 			if len(args) == 1:
 				res = tf.matmul(args[0], matrix)
 			else:
-				res = tf.matmul(tf.concat(axis=1, values=args), matrix)
+				res = tf.matmul(tf.concat(axis=1, values=args, name='_linear_concat'), matrix)
 			if not bias:
 				return res
 			bias_term = tf.get_variable(
