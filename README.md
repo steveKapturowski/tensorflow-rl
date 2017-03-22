@@ -1,5 +1,7 @@
 # Tensorflow-RL
 
+[![Join the chat at https://gitter.im/tensorflow-rl/Lobby](https://badges.gitter.im/tensorflow-rl/Lobby.svg)](https://gitter.im/tensorflow-rl/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Tensorflow based implementations of [A3C](https://arxiv.org/abs/1602.01783),
 [PGQ](https://arxiv.org/abs/1611.01626), 
 [TRPO](https://arxiv.org/abs/1502.05477), and
