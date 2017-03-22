@@ -17,6 +17,7 @@ class BasePGQLearner(BaseA3CLearner):
 
         super(BasePGQLearner, self).__init__(args)
 
+        # args.entropy_regularisation_strength = 0.0
         conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
                          'input_shape': self.input_shape,
                          'num_act': self.num_actions,
@@ -196,8 +197,8 @@ class PGQLearner(BasePGQLearner):
                 y_batch.append(R)
                 a_batch.append(actions[i])
                 s_batch.append(states[i])
-                # adv_batch.append(R - values[i])
-                adv_batch.append(R - q_tildes[i])
+                adv_batch.append(R - values[i])
+                # adv_batch.append(R - q_tildes[i])
                 
                 sel_actions.append(np.argmax(actions[i]))
                 
@@ -229,8 +230,6 @@ class PGQLearner(BasePGQLearner):
                 s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
-
-
 class PGQLSTMLearner(BasePGQLearner):
     def reset_hidden_state(self):
         self.lstm_state_out = np.zeros([1, 2*self.local_network.hidden_state_size])
@@ -259,7 +258,7 @@ class PGQLSTMLearner(BasePGQLearner):
         new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
 
-        return new_action, network_output_v, network_output_pi, q_tilde[0, action_index]
+        return new_action, network_output_v, network_output_pi, q_tilde[action_index]
 
 
     def apply_batch_q_update(self):
@@ -383,8 +382,8 @@ class PGQLSTMLearner(BasePGQLearner):
                 y_batch.append(R)
                 a_batch.append(actions[i])
                 s_batch.append(states[i])
-                # adv_batch.append(R - values[i])
-                adv_batch.append(R - q_tildes[i])
+                adv_batch.append(R - values[i])
+                # adv_batch.append(R - q_tildes[i])
                 
                 sel_actions.append(np.argmax(actions[i]))
                 
