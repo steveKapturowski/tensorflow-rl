@@ -42,8 +42,10 @@ class TRPOLearner(BaseA3CLearner):
 			self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
 
+		self.batch_size = 512
 		self.cg_damping = 0.001
 		self.max_kl = args.max_kl
+		self.max_rollout = args.max_rollout
 		self.episodes_per_batch = args.trpo_episodes
 		self._build_ops()
 
@@ -52,7 +54,7 @@ class TRPOLearner(BaseA3CLearner):
 		eps = 1e-10
 		cg_subsample = 0.1
 		self.action_probs = self.policy_network.output_layer_pi
-		self.old_action_probs = tf.placeholder(tf.float32, shape=[None, self.num_actions], name="old_action_probs")
+		self.old_action_probs = tf.placeholder(tf.float32, shape=[None, self.num_actions], name='old_action_probs')
 
 		action = tf.cast(tf.argmax(self.policy_network.selected_action_ph, axis=1), tf.int32)
 
@@ -77,8 +79,8 @@ class TRPOLearner(BaseA3CLearner):
 		kl_grads = tf.gradients(kl_firstfixed, self.policy_network.params)
 		flat_kl_grads = utils.ops.flatten_vars(kl_grads)
 
-
-		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(-self.pg, flat_kl_grads)
+		self.pg_placeholder = tf.placeholder(tf.float32, shape=self.pg.get_shape().as_list(), name='pg_placeholder')
+		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(-self.pg_placeholder, flat_kl_grads)
 
 
 	def _conjugate_gradient_ops(self, pg_grads, kl_grads, max_iterations=20, residual_tol=1e-10):
@@ -157,17 +159,35 @@ class TRPOLearner(BaseA3CLearner):
 		return new_action, action_probs
 
 
+	def run_minibatches(self, data, *ops):
+		outputs = [np.zeros(op.get_shape().as_list(), dtype=np.float32) for op in ops]
+
+		data_size = len(data['state'])
+		for start in range(0, data_size, self.batch_size):
+			end = start + np.minimum(self.batch_size, data_size-start)
+			feed_dict={
+				self.policy_network.input_ph:           data['state'][start:end],
+				self.policy_network.selected_action_ph: data['action'][start:end],
+				self.policy_network.adv_actor_ph:       data['reward'][start:end],
+				self.old_action_probs:                  data['pi'][start:end]
+			}
+			for i, output_i in enumerate(self.session.run(ops, feed_dict=feed_dict)):
+				outputs[i] += output_i * (end-start)/float(data_size)
+
+		return outputs
+
+
 	#There doesn't seem to be a clean way to build the line search into the computation graph
 	#so we'll have to hop back and forth between cpu and gpu each iteration
-	def linesearch(self, feed, x, fullstep):
+	def linesearch(self, data, x, fullstep):
 		max_backtracks = 10
 
-		fval = self.session.run(self.policy_loss, feed_dict=feed)
+		fval = self.run_minibatches(data, self.policy_loss)
 
 		for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
 			xnew = x + stepfrac * fullstep
 			self.assign_vars(self.policy_network, xnew)
-			newfval, kl = self.session.run([self.policy_loss, self.kl], feed_dict=feed)
+			newfval, kl = self.run_minibatches(data, self.policy_loss, self.kl)
 
 			improvement = fval - newfval
 			logger.debug('Improvement {} / Mean KL {}'.format(improvement, kl))
@@ -180,16 +200,22 @@ class TRPOLearner(BaseA3CLearner):
 
 
 	def update_grads(self, data):
+		#we need to compute the policy gradient in minibatches to avoid GPU OOM errors on Atari
+		pg = self.run_minibatches(data, self.pg)[0]
+
+		#subsample data for conjugate gradient step
+		subsample = np.random.choice(len(data['state']), self.batch_size, replace=False)
 		feed_dict={
-			self.policy_network.input_ph:           data['state'],
-			self.policy_network.selected_action_ph: data['action'],
-			self.policy_network.adv_actor_ph:       data['reward'],
-			self.old_action_probs:                  data['pi']
+			self.policy_network.input_ph:           data['state'][subsample],
+			self.policy_network.selected_action_ph: data['action'][subsample],
+			self.policy_network.adv_actor_ph:       data['reward'][subsample],
+			self.old_action_probs:                  data['pi'][subsample],
+			self.pg_placeholder:                    pg
 		}
 		theta_prev, fullstep, neggdotstepdir = self.session.run(
 			[self.theta, self.fullstep, self.neggdotstepdir], feed_dict=feed_dict)
 
-		new_theta = self.linesearch(feed_dict, theta_prev, fullstep)
+		new_theta = self.linesearch(data, theta_prev, fullstep)
 		self.assign_vars(self.policy_network, new_theta)
 
 		return self.session.run(self.kl, feed_dict)
@@ -210,7 +236,7 @@ class TRPOLearner(BaseA3CLearner):
 
 				episode_over = False
 				accumulated_rewards = list()
-				while not episode_over and len(accumulated_rewards) < 1000:
+				while not episode_over and len(accumulated_rewards) < self.max_rollout:
 					a, pi = self.choose_next_action(s)
 					new_s, reward, episode_over = self.emulator.next(a)
 					accumulated_rewards.append(self.rescale_reward(reward))
@@ -230,7 +256,8 @@ class TRPOLearner(BaseA3CLearner):
 				episode_rewards.append(sum(accumulated_rewards))
 				data['reward'].extend(mc_returns)
 					
-			kl = self.update_grads(data)
+			kl = self.update_grads({
+				k: np.array(v) for k, v in data.items()})
 			mean_episode_reward = np.array(episode_rewards).mean()
 
 			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {}'.format(
