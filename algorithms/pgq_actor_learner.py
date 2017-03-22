@@ -47,9 +47,8 @@ class BasePGQLearner(BaseA3CLearner):
         self.terminal_indicator = tf.placeholder(tf.float32, [None], name='terminal_indicator')
         self.max_TQ = self.gamma*tf.reduce_max(self.Qi_plus_1, 1) * (1 - self.terminal_indicator)
         self.Q_a = tf.reduce_sum(self.Qi * tf.split(axis=0, num_or_size_splits=2, value=self.local_network.selected_action_ph)[0], 1)
-        self.q_objective = - self.pgq_fraction * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V + self.log_pi))
 
-
+        self.q_objective = - self.pgq_fraction * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V[:, 0] + self.log_pi[:, 0]))
 
         self.V_params = self.local_network.params
         self.q_gradients = tf.gradients(self.q_objective, self.V_params)
@@ -88,6 +87,13 @@ class BasePGQLearner(BaseA3CLearner):
         self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
 
 
+    def softmax(self, x, temperature):
+        x /= temperature
+        exp_x = np.exp(x - np.max(x))
+
+        return exp_x / exp_x.sum()
+
+
 class PGQLearner(BasePGQLearner):
     def choose_next_action(self, state):
         network_output_v, network_output_pi, q_tilde = self.session.run(
@@ -98,13 +104,14 @@ class PGQLearner(BasePGQLearner):
             
         network_output_pi = network_output_pi.reshape(-1)
         network_output_v = np.asscalar(network_output_v)
-
-
-        action_index = self.sample_policy_action(network_output_pi)
+        q_tilde = q_tilde[0]
+        
+        probs = self.softmax(q_tilde, self.beta)
+        action_index = self.sample_policy_action(probs)
         new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
 
-        return new_action, network_output_v, network_output_pi, q_tilde[0, action_index]
+        return new_action, network_output_v, network_output_pi, q_tilde[action_index]
 
 
     def _run(self):
@@ -245,8 +252,10 @@ class PGQLSTMLearner(BasePGQLearner):
 
         network_output_pi = network_output_pi.reshape(-1)
         network_output_v = np.asscalar(network_output_v)
-
-        action_index = self.sample_policy_action(network_output_pi)
+        q_tilde = q_tilde[0]
+        
+        probs = self.softmax(q_tilde, self.beta)
+        action_index = self.sample_policy_action(probs)
         new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
 

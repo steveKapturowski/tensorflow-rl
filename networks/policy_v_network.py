@@ -43,7 +43,8 @@ class PolicyValueNetwork(Network):
 
         self.actor_objective = -tf.reduce_mean(
             self.log_output_selected_action * self.adv_actor_ph
-            + self.beta * self.output_layer_entropy)
+            + self.beta * self.output_layer_entropy
+        )
 
         return self.actor_objective
 

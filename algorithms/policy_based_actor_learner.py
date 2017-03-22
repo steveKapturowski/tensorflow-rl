@@ -17,6 +17,7 @@ class BaseA3CLearner(ActorLearner):
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
+        self.beta = args.entropy_regularisation_strength
         self.q_target_update_steps = args.q_target_update_steps
 
 
