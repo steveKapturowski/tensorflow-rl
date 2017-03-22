@@ -6,9 +6,7 @@ Tensorflow based implementations of [A3C](https://arxiv.org/abs/1602.01783),
 [PGQ](https://arxiv.org/abs/1611.01626), 
 [TRPO](https://arxiv.org/abs/1502.05477), and
 [CEM](http://www.aaai.org/Papers/ICML/2003/ICML03-068.pdf)
-originally based on https://github.com/traai/async-deep-rl. I did some heavy refactoring and added several
-additional options including the a3c-lstm model, a fully-connected architecture to allow training on
-non-image-based gym environments, and support for the AdaMax optimizer.
+originally based on https://github.com/traai/async-deep-rl. I extensively refactored most of the code and beyond the new algorithms added several additional options including the a3c-lstm architecture, a fully-connected architecture to allow training on non-image-based gym environments, and support for the AdaMax optimizer.
 
 There's also implementations of the A3C+ and DDQN+ models from [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/abs/1606.01868) but they're very preliminary and I haven't yet been successful in reproducing their results on Montezuma's Revenge.
 
