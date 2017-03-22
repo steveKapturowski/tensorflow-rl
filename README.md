@@ -10,7 +10,7 @@ originally based on https://github.com/traai/async-deep-rl. I did some heavy ref
 additional options including the a3c-lstm model, a fully-connected architecture to allow training on
 non-image-based gym environments, and support for the AdaMax optimizer.
 
-There's also an implementation of the A3C+ model from [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/abs/1606.01868) but I'm still in the process of verifying that it can at least roughly reproduce the results of the paper on Montezuma's Revenge.
+There's also implementations of the A3C+ and DDQN+ models from [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/abs/1606.01868) but they're very preliminary and I haven't yet been successful in reproducing their results on Montezuma's Revenge.
 
 The code also includes some experimental ideas I'm toying with and I'm planning on adding the following implementations
 in the near future:
