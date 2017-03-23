@@ -26,7 +26,7 @@ class BasePGQLearner(BaseA3CLearner):
         self.local_network = PolicyValueNetwork(conf_learning)
         self.reset_hidden_state()
             
-        if self.actor_id == 0:
+        if self.is_master():
             var_list = self.local_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
@@ -156,7 +156,7 @@ class PGQLearner(BasePGQLearner):
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t, q_tilde = self.choose_next_action(s)
                 
-                if (self.actor_id == 0) and (self.local_step % 100 == 0):
+                if self.is_master() and (self.local_step % 100 == 0):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                 new_s, reward, episode_over = self.emulator.next(a)
@@ -327,7 +327,7 @@ class PGQLSTMLearner(BasePGQLearner):
                 
                 assert not np.allclose(local_lstm_state, self.lstm_state_out)
 
-                if (self.actor_id == 0) and (self.local_step % 100 == 0):
+                if self.is_master() and (self.local_step % 100 == 0):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                 new_s, reward, episode_over = self.emulator.next(a)

@@ -29,7 +29,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
         self.local_network = SequencePolicyVNetwork(conf_learning)
         self.reset_hidden_state()
             
-        if self.actor_id == 0:
+        if self.is_master():
             var_list = self.local_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
@@ -103,7 +103,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 
                 # Choose next action and execute it
                 action_sequence, readout_v_t = self.sample_action_sequence(s)
-                # if (self.actor_id == 0) and (self.local_step % 100 == 0):
+                # if self.is_master() and (self.local_step % 100 == 0):
                 #     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                 
                 acc_reward = 0.0
@@ -251,7 +251,7 @@ class ARA3CLearner(BaseA3CLearner):
         self.local_network = PolicyRepeatNetwork(conf_learning)
         self.reset_hidden_state()
 
-        if self.actor_id == 0:
+        if self.is_master():
             var_list = self.local_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
@@ -322,7 +322,7 @@ class ARA3CLearner(BaseA3CLearner):
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t, action_repeat = self.choose_next_action(s)
                 
-                if (self.actor_id == 0) and (self.local_step % 100 == 0):
+                if self.is_master() and (self.local_step % 100 == 0):
                     logger.debug("π_a={:.4f} / V={:.4f} repeat={}".format(
                         readout_pi_t[a.argmax()], readout_v_t, action_repeat))
 

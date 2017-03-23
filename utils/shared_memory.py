@@ -21,6 +21,11 @@ class SharedCounter(object):
         else:
             return self.val.value, False
 
+    def set_value(self, value):
+        self.lock.acquire()
+        self.val.value = value
+        self.lock.release()
+
     def value(self):
         return self.val.value
 

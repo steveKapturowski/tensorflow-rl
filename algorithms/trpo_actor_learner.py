@@ -37,17 +37,20 @@ class TRPOLearner(BaseA3CLearner):
 		self.local_network = self.policy_network
 		#self.value_network = PolicyValueNetwork(value_conf, use_policy_head=False)
 
-		if self.actor_id == 0:
+		if self.is_master():
 			var_list = self.policy_network.params #+self.value_network.params
 			self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
 
 		self.batch_size = 512
+		self.num_epochs = 1000
 		self.cg_damping = 0.001
 		self.cg_subsample = 0.1
 		self.max_kl = args.max_kl
 		self.max_rollout = args.max_rollout
 		self.episodes_per_batch = args.trpo_episodes
+		self.episode_counter = args.episode_counter
+		self.queue = args.queue
 		self._build_ops()
 
 
@@ -204,7 +207,9 @@ class TRPOLearner(BaseA3CLearner):
 		pg = self.run_minibatches(data, self.pg)[0]
 
 		#subsample data for conjugate gradient step
-		subsample = np.random.choice(len(data['state']), self.batch_size, replace=False)
+		# subsample = np.random.choice(len(data['state']), self.batch_size, replace=False)
+		data_size = len(data['state'])
+		subsample = np.random.choice(data_size, int(data_size*self.cg_subsample), replace=False)
 		feed_dict={
 			self.policy_network.input_ph:           data['state'][subsample],
 			self.policy_network.selected_action_ph: data['action'][subsample],
@@ -221,47 +226,87 @@ class TRPOLearner(BaseA3CLearner):
 		return self.session.run(self.kl, feed_dict)
 
 
-	def _run(self):
-		for epoch in range(1000):
+	def _run_worker(self):		
+		while True:
+			if self.episode_counter.value() >= self.episodes_per_batch:
+				time.sleep(.01)
+				continue
+
+			self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+			s = self.emulator.get_initial_state()
+
 			data = {
 				'state':  list(),
 				'pi':     list(),
 				'action': list(),
 				'reward': list(),
 			}
+			episode_over = False
+			accumulated_rewards = list()
+			while not episode_over and len(accumulated_rewards) < self.max_rollout:
+				a, pi = self.choose_next_action(s)
+				new_s, reward, episode_over = self.emulator.next(a)
+				accumulated_rewards.append(self.rescale_reward(reward))
 
+				data['state'].append(s)
+				data['pi'].append(pi)
+				data['action'].append(a)
+
+				s = new_s
+
+			mc_returns = list()
+			running_total = 0.0
+			for r in reversed(accumulated_rewards):
+				running_total = r + self.gamma*running_total
+				mc_returns.insert(0, running_total)
+
+			data['reward'].extend(mc_returns)
+			episode_reward = sum(accumulated_rewards)
+			logger.debug('T{} / Episode Reward {}'.format(
+				self.actor_id, episode_reward))
+
+			self.queue.put((data, episode_reward))
+			self.episode_counter.increment()
+			
+
+	def _run_master(self):
+		for epoch in range(self.num_epochs):
+			data = {
+				'state':  list(),
+				'pi':     list(),
+				'action': list(),
+				'reward': list(),
+			}
+			#collect worker experience
 			episode_rewards = list()
-			for episode in range(self.episodes_per_batch):
-				s = self.emulator.get_initial_state()
-
-				episode_over = False
-				accumulated_rewards = list()
-				while not episode_over and len(accumulated_rewards) < self.max_rollout:
-					a, pi = self.choose_next_action(s)
-					new_s, reward, episode_over = self.emulator.next(a)
-					accumulated_rewards.append(self.rescale_reward(reward))
-
-					data['state'].append(s)
-					data['pi'].append(pi)
-					data['action'].append(a)
-
-					s = new_s
-
-				mc_returns = list()
-				running_total = 0.0
-				for r in reversed(accumulated_rewards):
-					running_total = r + self.gamma*running_total
-					mc_returns.insert(0, running_total)
-
-				episode_rewards.append(sum(accumulated_rewards))
-				data['reward'].extend(mc_returns)
+			for _ in xrange(self.episodes_per_batch):
+				worker_data, reward = self.queue.get()
+				episode_rewards.append(reward)
+				for key, value in worker_data.items():
+					data[key].extend(value)
 					
 			kl = self.update_grads({
 				k: np.array(v) for k, v in data.items()})
-			mean_episode_reward = np.array(episode_rewards).mean()
+			self.update_shared_memory()
 
+			#discard old data
+			while not self.queue.empty(): self.queue.get()
+			self.episode_counter.set_value(0)
+
+			mean_episode_reward = np.array(episode_rewards).mean()
 			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {}'.format(
 				epoch+1, kl, mean_episode_reward))
+
+
+	def _run(self):
+		if self.is_master():
+			try:
+				self._run_master()
+			except KeyboardInterrupt:
+				while not self.queue.empty():
+					self.queue.get()
+		else:
+			self._run_worker()
 
 
 

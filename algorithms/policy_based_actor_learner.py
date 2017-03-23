@@ -37,7 +37,7 @@ class BaseA3CLearner(ActorLearner):
 
     @checkpoint_utils.only_on_train()
     def log_summary(self, total_episode_reward, mean_entropy):
-        if (self.actor_id == 0):
+        if self.is_master():
             feed_dict = {self.summary_ph[0]: total_episode_reward, self.summary_ph[1]: mean_entropy}
             res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
             self.summary_writer.add_summary(res[-1], self.global_step.value())
@@ -96,7 +96,7 @@ class A3CLearner(BaseA3CLearner):
         self.local_network = PolicyValueNetwork(conf_learning)
         self.reset_hidden_state()
 
-        if self.actor_id == 0:
+        if self.is_master():
             var_list = self.local_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
@@ -159,7 +159,7 @@ class A3CLearner(BaseA3CLearner):
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t = self.choose_next_action(s)
                 
-                if (self.actor_id == 0) and (self.local_step % 100 == 0):
+                if self.is_master() and (self.local_step % 100 == 0):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                 new_s, reward, episode_over = self.emulator.next(a)
@@ -235,7 +235,7 @@ class A3CLSTMLearner(BaseA3CLearner):
         self.local_network = PolicyValueNetwork(conf_learning)
         self.reset_hidden_state()
 
-        if self.actor_id == 0:
+        if self.is_master():
             var_list = self.local_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
@@ -312,7 +312,7 @@ class A3CLSTMLearner(BaseA3CLearner):
                 
                 assert not np.allclose(local_lstm_state, self.lstm_state_out)
 
-                if (self.actor_id == 0) and (self.local_step % 100 == 0):
+                if self.is_master() and (self.local_step % 100 == 0):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                 new_s, reward, episode_over = self.emulator.next(a)

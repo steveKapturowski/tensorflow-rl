@@ -8,8 +8,8 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 
-from multiprocessing import Process
 from networks.q_network import QNetwork
+from multiprocessing import Process, Queue
 from networks.dueling_network import DuelingNetwork
 from networks.policy_v_network import PolicyNetwork, PolicyValueNetwork, PolicyRepeatNetwork, SequencePolicyVNetwork
 from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
@@ -71,7 +71,6 @@ def main(args):
     assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)
     Learner, Network = algorithms[args.alg_type]
 
-    T = SharedCounter(0)
     network = Network({
         'name': 'shared_vars_network',
         'input_shape': input_shape,
@@ -94,12 +93,14 @@ def main(args):
         args.target_update_flags = SharedFlags(args.num_actor_learners)
     
     args.barrier = Barrier(args.num_actor_learners)
-    args.global_step = T
+    args.episode_counter = SharedCounter(0)
+    args.global_step = SharedCounter(0)
     args.num_actions = num_actions
 
 
     if (args.visualize == 2): args.visualize = 0        
     actor_learners = []
+    experience_queue = Queue()
     for i in xrange(args.num_actor_learners):
         if (args.visualize == 2) and (i == args.num_actor_learners - 1):
             args.args.visualize = 1
@@ -110,6 +111,7 @@ def main(args):
         args.random_seed = rng.randint(1000)
             
         #pass in gpu name to learner here and wrap each learner in device context
+        args.queue = experience_queue #only used by TRPO
         args.input_shape = input_shape
         actor_learners.append(Learner(args))
         actor_learners[-1].start()

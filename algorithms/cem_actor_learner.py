@@ -30,7 +30,7 @@ class CEMLearner(BaseA3CLearner):
 		self.mu = np.zeros(self.num_params)
 		self.sigma = np.ones(self.num_params)
 
-		if self.actor_id == 0:
+		if self.is_master():
 			var_list = self.local_network.params
 			self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)

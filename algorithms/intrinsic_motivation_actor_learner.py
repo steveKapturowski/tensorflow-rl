@@ -74,7 +74,7 @@ class PseudoCountA3CLearner(A3CLearner):
                 bonus = self.density_model.update(current_frame)
                 bonuses.append(bonus)
 
-                if (self.actor_id == 0) and (self.local_step % 200 == 0):
+                if self.is_master() and (self.local_step % 200 == 0):
                     bonus_array = np.array(bonuses)
                     logger.debug('π_a={:.4f} / V={:.4f} / Mean Bonus={:.4f} / Max Bonus={:.4f}'.format(
                         readout_pi_t[a.argmax()], readout_v_t, bonus_array.mean(), bonus_array.max()))
@@ -223,7 +223,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                 bonus = self.density_model.update(current_frame)
                 bonuses.append(bonus)
 
-                if (self.actor_id == 0) and (self.local_step % 200 == 0):
+                if self.is_master() and (self.local_step % 200 == 0):
                     bonus_array = np.array(bonuses)
                     logger.debug('Mean Bonus={:.4f} / Max Bonus={:.4f}'.format(
                         bonus_array.mean(), bonus_array.max()))

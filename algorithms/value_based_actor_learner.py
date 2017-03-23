@@ -39,7 +39,7 @@ class ValueBasedLearner(ActorLearner):
             self.local_network = QNetwork(conf_learning)
             self.target_network = QNetwork(conf_target)
         
-        if self.actor_id == 0:
+        if self.is_master():
             var_list = self.local_network.params + self.target_network.params            
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
@@ -146,7 +146,7 @@ class ValueBasedLearner(ActorLearner):
                 max(self.scores),
             ))
 
-            if self.actor_id == 0 and self.is_train:
+            if self.is_master() and self.is_train:
                 stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
                 feed_dict = {}
                 for i in range(len(stats)):

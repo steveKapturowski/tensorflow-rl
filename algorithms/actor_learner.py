@@ -131,6 +131,10 @@ class ActorLearner(Process):
         pass
 
 
+    def is_master(self):
+        return self.actor_id == 0
+
+
     def test(self, num_episodes=100):
         '''
         Run test monitor for `num_episodes`
@@ -173,7 +177,7 @@ class ActorLearner(Process):
         self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
 
-        if (self.actor_id==0):
+        if self.is_master():
             #Initizlize Tensorboard summaries
             self.summary_op = tf.summary.merge_all()
             self.summary_writer = tf.summary.FileWriter(
@@ -184,7 +188,7 @@ class ActorLearner(Process):
             self.global_step.val.value = g_step
             self.last_saving_step = g_step   
             logger.debug("T{}: Initializing shared memory...".format(self.actor_id))
-            self.init_shared_memory()
+            self.update_shared_memory()
 
         # Ensure we don't add any more nodes to the graph
         self.session.graph.finalize()
@@ -192,7 +196,7 @@ class ActorLearner(Process):
         # Wait until actor 0 finishes initializing shared memory
         self.barrier.wait()
         
-        if self.actor_id > 0:
+        if not self.is_master():
             logger.debug("T{}: Syncing with shared memory...".format(self.actor_id))
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)  
             if hasattr(self, 'target_vars'):
@@ -207,11 +211,11 @@ class ActorLearner(Process):
         self.start_time = time.time()
 
     def save_vars(self):
-        if self.actor_id == 0 and self.global_step.value()-self.last_saving_step >= CHECKPOINT_INTERVAL:
+        if self.is_master() and self.global_step.value()-self.last_saving_step >= CHECKPOINT_INTERVAL:
             self.last_saving_step = self.global_step.value()
             checkpoint_utils.save_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps, self.last_saving_step) 
     
-    def init_shared_memory(self):
+    def update_shared_memory(self):
         # Initialize shared memory with tensorflow var values
         params = self.session.run(self.local_network.params)   
 
