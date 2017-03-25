@@ -45,4 +45,5 @@ python main.py Pong-v0 --alg_type a3c -n 1 --test
 - tensorflow 1.0
 - scikit-image
 - Cython
+- pyaml
 - gym
