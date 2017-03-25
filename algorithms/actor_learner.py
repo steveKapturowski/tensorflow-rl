@@ -7,6 +7,7 @@ import tempfile
 import time
 from utils import checkpoint_utils
 from multiprocessing import Process
+# from threading import Thread as Process
 from utils.hogupdatemv import apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
 
 
@@ -172,9 +173,14 @@ class ActorLearner(Process):
 
     def run(self):
         gpu_options = tf.GPUOptions(
+            # per_process_gpu_memory_fraction=.8,
             allow_growth=True
         )
-        self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+        self.session = tf.Session(config=tf.ConfigProto(
+            gpu_options=gpu_options,
+            intra_op_parallelism_threads=4,
+            inter_op_parallelism_threads=4
+            ))
 
 
         if self.is_master():

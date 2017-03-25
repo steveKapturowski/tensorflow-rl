@@ -232,7 +232,7 @@ class PseudoCountQLearner(ValueBasedLearner):
 
 
     def batch_update(self):
-        if len(self.replay_memory) < self.batch_size:
+        if len(self.replay_memory) < self.replay_memory.maxlen//10:
             return
 
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
@@ -279,6 +279,7 @@ class PseudoCountQLearner(ValueBasedLearner):
         ep_t = 0
         
         t0 = time.time()
+        global_steps_at_last_record = self.global_step.value()
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
@@ -288,7 +289,7 @@ class PseudoCountQLearner(ValueBasedLearner):
             states = []
             actions = []
             local_step_start = self.local_step
-            
+
             while not episode_over:
                 # Choose next action and execute it
                 a, readout_t = self.choose_next_action(s)
@@ -299,12 +300,6 @@ class PseudoCountQLearner(ValueBasedLearner):
                 current_frame = new_s[...,-1]
                 bonus = self.density_model.update(current_frame)
                 bonuses.append(bonus)
-
-                if self.is_master() and (self.local_step % 200 == 0):
-                    bonus_array = np.array(bonuses)
-                    logger.debug('Mean Bonus={:.4f} / Max Bonus={:.4f} / STEPS/s={}'.format(
-                        bonus_array.mean(), bonus_array.max(), 100./(time.time()-t0)))
-                    t0 = time.time()
 
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(self.rescale_reward(reward) + bonus)
@@ -325,10 +320,24 @@ class PseudoCountQLearner(ValueBasedLearner):
                     update_target = False
                     exec_update_target = True
 
-                if self.local_step % 4 == 0:
+                if self.local_step % 20 == 0:
                     self.batch_update()
                 
                 self.local_network.global_step = global_step
+
+
+                if self.is_master() and (self.local_step % 100 == 0):
+                    bonus_array = np.array(bonuses)
+                    steps = self.global_step.value() - global_steps_at_last_record
+                    global_steps_at_last_record = self.global_step.value()
+
+                    logger.debug('Mean Bonus={:.4f} / Max Bonus={:.4f} / STEPS/s={}'.format(
+                        bonus_array.mean(), bonus_array.max(), steps/float(time.time()-t0)))
+                    t0 = time.time()
+
+                    s, total_episode_reward, _, ep_t, episode_ave_max_q, episode_over = \
+                        self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses)
+
 
             else:
                 mc_returns = list()

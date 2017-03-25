@@ -11,6 +11,8 @@ import tensorflow as tf
 
 from networks.q_network import QNetwork
 from multiprocessing import Process, Queue
+# from multiprocessing import Queue
+# from threading import Thread as Process
 from networks.dueling_network import DuelingNetwork
 from networks.policy_v_network import PolicyNetwork, PolicyValueNetwork, PolicyRepeatNetwork, SequencePolicyVNetwork
 from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
