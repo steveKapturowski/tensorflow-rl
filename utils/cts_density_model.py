@@ -40,9 +40,3 @@ class CTSDensityModel(object):
 		pseudocount = prob * (1 - recoding_prob) / np.maximum(recoding_prob - prob, 1e-10)
 		return self.beta / np.sqrt(pseudocount + .01)
 
-
-class FastCTSDensityModel(object):
-	'''
-	TODO: use cython to make this nice and speedy
-	'''
-	pass

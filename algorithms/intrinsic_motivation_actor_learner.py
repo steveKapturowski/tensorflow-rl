@@ -3,9 +3,10 @@ import time
 import numpy as np
 import utils.logger
 import tensorflow as tf
+
 from collections import deque
 from utils import checkpoint_utils
-
+from actor_learner import ONE_LIFE_GAMES
 from utils.fast_cts import CTSDensityModel
 from utils.replay_memory import ReplayMemory
 from policy_based_actor_learner import A3CLearner
@@ -66,7 +67,8 @@ class PseudoCountA3CLearner(A3CLearner):
                 
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t = self.choose_next_action(s)
-                    
+
+
                 new_s, reward, episode_over = self.emulator.next(a)
                 total_episode_reward += reward
                 
@@ -155,6 +157,80 @@ class PseudoCountQLearner(ValueBasedLearner):
         return 0.1
 
 
+    def _get_summary_vars(self):
+        q_vars = super(PseudoCountQLearner, self)._get_summary_vars()
+
+        bonus_q25 = tf.Variable(0., name='novelty_bonus_q25')
+        s1 = tf.summary.scalar('Novelty_Bonus_q25_{}'.format(self.actor_id), bonus_q25)
+        bonus_q50 = tf.Variable(0., name='novelty_bonus_q50')
+        s2 = tf.summary.scalar('Novelty_Bonus_q50_{}'.format(self.actor_id), bonus_q50)
+        bonus_q75 = tf.Variable(0., name='novelty_bonus_q75')
+        s3 = tf.summary.scalar('Novelty_Bonus_q75_{}'.format(self.actor_id), bonus_q75)
+
+        return q_vars + [bonus_q25, bonus_q50, bonus_q75]
+
+
+    def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
+                      ep_t, episode_ave_max_q, episode_over, bonuses):
+        # prevent the agent from getting stuck
+        reset_game = False
+        if (self.local_step - steps_at_last_reward > 5000
+            or (self.emulator.get_lives() == 0
+                and self.emulator.game not in ONE_LIFE_GAMES)):
+            
+            steps_at_last_reward = self.local_step
+            episode_over = True
+            reset_game = True
+
+        # Start a new game on reaching terminal state
+        if episode_over:
+            T = self.global_step.value()
+            t = self.local_step
+            e_prog = float(t)/self.epsilon_annealing_steps
+            episode_ave_max_q = episode_ave_max_q/float(ep_t)
+            s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
+            s2 = "EPS {0:.4f}".format(self.epsilon)
+
+            self.scores.insert(0, total_episode_reward)
+            if len(self.scores) > 100:
+                self.scores.pop()
+
+            logger.info('T{0} / STEP {1} / REWARD {2} / {3} / {4}'.format(
+                self.actor_id, T, total_episode_reward, s1, s2))
+            logger.info('ID: {0} -- RUNNING AVG: {1:.0f} ± {2:.0f} -- BEST: {3:.0f}'.format(
+                self.actor_id,
+                np.array(self.scores).mean(),
+                2*np.array(self.scores).std(),
+                max(self.scores),
+            ))
+
+            if self.is_master() and self.is_train:
+                stats = [
+                    total_episode_reward,
+                    episode_ave_max_q,
+                    self.epsilon,
+                    np.percentile(bonuses, 25),
+                    np.percentile(bonuses, 50),
+                    np.percentile(bonuses, 75),
+                ]
+                feed_dict = {
+                    self.summary_ph[i]: stats[i]
+                    for i in range(len(stats))
+                }
+                res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
+                self.summary_writer.add_summary(res[-1], self.global_step.value())
+                
+            if reset_game or self.emulator.game in ONE_LIFE_GAMES:
+                state = self.emulator.get_initial_state()
+
+            ep_t = 0
+            total_episode_reward = 0
+            episode_ave_max_q = 0
+            episode_over = False
+
+        return state, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over
+
+
     def batch_update(self):
         if len(self.replay_memory) < self.batch_size:
             return
@@ -202,6 +278,7 @@ class PseudoCountQLearner(ValueBasedLearner):
         low_qmax = 0
         ep_t = 0
         
+        t0 = time.time()
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
@@ -225,12 +302,12 @@ class PseudoCountQLearner(ValueBasedLearner):
 
                 if self.is_master() and (self.local_step % 200 == 0):
                     bonus_array = np.array(bonuses)
-                    logger.debug('Mean Bonus={:.4f} / Max Bonus={:.4f}'.format(
-                        bonus_array.mean(), bonus_array.max()))
+                    logger.debug('Mean Bonus={:.4f} / Max Bonus={:.4f} / STEPS/s={}'.format(
+                        bonus_array.mean(), bonus_array.max(), 100./(time.time()-t0)))
+                    t0 = time.time()
 
                 # Rescale or clip immediate reward
-                # reward = self.rescale_reward(self.rescale_reward(reward) + bonus)
-                reward = self.rescale_reward(reward)
+                reward = self.rescale_reward(self.rescale_reward(reward) + bonus)
                 ep_t += 1
                 
                 rewards.append(reward)
@@ -282,5 +359,5 @@ class PseudoCountQLearner(ValueBasedLearner):
                     self.target_update_flags.updated[self.actor_id] = 0
 
             s, total_episode_reward, _, ep_t, episode_ave_max_q, episode_over = \
-                self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over)
+                self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses)
 

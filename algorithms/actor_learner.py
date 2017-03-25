@@ -71,18 +71,18 @@ class ActorLearner(Process):
         # Shared mem vars
         self.learning_vars = args.learning_vars
         size = self.learning_vars.size
-        self.flat_grads = np.empty(size, dtype = ctypes.c_float)
+        self.flat_grads = np.empty(size, dtype=ctypes.c_float)
             
-        if (self.optimizer_mode == "local"):
-            if (self.optimizer_type == "rmsprop"):
-                self.opt_st = np.ones(size, dtype = ctypes.c_float)
+        if self.optimizer_mode == 'local':
+            if self.optimizer_type == 'rmsprop':
+                self.opt_st = np.ones(size, dtype=ctypes.c_float)
             else:
-                self.opt_st = np.zeros(size, dtype = ctypes.c_float)
-        elif (self.optimizer_mode == "shared"):
+                self.opt_st = np.zeros(size, dtype=ctypes.c_float)
+        elif self.optimizer_mode == 'shared':
                 self.opt_st = args.opt_state
 
         # rmsprop/momentum
-        self.alpha = args.alpha
+        self.alpha = args.momentum
         # adam
         self.b1 = args.b1
         self.b2 = args.b2
@@ -190,11 +190,10 @@ class ActorLearner(Process):
             logger.debug("T{}: Initializing shared memory...".format(self.actor_id))
             self.update_shared_memory()
 
-        # Ensure we don't add any more nodes to the graph
-        self.session.graph.finalize()
-
         # Wait until actor 0 finishes initializing shared memory
         self.barrier.wait()
+        # Ensure we don't add any more nodes to the graph
+        self.session.graph.finalize()
         
         if not self.is_master():
             logger.debug("T{}: Syncing with shared memory...".format(self.actor_id))
@@ -247,13 +246,15 @@ class ActorLearner(Process):
                 self.flat_grads[offset:offset + g.size] = g.reshape(-1)
                 offset += g.size
             g = self.flat_grads
-            
+
+            self.learning_vars.step.value += 1
+            T = self.learning_vars.step.value
+
             if self.optimizer_type == "adam" and self.optimizer_mode == "shared":
                 p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
                 p_size = self.learning_vars.size
                 m = np.frombuffer(opt_st.ms, ctypes.c_float)
                 v = np.frombuffer(opt_st.vs, ctypes.c_float)
-                T = self.global_step.value() 
                 opt_st.lr.value =  1.0 * opt_st.lr.value * (1 - self.b2**T)**0.5 / (1 - self.b1**T) 
                 
                 apply_grads_adam(m, v, g, p, p_size, opt_st.lr.value, self.b1, self.b2, self.e)
@@ -267,7 +268,6 @@ class ActorLearner(Process):
                 p_size = self.learning_vars.size
                 m = np.frombuffer(opt_st.ms, ctypes.c_float)
                 u = np.frombuffer(opt_st.vs, ctypes.c_float)
-                T = self.global_step.value()
 
                 apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, T)
                     
@@ -345,6 +345,7 @@ class ActorLearner(Process):
         update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
         with tf.control_dependencies(update_ops):
             summary_ops = tf.summary.merge_all()
+
         return summary_placeholders, update_ops, summary_ops
     
 

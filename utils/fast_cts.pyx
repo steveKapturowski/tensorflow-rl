@@ -255,13 +255,13 @@ cdef class CTSDensityModel:
         return self.width
         
     def update(self, obs):
-        obs = resize(obs, (self.height, self.width))
+        obs = resize(obs, (self.height, self.width), preserve_range=True)
         obs = np.floor((obs*self.num_bins)).astype(np.int32)
         
         log_prob, log_recoding_prob = self._update(obs)
         return self.exploration_bonus(log_prob, log_recoding_prob)
     
-    cdef (double, double) _update(self, int[:, :] obs):
+    cpdef (double, double) _update(self, int[:, :] obs):
         cdef int[:] context = np.array([0, 0, 0, 0], np.int32)
         cdef double log_prob = 0.0
         cdef double log_recoding_prob = 0.0
@@ -286,8 +286,9 @@ cdef class CTSDensityModel:
         prob = np.exp(log_prob)
         recoding_prob = np.exp(log_recoding_prob)
 
-        pseudocount = prob * (1 - recoding_prob) / np.maximum(recoding_prob - prob, 1e-10)
+        pseudocount = prob * (1 - recoding_prob) / np.maximum(recoding_prob - prob, 1e-20)
         return self.beta / np.sqrt(pseudocount + .01)
 
 
 __all__ = ["CTS", "CTSDensityModel"]
+

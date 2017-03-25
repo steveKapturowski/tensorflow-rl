@@ -44,16 +44,13 @@ class Barrier:
         self.barrier.release()
 
 class SharedVars(object):
-    def __init__(self, num_actions, alg_type, network, opt_type=None, lr=0):
+    def __init__(self, network, opt_type=None, lr=0, step=0):
         self.var_shapes = [
             var.get_shape().as_list()
-            for var in tf.global_variables()
-        ]
+            for var in tf.global_variables()]
+        self.size = sum([np.prod(shape) for shape in self.var_shapes])
+        self.step = RawValue(ctypes.c_int, step)
 
-        self.size = 0
-        for shape in self.var_shapes:
-            self.size += np.prod(shape)
-            
         if opt_type == 'adam':
             self.ms = self.malloc_contiguous(self.size)
             self.vs = self.malloc_contiguous(self.size)

@@ -1,0 +1,9 @@
+alg_type: "a3c"
+#a3c
+learning_rate:   0.0007
+momentum:        0.99
+entropy:         0.01
+max_local_steps: 5
+opt_type:        "rmsprop"
+opt_mode:        "shared"
+arch:            "NIPS"

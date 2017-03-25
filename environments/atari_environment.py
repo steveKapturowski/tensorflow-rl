@@ -150,6 +150,7 @@ class AtariEnvironment(object):
         s_t1 = np.empty(list(x_t1.shape)+[self.agent_history_length])
         for i in range(self.agent_history_length-1):
             s_t1[..., i] = self.state_buffer[i] 
+        
         s_t1[..., self.agent_history_length-1] = x_t1
 
         # Pop the oldest frame, add the current frame to the queue

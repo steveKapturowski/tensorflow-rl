@@ -3,6 +3,7 @@ import random
 import sys
 import os
 import time
+import yaml
 import argparse
 import numpy as np
 import utils.logger
@@ -22,6 +23,23 @@ from algorithms.trpo_actor_learner import TRPOLearner
 from algorithms.cem_actor_learner import CEMLearner
 
 logger = utils.logger.getLogger('main')
+
+
+ALGORITHMS = {
+    'q': (NStepQLearner, QNetwork),
+    'sarsa': (OneStepSARSALearner, QNetwork),
+    'dueling': (DuelingLearner, DuelingNetwork),
+    'a3c': (A3CLearner, PolicyValueNetwork),
+    'a3c-lstm': (A3CLSTMLearner, PolicyValueNetwork),
+    'a3c-sequence-decoder': (ActionSequenceA3CLearner, SequencePolicyVNetwork),
+    'pgq': (PGQLearner, PolicyValueNetwork),
+    'pgq-lstm': (PGQLSTMLearner, PolicyValueNetwork),
+    'trpo': (TRPOLearner, PolicyNetwork),
+    'cem': (CEMLearner, PolicyNetwork),
+    'dqn-cts': (PseudoCountQLearner, QNetwork),
+    'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
+    'a3c-repeat': (ARA3CLearner, PolicyRepeatNetwork),
+}
 
 
 def get_learning_rate(low, high):
@@ -52,25 +70,7 @@ def main(args):
     args.summ_base_dir = '/tmp/summary_logs/{}/{}'.format(args.game, time.strftime('%m.%d/%H.%M'))
     logger.info('logging summaries to {}'.format(args.summ_base_dir))
 
-    algorithms = {
-        'q': (NStepQLearner, QNetwork),
-        'sarsa': (OneStepSARSALearner, QNetwork),
-        'dueling': (DuelingLearner, DuelingNetwork),
-        'a3c': (A3CLearner, PolicyValueNetwork),
-        'a3c-lstm': (A3CLSTMLearner, PolicyValueNetwork),
-        'a3c-sequence-decoder': (ActionSequenceA3CLearner, SequencePolicyVNetwork),
-        'pgq': (PGQLearner, PolicyValueNetwork),
-        'pgq-lstm': (PGQLSTMLearner, PolicyValueNetwork),
-        'trpo': (TRPOLearner, PolicyNetwork),
-        'cem': (CEMLearner, PolicyNetwork),
-        'q-cts': (PseudoCountQLearner, QNetwork),
-        'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
-        'a3c-repeat': (ARA3CLearner, PolicyRepeatNetwork),
-    }
-
-    assert args.alg_type in algorithms, 'alg_type `{}` not implemented'.format(args.alg_type)
-    Learner, Network = algorithms[args.alg_type]
-
+    Learner, Network = ALGORITHMS[args.alg_type]
     network = Network({
         'name': 'shared_vars_network',
         'input_shape': input_shape,
@@ -78,18 +78,19 @@ def main(args):
         'args': args
     })
 
-    args.learning_vars = SharedVars(num_actions, args.alg_type, network)
+    #initialize shared variables
+    args.learning_vars = SharedVars(network)
     
     args.opt_state = SharedVars(
-        num_actions, args.alg_type, network, opt_type=args.opt_type, lr=args.initial_lr
+        network, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
 
     args.batch_opt_state = SharedVars(
-        num_actions, args.alg_type, network, opt_type=args.opt_type, lr=args.initial_lr
+        network, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
 
-    if args.alg_type in ['q', 'sarsa', 'dueling', 'q-cts']:
-        args.target_vars = SharedVars(num_actions, args.alg_type, network)
+    if args.alg_type in ['q', 'sarsa', 'dueling', 'dqn-cts']:
+        args.target_vars = SharedVars(network)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
     
     args.barrier = Barrier(args.num_actor_learners)
@@ -97,7 +98,7 @@ def main(args):
     args.global_step = SharedCounter(0)
     args.num_actions = num_actions
 
-
+    #spin up processes and block
     if (args.visualize == 2): args.visualize = 0        
     actor_learners = []
     experience_queue = Queue()
@@ -121,9 +122,31 @@ def main(args):
     
     logger.info('All training threads finished!')
 
-if __name__ == '__main__':
-    
+
+def get_validated_params(args):
+    #validate param
+    if args.env=='ALE' and args.rom_path is None:
+        raise argparse.ArgumentTypeError('Need to specify the directory where the game roms are located, via --rom_path')         
+    if args.reward_clip_val <= 0:
+        raise argparse.ArgumentTypeError('value of --reward_clip_val option must be non-negative')
+    if args.alg_type not in ALGORITHMS:
+        raise argparse.ArgumentTypeError('alg_type `{}` not implemented'.format(args.alg_type))
+
+    # fix up frame_skip depending on whether it was an int or tuple 
+    if len(args.frame_skip) == 1:
+        args.frame_skip = args.frame_skip[0]
+    elif len(args.frame_skip) > 2:
+        raise argparse.ArgumentTypeError('Expected tuple of length two or int for param `frame_skip`')
+
+    return args
+
+
+def get_config():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--load_config', default=None, help='load config defaults from yaml file', dest='config_path')
+    args, unprocessed_args = parser.parse_known_args()
+
+    #override defaults
     parser.add_argument('game', help='Name of game')
     parser.add_argument('--env', default='GYM', help='Type of environment: ALE or GYM', dest='env')
     parser.add_argument('--rom_path', help='Directory where the game roms are located (needed for ALE environment)', dest='rom_path')
@@ -133,7 +156,7 @@ if __name__ == '__main__':
     parser.add_argument('--b1', default=0.9, type=float, help='Beta1 for the Adam optimizer', dest='b1')
     parser.add_argument('--b2', default=0.999, type=float, help='Beta2 for the Adam optimizer', dest='b2')
     parser.add_argument('--e', default=0.1, type=float, help='Epsilon for the Rmsprop and Adam optimizers', dest='e')
-    parser.add_argument('--alpha', default=0.99, type=float, help='Discount factor for the history/coming gradient, for the Rmsprop optimizer', dest='alpha')
+    parser.add_argument('--momentum', default=0.99, type=float, help='Discount factor for the history/coming gradient, for the Rmsprop optimizer', dest='momentum')
     parser.add_argument('-lr', '--initial_lr', default=0.001, type=float, help='Initial value for the learning rate. Default = LogUniform(10**-4, 10**-2)', dest='initial_lr')
     parser.add_argument('-lra', '--lr_annealing_steps', default=200000000, type=int, help='Nr. of global steps during which the learning rate will be linearly annealed towards zero', dest='lr_annealing_steps')
     parser.add_argument('--clip_loss', default=0.0, type=float, help='If bigger than 0.0, the loss will be clipped at +/-clip_loss', dest='clip_loss_delta')
@@ -164,19 +187,15 @@ if __name__ == '__main__':
     parser.add_argument('--cts_bins', default=8, type=int, help='number of bins to assign pixel values', dest='cts_bins')
     parser.add_argument('--cts_rescale_dim', default=42, type=int, help='rescaled image size to use with cts density model', dest='cts_rescale_dim')
 
-    args = parser.parse_args()
-    if (args.env=='ALE' and args.rom_path is None):
-        raise argparse.ArgumentTypeError('Need to specify the directory where the game roms are located, via --rom_path')         
-    
-    if args.reward_clip_val <= 0:
-        raise argparse.ArgumentTypeError('value of --reward_clip_val option must be non-negative')
+    if args.config_path:
+        with open(args.config_path, 'r') as f:
+            parser.set_defaults(**yaml.load(f))
 
-    # fix up frame_skip depending on whether it was an int or tuple 
-    if len(args.frame_skip) == 1:
-        args.frame_skip = args.frame_skip[0]
-    elif len(args.frame_skip) > 2:
-        raise TypeError('Expected tuple of length two or int for param `frame_skip`')
+    args = parser.parse_args(unprocessed_args)
+    return get_validated_params(args)
 
 
-    main(args)
+if __name__ == '__main__':
+    main(get_config())
 
+ 

@@ -151,9 +151,9 @@ class ValueBasedLearner(ActorLearner):
                 feed_dict = {}
                 for i in range(len(stats)):
                     feed_dict[self.summary_ph[i]] = float(stats[i])
-                res = self.session.run(self.update_ops + [self.summary_op], feed_dict = feed_dict)
-    
-                self.summary_writer.add_summary(res[-1], self.global_step.value())
+                    
+                res = self.session.run(self.summary_op, feed_dict=feed_dict)
+                self.summary_writer.add_summary(res, self.global_step.value())
                 
             if reset_game or self.emulator.game in ONE_LIFE_GAMES:
                 state = self.emulator.get_initial_state()
