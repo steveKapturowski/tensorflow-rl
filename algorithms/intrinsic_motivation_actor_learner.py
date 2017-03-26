@@ -182,7 +182,7 @@ class PseudoCountQLearner(ValueBasedLearner):
             steps_at_last_reward = self.local_step
             episode_over = True
             reset_game = True
-            
+
         # reset_game = episode_over
         print 'T{} episode over={}'.format(self.actor_id, episode_over)
 
@@ -344,7 +344,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                         bonus_array.mean(), bonus_array.max(), steps/float(time.time()-t0)))
                     t0 = time.time()
 
-                    s, total_episode_reward, unused_step, ep_t, episode_ave_max_q, _ = \
+                    s, total_episode_reward, unused_step, unused_step_ep_t, episode_ave_max_q, _ = \
                         self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses)
 
 
