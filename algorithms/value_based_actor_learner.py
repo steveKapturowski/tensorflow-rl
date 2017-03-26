@@ -79,22 +79,22 @@ class ValueBasedLearner(ActorLearner):
         """ Epsilon greedy """
         new_action = np.zeros([self.num_actions])
         
-        network_output = self.session.run(
-            self.target_network.output_layer,
-            feed_dict={self.target_network.input_ph: [state]})[0]
+        q_values = self.session.run(
+            self.local_network.output_layer,
+            feed_dict={self.local_network.input_ph: [state]})[0]
             
         if not self.is_train:
-            self.epsilon = 0.0
+            self.epsilon = 0.01
 
         if np.random.rand() <= self.epsilon:
             action_index = np.random.randint(0, self.num_actions)
         else:
-            action_index = np.argmax(network_output)
+            action_index = np.argmax(q_values)
                 
         new_action[action_index] = 1
         self.reduce_thread_epsilon()
         
-        return new_action, network_output
+        return new_action, q_values
 
 
     def update_target(self):

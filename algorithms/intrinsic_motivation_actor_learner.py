@@ -173,6 +173,7 @@ class PseudoCountQLearner(ValueBasedLearner):
     def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
                       ep_t, episode_ave_max_q, episode_over, bonuses):
         # prevent the agent from getting stuck
+        
         reset_game = False
         if (self.local_step - steps_at_last_reward > 5000
             or (self.emulator.get_lives() == 0
@@ -181,6 +182,9 @@ class PseudoCountQLearner(ValueBasedLearner):
             steps_at_last_reward = self.local_step
             episode_over = True
             reset_game = True
+            
+        # reset_game = episode_over
+        print 'T{} episode over={}'.format(self.actor_id, episode_over)
 
         # Start a new game on reaching terminal state
         if episode_over:
@@ -240,8 +244,10 @@ class PseudoCountQLearner(ValueBasedLearner):
         q_target_values = self.session.run(
             self.target_network.output_layer, 
             feed_dict={self.target_network.input_ph: s_f})
-        y_target = r_i + self.cts_eta * self.gamma * q_target_values.max(axis=1) * (1 - is_terminal.astype(np.int))
+        y_target = r_i + self.cts_eta*self.gamma*q_target_values.max(axis=1) * (1 - is_terminal.astype(np.int))
 
+        # y_target = (r_1*eta + (∑gamma^i*r_i)*(1 - eta)) + gamma*maxQ*eta  - Q
+        # y_target = r_i
         feed_dict={
             self.local_network.input_ph: s_i,
             self.local_network.target_ph: y_target,
@@ -285,17 +291,19 @@ class PseudoCountQLearner(ValueBasedLearner):
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
             self.save_vars()
 
-            rewards = []
-            states = []
-            actions = []
+            rewards =      []
+            states =       []
+            actions =      []
+            max_q_values = []
             local_step_start = self.local_step
 
             while not episode_over:
                 # Choose next action and execute it
-                a, readout_t = self.choose_next_action(s)
+                a, q_values = self.choose_next_action(s)
 
                 new_s, reward, episode_over = self.emulator.next(a)
                 total_episode_reward += reward
+                max_q = np.max(q_values)
 
                 current_frame = new_s[...,-1]
                 bonus = self.density_model.update(current_frame)
@@ -308,10 +316,11 @@ class PseudoCountQLearner(ValueBasedLearner):
                 rewards.append(reward)
                 states.append(s)
                 actions.append(a)
+                max_q_values.append(max_q)
                 
                 s = new_s
                 self.local_step += 1
-                episode_ave_max_q += np.max(readout_t)
+                episode_ave_max_q += max_q
                 
                 global_step, update_target = self.global_step.increment(
                     self.q_target_update_steps)
@@ -335,7 +344,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                         bonus_array.mean(), bonus_array.max(), steps/float(time.time()-t0)))
                     t0 = time.time()
 
-                    s, total_episode_reward, _, ep_t, episode_ave_max_q, episode_over = \
+                    s, total_episode_reward, unused_step, ep_t, episode_ave_max_q, _ = \
                         self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses)
 
 
