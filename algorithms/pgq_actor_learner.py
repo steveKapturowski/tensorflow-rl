@@ -32,8 +32,8 @@ class BasePGQLearner(BaseA3CLearner):
                                         keep_checkpoint_every_n_hours=2)
 
         # pgq specific initialization
-        self.batch_size = 32
         self.pgq_fraction = args.pgq_fraction
+        self.batch_size = args.batch_update_size
         self.replay_memory = ReplayMemory(args.replay_size)
         self.q_tilde = self.local_network.beta * (
             self.local_network.log_output_layer_pi

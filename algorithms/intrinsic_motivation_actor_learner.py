@@ -142,7 +142,7 @@ class PseudoCountQLearner(ValueBasedLearner):
         super(PseudoCountQLearner, self).__init__(args)
 
         self.cts_eta = .9
-        self.batch_size = 32
+        self.batch_size = args.batch_update_size
         self.replay_memory = ReplayMemory(args.replay_size)
 
         #more cython tuning could useful here
@@ -174,16 +174,16 @@ class PseudoCountQLearner(ValueBasedLearner):
                       ep_t, episode_ave_max_q, episode_over, bonuses):
         # prevent the agent from getting stuck
         
-        reset_game = False
-        if (self.local_step - steps_at_last_reward > 5000
-            or (self.emulator.get_lives() == 0
-                and self.emulator.game not in ONE_LIFE_GAMES)):
+        # reset_game = False
+        # if (self.local_step - steps_at_last_reward > 5000
+        #     or (self.emulator.get_lives() == 0
+        #         and self.emulator.game not in ONE_LIFE_GAMES)):
             
-            steps_at_last_reward = self.local_step
-            episode_over = True
-            reset_game = True
+        #     steps_at_last_reward = self.local_step
+        #     episode_over = True
+        #     reset_game = True
 
-        # reset_game = episode_over
+        reset_game = episode_over
         print 'T{} episode over={}'.format(self.actor_id, episode_over)
 
         # Start a new game on reaching terminal state
@@ -208,7 +208,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                 max(self.scores),
             ))
 
-            if self.is_master() and self.is_train:
+            if self.is_master():
                 stats = [
                     total_episode_reward,
                     episode_ave_max_q,
@@ -232,7 +232,14 @@ class PseudoCountQLearner(ValueBasedLearner):
             episode_ave_max_q = 0
             episode_over = False
 
-        return state, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over
+        return (
+            state,
+            total_episode_reward,
+            steps_at_last_reward,
+            ep_t,
+            episode_ave_max_q,
+            episode_over
+        )
 
 
     def batch_update(self):
@@ -344,11 +351,11 @@ class PseudoCountQLearner(ValueBasedLearner):
                         bonus_array.mean(), bonus_array.max(), steps/float(time.time()-t0)))
                     t0 = time.time()
 
-                    s, total_episode_reward, unused_step, unused_step_ep_t, episode_ave_max_q, _ = \
-                        self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses)
+                    self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses)
 
 
             else:
+                #compute monte carlo return
                 mc_returns = list()
                 running_total = 0.0
                 for r in reversed(rewards):
@@ -357,6 +364,7 @@ class PseudoCountQLearner(ValueBasedLearner):
 
                 mixed_returns = self.cts_eta*np.array(rewards) + (1-self.cts_eta)*np.array(mc_returns)
 
+                #update replay memory
                 states.append(new_s)
                 episode_length = len(rewards)
                 for i in range(episode_length):
@@ -368,13 +376,14 @@ class PseudoCountQLearner(ValueBasedLearner):
                         i+1 == episode_length))
 
             
+            #update shared target vars
             if exec_update_target:
                 self.update_target()
                 exec_update_target = False
-                # Sync local tensorflow target network params with shared target network params
-                if self.target_update_flags.updated[self.actor_id] == 1:
-                    self.sync_net_with_shared_memory(self.target_network, self.target_vars)
-                    self.target_update_flags.updated[self.actor_id] = 0
+            # Sync local tensorflow target network params with shared target network params
+            if self.target_update_flags.updated[self.actor_id] == 1:
+                self.sync_net_with_shared_memory(self.target_network, self.target_vars)
+                self.target_update_flags.updated[self.actor_id] = 0
 
             s, total_episode_reward, _, ep_t, episode_ave_max_q, episode_over = \
                 self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses)
