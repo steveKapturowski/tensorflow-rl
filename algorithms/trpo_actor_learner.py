@@ -44,8 +44,8 @@ class TRPOLearner(BaseA3CLearner):
 
 		self.batch_size = 512
 		self.num_epochs = 1000
-		self.cg_damping = 0.001
-		self.cg_subsample = 0.1
+		self.cg_damping = args.cg_damping
+		self.cg_subsample = args.cg_subsample
 		self.max_kl = args.max_kl
 		self.max_rollout = args.max_rollout
 		self.episodes_per_batch = args.trpo_episodes
