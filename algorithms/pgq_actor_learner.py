@@ -127,6 +127,7 @@ class PGQLearner(BasePGQLearner):
         steps_at_last_reward = self.local_step
         total_episode_reward = 0.0
         mean_entropy = 0.0
+        mean_value = 0.0
         q_update_counter = 0
         episode_start_step = 0
         
@@ -155,7 +156,9 @@ class PGQLearner(BasePGQLearner):
                 
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t, q_tilde = self.choose_next_action(s)
-                
+                delta = self.local_step - episode_start_step
+                mean_value = (delta*mean_value + readout_v_t) / (1+delta)
+
                 if self.is_master() and (self.local_step % 100 == 0):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
@@ -226,8 +229,8 @@ class PGQLearner(BasePGQLearner):
             delta_new = self.local_step -  local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
             
-            s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
-                s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
+            s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
 class PGQLSTMLearner(BasePGQLearner):
@@ -293,6 +296,7 @@ class PGQLSTMLearner(BasePGQLearner):
         steps_at_last_reward = self.local_step
         total_episode_reward = 0.0
         mean_entropy = 0.0
+        mean_value = 0.0
         q_update_counter = 0
         episode_start_step = 0
         
@@ -323,8 +327,11 @@ class PGQLSTMLearner(BasePGQLearner):
                 # Choose next action and execute it
                 previous_lstm_state = np.copy(self.lstm_state_out)
                 a, readout_v_t, readout_pi_t, q_tilde = self.choose_next_action(s)
-                new_lstm_state = np.copy(self.lstm_state_out)
                 
+                delta = self.local_step - episode_start_step
+                mean_value = (delta*mean_value + readout_v_t) / (1+delta)
+                
+                new_lstm_state = np.copy(self.lstm_state_out)
                 assert not np.allclose(local_lstm_state, self.lstm_state_out)
 
                 if self.is_master() and (self.local_step % 100 == 0):
@@ -417,7 +424,7 @@ class PGQLSTMLearner(BasePGQLearner):
             delta_new = self.local_step -  local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)  
             
-            s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
-                s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
+            s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 

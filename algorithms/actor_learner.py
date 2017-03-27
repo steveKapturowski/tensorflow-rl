@@ -338,10 +338,13 @@ class ActorLearner(Process):
         episode_reward = tf.Variable(0., name='episode_reward')
         s1 = tf.summary.scalar('Episode_Reward_{}'.format(self.actor_id), episode_reward)
 
-        mean_entropy = tf.Variable(0., name='mean_entropy')
-        s2 = tf.summary.scalar('Mean_Entropy_{}'.format(self.actor_id), mean_entropy)
+        mean_value = tf.Variable(0., name='mean_value')
+        s2 = tf.summary.scalar('Mean_Value_{}'.format(self.actor_id), mean_value)
 
-        return [episode_reward, mean_entropy]
+        mean_entropy = tf.Variable(0., name='mean_entropy')
+        s3 = tf.summary.scalar('Mean_Entropy_{}'.format(self.actor_id), mean_entropy)
+
+        return [episode_reward, mean_value, mean_entropy]
 
 
     def setup_summaries(self):

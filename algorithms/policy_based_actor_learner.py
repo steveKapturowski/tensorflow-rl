@@ -36,14 +36,14 @@ class BaseA3CLearner(ActorLearner):
 
 
     @checkpoint_utils.only_on_train()
-    def log_summary(self, total_episode_reward, mean_entropy):
+    def log_summary(self, *args):
         if self.is_master():
-            feed_dict = {self.summary_ph[0]: total_episode_reward, self.summary_ph[1]: mean_entropy}
+            feed_dict = {ph: val for ph, val in zip(self.summary_ph, args)}
             res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
             self.summary_writer.add_summary(res[-1], self.global_step.value())
 
 
-    def prepare_state(self, state, mean_entropy, episode_start_step, total_episode_reward, 
+    def prepare_state(self, state, mean_entropy, mean_value, episode_start_step, total_episode_reward, 
                       steps_at_last_reward, sel_actions, episode_over):
         # prevent the agent from getting stuck
         reset_game = False
@@ -69,7 +69,7 @@ class BaseA3CLearner(ActorLearner):
                 perf,
                 sel_actions))
                 
-            self.log_summary(total_episode_reward, mean_entropy)
+            self.log_summary(total_episode_reward, mean_value, mean_entropy)
 
             self.reset_hidden_state()
             self.local_episode += 1
@@ -77,11 +77,12 @@ class BaseA3CLearner(ActorLearner):
             steps_at_last_reward = self.local_step
             total_episode_reward = 0.0
             mean_entropy = 0.0
+            mean_value = 0.0
 
             if reset_game or self.emulator.game in ONE_LIFE_GAMES:
                 state = self.emulator.get_initial_state()
 
-        return state, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward
+        return state, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward
 
 
 class A3CLearner(BaseA3CLearner):
@@ -131,6 +132,7 @@ class A3CLearner(BaseA3CLearner):
         steps_at_last_reward = self.local_step
         total_episode_reward = 0.0
         mean_entropy = 0.0
+        mean_value = 0.0
         episode_start_step = 0
         
         while (self.global_step.value() < self.max_global_steps):
@@ -158,7 +160,9 @@ class A3CLearner(BaseA3CLearner):
                 
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t = self.choose_next_action(s)
-                
+                delta = self.local_step - episode_start_step
+                mean_value = (delta*mean_value + readout_v_t) / (1+delta)
+
                 if self.is_master() and (self.local_step % 100 == 0):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
@@ -219,8 +223,8 @@ class A3CLearner(BaseA3CLearner):
             delta_new = self.local_step -  local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
 
-            s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
-                s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
+            s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
 class A3CLSTMLearner(BaseA3CLearner):
@@ -282,6 +286,7 @@ class A3CLSTMLearner(BaseA3CLearner):
         steps_at_last_reward = self.local_step
         total_episode_reward = 0.0
         mean_entropy = 0.0
+        mean_value = 0.0
         episode_start_step = 0
         
         while (self.global_step.value() < self.max_global_steps):
@@ -309,7 +314,9 @@ class A3CLSTMLearner(BaseA3CLearner):
                 
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t = self.choose_next_action(s)
-                
+                delta = self.local_step - episode_start_step
+                mean_value = (delta*mean_value + readout_v_t) / (1+delta)
+
                 assert not np.allclose(local_lstm_state, self.lstm_state_out)
 
                 if self.is_master() and (self.local_step % 100 == 0):
@@ -388,8 +395,8 @@ class A3CLSTMLearner(BaseA3CLearner):
             delta_new = self.local_step -  local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)  
             
-            s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
-                s, mean_entropy, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
+            s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
+                s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
 

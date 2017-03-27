@@ -283,10 +283,10 @@ cdef class CTSDensityModel:
 
 
     def exploration_bonus(self, log_prob, log_recoding_prob):
-        prob = np.exp(log_prob)
         recoding_prob = np.exp(log_recoding_prob)
+        prob_ratio = np.exp(log_recoding_prob - log_prob)
 
-        pseudocount = prob * (1 - recoding_prob) / np.maximum(recoding_prob - prob, 1e-20)
+        pseudocount = (1 - recoding_prob) / np.maximum(prob_ratio - 1, 1e-10)
         return self.beta / np.sqrt(pseudocount + .01)
 
 

@@ -10,7 +10,7 @@ from utils.hogupdatemv import copy
 
 class ValueBasedLearner(ActorLearner):
 
-    def __init__(self, args):
+    def __init__(self, args, network_type=QNetwork):
         
         super(ValueBasedLearner, self).__init__(args)
         
@@ -31,14 +31,9 @@ class ValueBasedLearner(ActorLearner):
                        'num_act': self.num_actions,
                        'args': args}
         
+        self.local_network = network_type(conf_learning)
+        self.target_network = network_type(conf_target)
 
-        if args.alg_type == 'dueling':
-            self.local_network = DuelingNetwork(conf_learning)
-            self.target_network = DuelingNetwork(conf_target)
-        else:
-            self.local_network = QNetwork(conf_learning)
-            self.target_network = QNetwork(conf_target)
-        
         if self.is_master():
             var_list = self.local_network.params + self.target_network.params            
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
@@ -283,7 +278,8 @@ class NStepQLearner(ValueBasedLearner):
 
 
 class DuelingLearner(NStepQLearner):
-    pass
+    def __init__(self, args):
+        super(DuelingLearner, self).init(args, network_type=DuelingNetwork)
 
 
 class OneStepSARSALearner(ValueBasedLearner):

@@ -39,6 +39,7 @@ class PseudoCountA3CLearner(A3CLearner):
         s = self.emulator.get_initial_state()
         total_episode_reward = 0.0
         mean_entropy = 0.0
+        mean_value = 0.0
         episode_start_step = 0
         
         while (self.global_step.value() < self.max_global_steps):
@@ -67,7 +68,8 @@ class PseudoCountA3CLearner(A3CLearner):
                 
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t = self.choose_next_action(s)
-
+                delta = self.local_step - episode_start_step
+                mean_value = (delta*mean_value + readout_v_t) / (1+delta)
 
                 new_s, reward, episode_over = self.emulator.next(a)
                 total_episode_reward += reward
@@ -132,8 +134,8 @@ class PseudoCountA3CLearner(A3CLearner):
             delta_new = self.local_step -  local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
             
-            s, mean_entropy, episode_start_step, total_episode_reward, _ = self.prepare_state(
-                s, mean_entropy, episode_start_step, total_episode_reward, self.local_step, sel_actions, episode_over)
+            s, mean_entropy, mean_value, episode_start_step, total_episode_reward, _ = self.prepare_state(
+                s, mean_entropy, mean_value, episode_start_step, total_episode_reward, self.local_step, sel_actions, episode_over)
 
 
 class PseudoCountQLearner(ValueBasedLearner):
@@ -175,19 +177,8 @@ class PseudoCountQLearner(ValueBasedLearner):
 
     def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
                       ep_t, episode_ave_max_q, episode_over, bonuses):
-        # prevent the agent from getting stuck
-        
-        # reset_game = False
-        # if (self.local_step - steps_at_last_reward > 5000
-        #     or (self.emulator.get_lives() == 0
-        #         and self.emulator.game not in ONE_LIFE_GAMES)):
-            
-        #     steps_at_last_reward = self.local_step
-        #     episode_over = True
-        #     reset_game = True
 
         reset_game = episode_over
-        print 'T{} episode over={}'.format(self.actor_id, episode_over)
 
         # Start a new game on reaching terminal state
         if episode_over:
@@ -245,19 +236,24 @@ class PseudoCountQLearner(ValueBasedLearner):
         )
 
 
+    def _double_dqn_op(self):
+        pass
+
+
     def batch_update(self):
         if len(self.replay_memory) < self.replay_memory.maxlen//10:
             return
 
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-        q_target_values = self.session.run(
+        q_max_idx = self.session.run(
+            self.local_network.output_layer, 
+            feed_dict={self.local_network.input_ph: s_f})[0].argmax()
+        q_target_max = self.session.run(
             self.target_network.output_layer, 
-            feed_dict={self.target_network.input_ph: s_f})
-        y_target = r_i + self.cts_eta*self.gamma*q_target_values.max(axis=1) * (1 - is_terminal.astype(np.int))
+            feed_dict={self.target_network.input_ph: s_f})[0, q_max_idx]
+        y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
 
-        # y_target = (r_1*eta + (∑gamma^i*r_i)*(1 - eta)) + gamma*maxQ*eta  - Q
-        # y_target = r_i
         feed_dict={
             self.local_network.input_ph: s_i,
             self.local_network.target_ph: y_target,
