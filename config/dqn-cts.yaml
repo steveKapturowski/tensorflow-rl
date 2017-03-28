@@ -1,5 +1,4 @@
 alg_type: "dqn-cts"
-
 #dqn
 learning_rate:           0.00025
 momentum:                0.95
@@ -10,7 +9,6 @@ final_epsilon:           0.1
 epsilon_annealing_steps: 1000000
 replay_size:             1000000
 arch:                    "NATURE"
-
 #cts-specific
 cts_bins:        8
 cts_rescale_dim: 42

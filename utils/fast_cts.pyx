@@ -247,13 +247,7 @@ cdef class CTSDensityModel:
             [CTS(4, max_alphabet_size=num_bins) for _ in range(width)]
             for _ in range(height)
         ])
-        
-    def get_height(self):
-        return self.height
-        
-    def get_width(self):
-        return self.width
-        
+                
     def update(self, obs):
         obs = resize(obs, (self.height, self.width), preserve_range=True)
         obs = np.floor((obs*self.num_bins)).astype(np.int32)
@@ -280,7 +274,6 @@ cdef class CTSDensityModel:
                 log_recoding_prob += factors[i, j].log_prob(context, obs[i, j])
 
         return log_prob, log_recoding_prob
-
 
     def exploration_bonus(self, log_prob, log_recoding_prob):
         recoding_prob = np.exp(log_recoding_prob)

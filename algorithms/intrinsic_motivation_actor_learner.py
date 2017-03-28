@@ -4,6 +4,7 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 
+from skimage.transform import resize
 from collections import deque
 from utils import checkpoint_utils
 from actor_learner import ONE_LIFE_GAMES
@@ -16,12 +17,54 @@ from value_based_actor_learner import ValueBasedLearner
 logger = utils.logger.getLogger('intrinsic_motivation_actor_learner')
 
 
+class PerPixelDensityModel(object):
+    '''
+    Calculates image probability according to per-pixel counts: P(X) = ∏ p(x_ij)
+    '''
+    def __init__(self, height=42, width=42, num_bins=8, beta=0.05):
+        self.counts = np.zeros((width, height, num_bins))
+        self.height = height
+        self.width = width
+        self.beta = beta
+        self.num_bins = num_bins
+
+    def update(self, obs):
+        obs = resize(obs, (self.height, self.width), preserve_range=True)
+        obs = np.floor((obs*self.num_bins)).astype(np.int32)
+        
+        log_prob, log_recoding_prob = self._update(obs)
+        return self.exploration_bonus(log_prob, log_recoding_prob)
+
+    def _update(self, obs):
+        log_prob = 0.0
+        log_recoding_prob = 0.0
+
+        for i in range(self.height):
+            for j in range(self.height):
+                self.counts[i, j, obs[i, j]] += 1
+
+                bin_count = self.counts[i, j, obs[i, j]]
+                pixel_mass = self.counts[i, j].sum()
+                log_prob += np.log(bin_count / pixel_mass)
+                log_recoding_prob += np.log((bin_count + 1) / (pixel_mass + 1))
+        
+        return log_prob, log_recoding_prob
+
+    def exploration_bonus(self, log_prob, log_recoding_prob):
+        recoding_prob = np.exp(log_recoding_prob)
+        prob_ratio = np.exp(log_recoding_prob - log_prob)
+
+        pseudocount = (1 - recoding_prob) / np.maximum(prob_ratio - 1, 1e-10)
+        return self.beta / np.sqrt(pseudocount + .01)
+
+
 class PseudoCountA3CLearner(A3CLearner):
     def __init__(self, args):
         super(PseudoCountA3CLearner, self).__init__(args)
 
         #more cython tuning could useful here
-        self.density_model = CTSDensityModel(
+        self.density_model = PerPixelDensityModel(
+        # self.density_model = CTSDensityModel(
             height=args.cts_rescale_dim,
             width=args.cts_rescale_dim,
             num_bins=args.cts_bins,
@@ -149,7 +192,8 @@ class PseudoCountQLearner(ValueBasedLearner):
         self.replay_memory = ReplayMemory(args.replay_size)
 
         #more cython tuning could useful here
-        self.density_model = CTSDensityModel(
+        self.density_model = PerPixelDensityModel(
+        # self.density_model = CTSDensityModel(
             height=args.cts_rescale_dim,
             width=args.cts_rescale_dim,
             num_bins=args.cts_bins,
@@ -310,8 +354,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                 max_q = np.max(q_values)
 
                 current_frame = new_s[...,-1]
-                # bonus = self.density_model.update(current_frame)
-                bonus = 0.0
+                bonus = self.density_model.update(current_frame)
                 bonuses.append(bonus)
 
                 # Rescale or clip immediate reward
