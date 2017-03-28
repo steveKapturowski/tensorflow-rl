@@ -141,6 +141,7 @@ class PseudoCountA3CLearner(A3CLearner):
 class PseudoCountQLearner(ValueBasedLearner):
 
     def __init__(self, args):
+        self.final_epsilon = args.final_epsilon
         super(PseudoCountQLearner, self).__init__(args)
 
         self.cts_eta = .9
@@ -156,10 +157,7 @@ class PseudoCountQLearner(ValueBasedLearner):
 
 
     def generate_final_epsilon(self):
-        if self.is_master:
-            return 0.1
-        else:
-            return np.exp(-1-3*np.random.random())
+        return self.final_epsilon
 
 
     def _get_summary_vars(self):
@@ -312,7 +310,8 @@ class PseudoCountQLearner(ValueBasedLearner):
                 max_q = np.max(q_values)
 
                 current_frame = new_s[...,-1]
-                bonus = self.density_model.update(current_frame)
+                # bonus = self.density_model.update(current_frame)
+                bonus = 0.0
                 bonuses.append(bonus)
 
                 # Rescale or clip immediate reward
