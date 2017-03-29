@@ -69,8 +69,8 @@ class PseudoCountA3CLearner(A3CLearner):
         super(PseudoCountA3CLearner, self).__init__(args)
 
         #more cython tuning could useful here
-        self.density_model = PerPixelDensityModel(
-        # self.density_model = CTSDensityModel(
+        # self.density_model = PerPixelDensityModel(
+        self.density_model = CTSDensityModel(
             height=args.cts_rescale_dim,
             width=args.cts_rescale_dim,
             num_bins=args.cts_bins,
@@ -202,8 +202,8 @@ class PseudoCountQLearner(ValueBasedLearner):
         self.replay_memory = ReplayMemory(args.replay_size)
 
         #more cython tuning could useful here
-        self.density_model = PerPixelDensityModel(
-        # self.density_model = CTSDensityModel(
+        # self.density_model = PerPixelDensityModel(
+        self.density_model = CTSDensityModel(
             height=args.cts_rescale_dim,
             width=args.cts_rescale_dim,
             num_bins=args.cts_bins,
