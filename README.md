@@ -22,7 +22,7 @@ found at https://gym.openai.com/users/steveKapturowski. They *should* work but I
 break something as I'm planning on doing a lot more refactoring.
 
 I tried to match my PGQ implementation as closely as possible to what they describe in the paper but I've noticed the
-average episode reward can exhibit a pathological oscillatory behavior or suddenly collapse during training. If someone spots a flaw in my implementation I'd be extremely grateful to get your feedback. I've also applied PGQ to the A3C-LSTM architecture and experiments on simple environments show indications that this helps improve stability.
+average episode reward can exhibit a pathological oscillatory behavior or suddenly collapse during training. If someone spots a flaw in my implementation I'd be extremely grateful to get your feedback.
 
 # Running the code
 First you'll need to install the cython extensions needed for the hog updates and CTS density model:
