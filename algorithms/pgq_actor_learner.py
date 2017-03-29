@@ -4,6 +4,7 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 from actor_learner import ONE_LIFE_GAMES
+from utils.decorators import Experimental
 from utils.replay_memory import ReplayMemory
 from networks.policy_v_network import PolicyValueNetwork
 from policy_based_actor_learner import BaseA3CLearner
@@ -233,7 +234,16 @@ class PGQLearner(BasePGQLearner):
                 s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
+@Experimental
 class PGQLSTMLearner(BasePGQLearner):
+    '''
+    Ordinary experience replay isn't quite compatible with the lstm network architecture,
+    since the hidden states will quickly get stale. As we backprop through more timesteps
+    the stale initial state will have less impact but that could make the q-updates quite
+    expensive to compute. A possible alternative could be to incorporate some notion of
+    "Queue Maintenance Workers" that continually forward-prop each episode in the replay 
+    buffer to keep the hidden states fresh.
+    '''
     def reset_hidden_state(self):
         self.lstm_state_out = np.zeros([1, 2*self.local_network.hidden_state_size])
 
@@ -267,6 +277,7 @@ class PGQLSTMLearner(BasePGQLearner):
     def apply_batch_q_update(self):
         s_i, lstm_state_i, a_i, r_i, s_f, lstm_state_f, is_terminal = \
             self.replay_memory.sample_batch(self.batch_size)
+
 
         batch_grads, max_TQ, Q_a = self.session.run(
             [self.q_gradients, self.max_TQ, self.Q_a],

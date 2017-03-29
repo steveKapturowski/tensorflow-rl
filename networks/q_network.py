@@ -21,8 +21,8 @@ class QNetwork(Network):
 
     def _build_q_head(self):
         self.w_out, self.b_out, self.output_layer = layers.fc('fc_out', self.ox, self.num_actions, activation="linear")
-        q_selected_action = tf.reduce_sum(self.output_layer * self.selected_action_ph, axis=1)
+        self.q_selected_action = tf.reduce_sum(self.output_layer * self.selected_action_ph, axis=1)
 
-        diff = tf.subtract(self.target_ph, q_selected_action)
+        diff = tf.subtract(self.target_ph, self.q_selected_action)
         return self._huber_loss(diff)
 

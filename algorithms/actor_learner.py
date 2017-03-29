@@ -6,9 +6,9 @@ import ctypes
 import tempfile
 import time
 from utils import checkpoint_utils
-from multiprocessing import Process
-# from threading import Thread as Process
+from utils.decorators import only_on_train
 from utils.hogupdatemv import apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
+from multiprocessing import Process
 
 
 CHECKPOINT_INTERVAL = 100000
@@ -233,7 +233,7 @@ class ActorLearner(Process):
         #memoryview(self.target_vars.vars)[:] = memoryview(self.learning_vars.vars)
                 
     
-    @checkpoint_utils.only_on_train(return_val=0.0)
+    @only_on_train(return_val=0.0)
     def decay_lr(self):
         if self.global_step.value() <= self.lr_annealing_steps:            
             return self.initial_lr - (self.global_step.value() * self.initial_lr / self.lr_annealing_steps)
@@ -244,7 +244,7 @@ class ActorLearner(Process):
         self._apply_gradients_to_shared_memory_vars(grads, self.opt_st)
 
 
-    @checkpoint_utils.only_on_train()
+    @only_on_train()
     def _apply_gradients_to_shared_memory_vars(self, grads, opt_st):
             #Flatten grads
             offset = 0

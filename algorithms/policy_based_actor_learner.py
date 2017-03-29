@@ -4,6 +4,7 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 from utils import checkpoint_utils
+from utils.decorators import only_on_train
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
 from networks.policy_v_network import PolicyValueNetwork
 
@@ -35,7 +36,7 @@ class BaseA3CLearner(ActorLearner):
         self._run()
 
 
-    @checkpoint_utils.only_on_train()
+    @only_on_train()
     def log_summary(self, *args):
         if self.is_master():
             feed_dict = {ph: val for ph, val in zip(self.summary_ph, args)}

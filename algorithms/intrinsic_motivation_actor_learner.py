@@ -8,6 +8,7 @@ from skimage.transform import resize
 from collections import deque
 from utils import checkpoint_utils
 from actor_learner import ONE_LIFE_GAMES
+from utils.decorators import Experimental
 from utils.fast_cts import CTSDensityModel
 from utils.replay_memory import ReplayMemory
 from policy_based_actor_learner import A3CLearner
@@ -58,7 +59,12 @@ class PerPixelDensityModel(object):
         return self.beta / np.sqrt(pseudocount + .01)
 
 
+@Experimental
 class PseudoCountA3CLearner(A3CLearner):
+    '''
+    Attempt at replicating the A3C+ model from the paper 'Unifying Count-Based Exploration and Intrinsic Motivation' (https://arxiv.org/abs/1606.01868)
+    Still in the process of verifying implementation
+    '''
     def __init__(self, args):
         super(PseudoCountA3CLearner, self).__init__(args)
 
@@ -174,15 +180,19 @@ class PseudoCountA3CLearner(A3CLearner):
             self.apply_gradients_to_shared_memory_vars(grads)     
 
             delta_old = local_step_start - episode_start_step
-            delta_new = self.local_step -  local_step_start
+            delta_new = self.local_step - local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
             
             s, mean_entropy, mean_value, episode_start_step, total_episode_reward, _ = self.prepare_state(
                 s, mean_entropy, mean_value, episode_start_step, total_episode_reward, self.local_step, sel_actions, episode_over)
 
 
+@Experimental
 class PseudoCountQLearner(ValueBasedLearner):
-
+    '''
+    Attempt at replicating the DQN+CTS model from the paper 'Unifying Count-Based Exploration and Intrinsic Motivation' (https://arxiv.org/abs/1606.01868)
+    Still in the process of verifying implementation
+    '''
     def __init__(self, args):
         self.final_epsilon = args.final_epsilon
         super(PseudoCountQLearner, self).__init__(args)
@@ -199,6 +209,8 @@ class PseudoCountQLearner(ValueBasedLearner):
             num_bins=args.cts_bins,
             beta=0.05)
 
+        self._double_dqn_op()
+
 
     def generate_final_epsilon(self):
         return self.final_epsilon
@@ -207,18 +219,21 @@ class PseudoCountQLearner(ValueBasedLearner):
     def _get_summary_vars(self):
         q_vars = super(PseudoCountQLearner, self)._get_summary_vars()
 
-        bonus_q25 = tf.Variable(0., name='novelty_bonus_q25')
-        s1 = tf.summary.scalar('Novelty_Bonus_q25_{}'.format(self.actor_id), bonus_q25)
+        bonus_q05 = tf.Variable(0., name='novelty_bonus_q05')
+        s1 = tf.summary.scalar('Novelty_Bonus_q05_{}'.format(self.actor_id), bonus_q05)
         bonus_q50 = tf.Variable(0., name='novelty_bonus_q50')
         s2 = tf.summary.scalar('Novelty_Bonus_q50_{}'.format(self.actor_id), bonus_q50)
-        bonus_q75 = tf.Variable(0., name='novelty_bonus_q75')
-        s3 = tf.summary.scalar('Novelty_Bonus_q75_{}'.format(self.actor_id), bonus_q75)
+        bonus_q95 = tf.Variable(0., name='novelty_bonus_q95')
+        s3 = tf.summary.scalar('Novelty_Bonus_q95_{}'.format(self.actor_id), bonus_q95)
 
-        return q_vars + [bonus_q25, bonus_q50, bonus_q75]
+        augmented_reward = tf.Variable(0., name='augmented_episode_reward')
+        s4 = tf.summary.scalar('Augmented_Episode_Reward_{}'.format(self.actor_id), bonus_q95)        
+
+        return q_vars + [bonus_q05, bonus_q50, bonus_q95, augmented_reward]
 
 
     def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
-                      ep_t, episode_ave_max_q, episode_over, bonuses):
+                      ep_t, episode_ave_max_q, episode_over, bonuses, total_augmented_reward):
 
         reset_game = episode_over
 
@@ -249,9 +264,10 @@ class PseudoCountQLearner(ValueBasedLearner):
                     total_episode_reward,
                     episode_ave_max_q,
                     self.epsilon,
-                    np.percentile(bonuses, 25),
+                    np.percentile(bonuses, 5),
                     np.percentile(bonuses, 50),
-                    np.percentile(bonuses, 75),
+                    np.percentile(bonuses, 95),
+                    total_augmented_reward,
                 ]
                 feed_dict = {
                     self.summary_ph[i]: stats[i]
@@ -279,7 +295,41 @@ class PseudoCountQLearner(ValueBasedLearner):
 
 
     def _double_dqn_op(self):
-        pass
+        q_local_action = tf.cast(tf.argmax(
+            self.local_network.output_layer[self.batch_size:], axis=1), tf.int32)
+        q_target_max = utils.ops.slice_2d(
+            self.target_network.output_layer,
+            tf.range(0, self.batch_size),
+            q_local_action,
+        )
+        self.one_step_reward = tf.placeholder(tf.float32, self.batch_size, name='one_step_reward')
+        self.is_terminal = tf.placeholder(tf.bool, self.batch_size, name='is_terminal')
+
+        y_target = self.one_step_reward + self.cts_eta*self.gamma*q_target_max \
+            * (1 - tf.cast(self.is_terminal, tf.float32))
+
+        self.double_dqn_loss = self.local_network._huber_loss(
+            self.local_network.q_selected_action[:self.batch_size]
+            - tf.stop_gradient(y_target))
+
+        self.double_dqn_grads = tf.gradients(self.double_dqn_loss, self.local_network.params)
+
+
+    # def batch_update(self):
+    #     if len(self.replay_memory) < self.replay_memory.maxlen//10:
+    #         return
+
+    #     s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
+
+    #     feed_dict={
+    #         self.one_step_reward: r_i,
+    #         self.target_network.input_ph: s_f,
+    #         self.local_network.input_ph: np.vstack([s_i, s_f]),
+    #         self.local_network.selected_action_ph: a_i,
+    #         self.is_terminal: is_terminal
+    #     }
+    #     grads = self.session.run(self.double_dqn_grads, feed_dict=feed_dict)
+    #     self.apply_gradients_to_shared_memory_vars(grads)
 
 
     def batch_update(self):
@@ -290,10 +340,12 @@ class PseudoCountQLearner(ValueBasedLearner):
 
         q_max_idx = self.session.run(
             self.local_network.output_layer, 
-            feed_dict={self.local_network.input_ph: s_f})[0].argmax()
+            feed_dict={self.local_network.input_ph: s_f}).argmax(axis=1)
+
         q_target_max = self.session.run(
-            self.target_network.output_layer, 
-            feed_dict={self.target_network.input_ph: s_f})[0, q_max_idx]
+            self.target_network.output_layer,
+            feed_dict={self.target_network.input_ph: s_f})[range(self.batch_size), q_max_idx]
+
         y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
 
         feed_dict={
@@ -320,17 +372,10 @@ class PseudoCountQLearner(ValueBasedLearner):
         s_batch = []
         a_batch = []
         y_batch = []
-        bonuses = deque(maxlen=100)
+        bonuses = deque(maxlen=1000)
 
         exec_update_target = False
-        total_episode_reward = 0
-        episode_ave_max_q = 0
         episode_over = False
-        qmax_down = 0
-        qmax_up = 0
-        prev_qmax = -10*6
-        low_qmax = 0
-        ep_t = 0
         
         t0 = time.time()
         global_steps_at_last_record = self.global_step.value()
@@ -344,6 +389,10 @@ class PseudoCountQLearner(ValueBasedLearner):
             actions =      []
             max_q_values = []
             local_step_start = self.local_step
+            total_episode_reward = 0
+            total_augmented_reward = 0
+            episode_ave_max_q = 0
+            ep_t = 0
 
             while not episode_over:
                 # Choose next action and execute it
@@ -359,6 +408,7 @@ class PseudoCountQLearner(ValueBasedLearner):
 
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(self.rescale_reward(reward) + bonus)
+                total_augmented_reward += reward
                 ep_t += 1
                 
                 rewards.append(reward)
@@ -391,8 +441,6 @@ class PseudoCountQLearner(ValueBasedLearner):
                     logger.debug('Mean Bonus={:.4f} / Max Bonus={:.4f} / STEPS/s={}'.format(
                         bonus_array.mean(), bonus_array.max(), steps/float(time.time()-t0)))
                     t0 = time.time()
-
-                    self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses)
 
 
             else:
@@ -427,5 +475,5 @@ class PseudoCountQLearner(ValueBasedLearner):
                 self.target_update_flags.updated[self.actor_id] = 0
 
             s, total_episode_reward, _, ep_t, episode_ave_max_q, episode_over = \
-                self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses)
+                self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses, total_augmented_reward)
 

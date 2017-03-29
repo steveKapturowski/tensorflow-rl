@@ -1,0 +1,6 @@
+alg_type:         trpo
+arch:             ATARI-TRPO
+max_kl:           0.01
+cg_subsample:     0.1
+trpo_episodes:    50
+trpo_max_rollout: 1000
