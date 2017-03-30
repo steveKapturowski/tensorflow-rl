@@ -308,48 +308,50 @@ class PseudoCountQLearner(ValueBasedLearner):
         self.double_dqn_grads = tf.gradients(self.double_dqn_loss, self.local_network.params)
 
 
-    # def batch_update(self):
-    #     if len(self.replay_memory) < self.replay_memory.maxlen//10:
-    #         return
-
-    #     s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
-
-    #     feed_dict={
-    #         self.one_step_reward: r_i,
-    #         self.target_network.input_ph: s_f,
-    #         self.local_network.input_ph: np.vstack([s_i, s_f]),
-    #         self.local_network.selected_action_ph: a_i,
-    #         self.is_terminal: is_terminal
-    #     }
-    #     grads = self.session.run(self.double_dqn_grads, feed_dict=feed_dict)
-    #     self.apply_gradients_to_shared_memory_vars(grads)
-
-
     def batch_update(self):
         if len(self.replay_memory) < self.replay_memory.maxlen//10:
             return
 
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-        q_max_idx = self.session.run(
-            self.local_network.output_layer, 
-            feed_dict={self.local_network.input_ph: s_f}).argmax(axis=1)
-
-        q_target_max = self.session.run(
-            self.target_network.output_layer,
-            feed_dict={self.target_network.input_ph: s_f})[range(self.batch_size), q_max_idx]
-
-        y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
-
         feed_dict={
-            self.local_network.input_ph: s_i,
-            self.local_network.target_ph: y_target,
-            self.local_network.selected_action_ph: a_i
+            self.one_step_reward: r_i,
+            self.target_network.input_ph: s_f,
+            self.local_network.input_ph: np.vstack([s_i, s_f]),
+            self.local_network.selected_action_ph: np.vstack([a_i, a_i]),
+            self.is_terminal: is_terminal
         }
-        grads = self.session.run(self.local_network.get_gradients,
-                                 feed_dict=feed_dict)
-
+        grads = self.session.run(self.double_dqn_grads, feed_dict=feed_dict)
         self.apply_gradients_to_shared_memory_vars(grads)
+
+
+    # def batch_update(self):
+    #     if len(self.replay_memory) < self.replay_memory.maxlen//10:
+    #         return
+
+    #     s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
+
+    #     q_max_idx = self.session.run(
+    #         self.local_network.output_layer, 
+    #         feed_dict={self.local_network.input_ph: s_f}).argmax(axis=1)
+
+    #     q_target_max = self.session.run(
+    #         self.target_network.output_layer,
+    #         feed_dict={self.target_network.input_ph: s_f})[range(self.batch_size), q_max_idx]
+
+    #     y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
+    #     # y_target = r_i + self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
+    #     # y_target = r_i
+
+    #     feed_dict={
+    #         self.local_network.input_ph: s_i,
+    #         self.local_network.target_ph: y_target,
+    #         self.local_network.selected_action_ph: a_i
+    #     }
+    #     grads = self.session.run(self.local_network.get_gradients,
+    #                              feed_dict=feed_dict)
+
+    #     self.apply_gradients_to_shared_memory_vars(grads)
 
 
     def _run(self):
@@ -396,7 +398,8 @@ class PseudoCountQLearner(ValueBasedLearner):
                 max_q = np.max(q_values)
 
                 current_frame = new_s[...,-1]
-                bonus = self.density_model.update(current_frame)
+                # bonus = self.density_model.update(current_frame)
+                bonus = 0
                 bonuses.append(bonus)
 
                 # Rescale or clip immediate reward
@@ -445,6 +448,8 @@ class PseudoCountQLearner(ValueBasedLearner):
                     mc_returns.insert(0, running_total)
 
                 mixed_returns = self.cts_eta*np.array(rewards) + (1-self.cts_eta)*np.array(mc_returns)
+                # mixed_returns = np.array(rewards)
+                # mixed_returns = np.array(mc_returns)
 
                 #update replay memory
                 states.append(new_s)
