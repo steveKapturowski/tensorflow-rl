@@ -356,5 +356,13 @@ class ActorLearner(Process):
             summary_ops = tf.summary.merge_all()
 
         return summary_placeholders, update_ops, summary_ops
+
+
+    @only_on_train()
+    def log_summary(self, *args):
+        if self.is_master():
+            feed_dict = {ph: val for ph, val in zip(self.summary_ph, args)}
+            res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
+            self.summary_writer.add_summary(res[-1], self.global_step.value())
     
 

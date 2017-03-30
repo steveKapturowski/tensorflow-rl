@@ -36,14 +36,6 @@ class BaseA3CLearner(ActorLearner):
         self._run()
 
 
-    @only_on_train()
-    def log_summary(self, *args):
-        if self.is_master():
-            feed_dict = {ph: val for ph, val in zip(self.summary_ph, args)}
-            res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
-            self.summary_writer.add_summary(res[-1], self.global_step.value())
-
-
     def prepare_state(self, state, mean_entropy, mean_value, episode_start_step, total_episode_reward, 
                       steps_at_last_reward, sel_actions, episode_over):
         # prevent the agent from getting stuck

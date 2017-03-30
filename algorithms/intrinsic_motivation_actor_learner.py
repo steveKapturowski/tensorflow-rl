@@ -227,7 +227,7 @@ class PseudoCountQLearner(ValueBasedLearner):
         s3 = tf.summary.scalar('Novelty_Bonus_q95_{}'.format(self.actor_id), bonus_q95)
 
         augmented_reward = tf.Variable(0., name='augmented_episode_reward')
-        s4 = tf.summary.scalar('Augmented_Episode_Reward_{}'.format(self.actor_id), bonus_q95)        
+        s4 = tf.summary.scalar('Augmented_Episode_Reward_{}'.format(self.actor_id), augmented_reward)       
 
         return q_vars + [bonus_q05, bonus_q50, bonus_q95, augmented_reward]
 
@@ -259,23 +259,16 @@ class PseudoCountQLearner(ValueBasedLearner):
                 max(self.scores),
             ))
 
-            if self.is_master():
-                stats = [
-                    total_episode_reward,
-                    episode_ave_max_q,
-                    self.epsilon,
-                    np.percentile(bonuses, 5),
-                    np.percentile(bonuses, 50),
-                    np.percentile(bonuses, 95),
-                    total_augmented_reward,
-                ]
-                feed_dict = {
-                    self.summary_ph[i]: stats[i]
-                    for i in range(len(stats))
-                }
-                res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
-                self.summary_writer.add_summary(res[-1], self.global_step.value())
-                
+            self.log_summary(
+                total_episode_reward,
+                episode_ave_max_q,
+                self.epsilon,
+                np.percentile(bonuses, 5),
+                np.percentile(bonuses, 50),
+                np.percentile(bonuses, 95),
+                total_augmented_reward,
+            )
+
             if reset_game or self.emulator.game in ONE_LIFE_GAMES:
                 state = self.emulator.get_initial_state()
 
@@ -464,7 +457,6 @@ class PseudoCountQLearner(ValueBasedLearner):
                         states[i+1],
                         i+1 == episode_length))
 
-            
             #update shared target vars
             if exec_update_target:
                 self.update_target()
