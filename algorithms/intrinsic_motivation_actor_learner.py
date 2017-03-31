@@ -289,7 +289,7 @@ class PseudoCountQLearner(ValueBasedLearner):
 
     def _double_dqn_op(self):
         q_local_action = tf.cast(tf.argmax(
-            self.local_network.output_layer[self.batch_size:], axis=1), tf.int32)
+            self.local_network.output_layer, axis=1), tf.int32)
         q_target_max = utils.ops.slice_2d(
             self.target_network.output_layer,
             tf.range(0, self.batch_size),
@@ -298,31 +298,14 @@ class PseudoCountQLearner(ValueBasedLearner):
         self.one_step_reward = tf.placeholder(tf.float32, self.batch_size, name='one_step_reward')
         self.is_terminal = tf.placeholder(tf.bool, self.batch_size, name='is_terminal')
 
-        y_target = self.one_step_reward + self.cts_eta*self.gamma*q_target_max \
+        self.y_target = self.one_step_reward + self.cts_eta*self.gamma*q_target_max \
             * (1 - tf.cast(self.is_terminal, tf.float32))
 
         self.double_dqn_loss = self.local_network._huber_loss(
-            self.local_network.q_selected_action[:self.batch_size]
-            - tf.stop_gradient(y_target))
+            self.local_network.q_selected_action
+            - tf.stop_gradient(self.y_target))
 
         self.double_dqn_grads = tf.gradients(self.double_dqn_loss, self.local_network.params)
-
-
-    def batch_update(self):
-        if len(self.replay_memory) < self.replay_memory.maxlen//10:
-            return
-
-        s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
-
-        feed_dict={
-            self.one_step_reward: r_i,
-            self.target_network.input_ph: s_f,
-            self.local_network.input_ph: np.vstack([s_i, s_f]),
-            self.local_network.selected_action_ph: np.vstack([a_i, a_i]),
-            self.is_terminal: is_terminal
-        }
-        grads = self.session.run(self.double_dqn_grads, feed_dict=feed_dict)
-        self.apply_gradients_to_shared_memory_vars(grads)
 
 
     # def batch_update(self):
@@ -331,17 +314,30 @@ class PseudoCountQLearner(ValueBasedLearner):
 
     #     s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-    #     q_max_idx = self.session.run(
-    #         self.local_network.output_layer, 
-    #         feed_dict={self.local_network.input_ph: s_f}).argmax(axis=1)
+    #     feed_dict={
+    #         self.one_step_reward: r_i,
+    #         self.target_network.input_ph: s_f,
+    #         self.local_network.input_ph: np.vstack([s_i, s_f]),
+    #         self.local_network.selected_action_ph: np.vstack([a_i, a_i]),
+    #         self.is_terminal: is_terminal
+    #     }
+    #     grads = self.session.run(self.double_dqn_grads, feed_dict=feed_dict)
+    #     self.apply_gradients_to_shared_memory_vars(grads)
 
-    #     q_target_max = self.session.run(
-    #         self.target_network.output_layer,
-    #         feed_dict={self.target_network.input_ph: s_f})[range(self.batch_size), q_max_idx]
 
-    #     y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
-    #     # y_target = r_i + self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
-    #     # y_target = r_i
+    # def batch_update(self):
+    #     if len(self.replay_memory) < self.replay_memory.maxlen//10:
+    #         return
+
+    #     s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
+
+    #     feed_dict={
+    #         self.local_network.input_ph: s_f,
+    #         self.target_network.input_ph: s_f,
+    #         self.is_terminal: is_terminal,
+    #         self.one_step_reward: r_i,
+    #     }
+    #     y_target = self.session.run(self.y_target, feed_dict=feed_dict)
 
     #     feed_dict={
     #         self.local_network.input_ph: s_i,
@@ -350,8 +346,36 @@ class PseudoCountQLearner(ValueBasedLearner):
     #     }
     #     grads = self.session.run(self.local_network.get_gradients,
     #                              feed_dict=feed_dict)
-
     #     self.apply_gradients_to_shared_memory_vars(grads)
+
+
+    def batch_update(self):
+        if len(self.replay_memory) < self.replay_memory.maxlen//10:
+            return
+
+        s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
+
+        q_max_idx = self.session.run(
+            self.local_network.output_layer, 
+            feed_dict={self.local_network.input_ph: s_f}).argmax(axis=1)
+
+        q_target_max = self.session.run(
+            self.target_network.output_layer,
+            feed_dict={self.target_network.input_ph: s_f})[range(self.batch_size), q_max_idx]
+
+        y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
+        # y_target = r_i + self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
+        # y_target = r_i
+
+        feed_dict={
+            self.local_network.input_ph: s_i,
+            self.local_network.target_ph: y_target,
+            self.local_network.selected_action_ph: a_i
+        }
+        grads = self.session.run(self.local_network.get_gradients,
+                                 feed_dict=feed_dict)
+
+        self.apply_gradients_to_shared_memory_vars(grads)
 
 
     def _run(self):
@@ -423,7 +447,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                     update_target = False
                     exec_update_target = True
 
-                if self.local_step % 20 == 0:
+                if self.local_step % 4 == 0:
                     self.batch_update()
                 
                 self.local_network.global_step = global_step
