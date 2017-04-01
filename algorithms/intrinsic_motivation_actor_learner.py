@@ -68,13 +68,16 @@ class PseudoCountA3CLearner(A3CLearner):
     def __init__(self, args):
         super(PseudoCountA3CLearner, self).__init__(args)
 
-        #more cython tuning could useful here
-        # self.density_model = PerPixelDensityModel(
-        self.density_model = CTSDensityModel(
-            height=args.cts_rescale_dim,
-            width=args.cts_rescale_dim,
-            num_bins=args.cts_bins,
-            beta=0.05)
+        model_args = {
+            'height': args.cts_rescale_dim,
+            'width': args.cts_rescale_dim,
+            'num_bins': args.cts_bins,
+            'beta': args.cts_beta
+        }
+        if args.density_model == 'cts':
+            self.density_model = CTSDensityModel(**model_args)
+        else:
+            self.density_model = PerPixelDensityModel(**model_args)
 
 
     def _run(self):
@@ -197,17 +200,21 @@ class PseudoCountQLearner(ValueBasedLearner):
         self.final_epsilon = args.final_epsilon
         super(PseudoCountQLearner, self).__init__(args)
 
-        self.cts_eta = .9
+        self.cts_eta = args.cts_eta
+        self.cts_beta = args.cts_beta
         self.batch_size = args.batch_update_size
         self.replay_memory = ReplayMemory(args.replay_size)
 
-        #more cython tuning could useful here
-        # self.density_model = PerPixelDensityModel(
-        self.density_model = CTSDensityModel(
-            height=args.cts_rescale_dim,
-            width=args.cts_rescale_dim,
-            num_bins=args.cts_bins,
-            beta=0.05)
+        model_args = {
+            'height': args.cts_rescale_dim,
+            'width': args.cts_rescale_dim,
+            'num_bins': args.cts_bins,
+            'beta': args.cts_beta
+        }
+        if args.density_model == 'cts':
+            self.density_model = CTSDensityModel(**model_args)
+        else:
+            self.density_model = PerPixelDensityModel(**model_args)
 
         self._double_dqn_op()
 
@@ -422,8 +429,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                 max_q = np.max(q_values)
 
                 current_frame = new_s[...,-1]
-                # bonus = self.density_model.update(current_frame)
-                bonus = 0
+                bonus = self.density_model.update(current_frame)
                 bonuses.append(bonus)
 
                 # Rescale or clip immediate reward
