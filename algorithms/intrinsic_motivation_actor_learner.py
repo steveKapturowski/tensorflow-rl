@@ -127,7 +127,8 @@ class PseudoCountA3CLearner(A3CLearner):
                 total_episode_reward += reward
                 
                 current_frame = new_s[...,-1]
-                bonus = self.density_model.update(current_frame)
+                # bonus = self.density_model.update(current_frame)
+                bonus = 0.0
                 bonuses.append(bonus)
 
                 if self.is_master() and (self.local_step % 200 == 0):
@@ -156,6 +157,7 @@ class PseudoCountA3CLearner(A3CLearner):
                     self.local_network.output_layer_v,
                     feed_dict={self.local_network.input_ph:[new_s]})[0][0]
                             
+            adv_batch = self.compute_gae(rewards, values, R)
 
             sel_actions = []
             for i in reversed(xrange(len(states))):
@@ -164,9 +166,13 @@ class PseudoCountA3CLearner(A3CLearner):
                 y_batch.append(R)
                 a_batch.append(actions[i])
                 s_batch.append(states[i])
-                adv_batch.append(R - values[i])
+                # adv_batch.append(R - values[i])
                 
                 sel_actions.append(np.argmax(actions[i]))
+
+            y_batch = list(reversed(y_batch))
+            a_batch = list(reversed(a_batch))
+            s_batch = list(reversed(s_batch))
 
 
             # Compute gradients on the local policy/V network and apply them to shared memory  

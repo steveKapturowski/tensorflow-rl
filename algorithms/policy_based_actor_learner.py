@@ -15,6 +15,7 @@ logger = utils.logger.getLogger('policy_based_actor_learner')
 class BaseA3CLearner(ActorLearner):
     def __init__(self, args):
         super(BaseA3CLearner, self).__init__(args)
+        self.td_lambda = args.td_lambda
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
@@ -34,6 +35,21 @@ class BaseA3CLearner(ActorLearner):
         super(BaseA3CLearner, self).run()
         #cProfile.runctx('self._run()', globals(), locals(), 'profile-{}.out'.format(self.actor_id))
         self._run()
+
+
+    def compute_gae(self, rewards, values, next_val):
+        values = values + [next_val]
+
+        adv_batch = list()
+        for i in range(len(rewards)):
+            gae = 0.0
+            for j in range(i, len(rewards)):
+                TD_i = rewards[j] + self.gamma*values[j+1] - values[j]
+                gae += TD_i * (self.gamma*self.td_lambda)**(j - i)
+
+            adv_batch.append(gae)
+
+        return adv_batch
 
 
     def prepare_state(self, state, mean_entropy, mean_value, episode_start_step, total_episode_reward, 

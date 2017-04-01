@@ -132,22 +132,6 @@ class TRPOLearner(BaseA3CLearner):
 		return fullstep, -neggdotstepdir
 
 
-	#TODO: move this into utils so it can be used with other algorithms
-	def compute_gae(self, rewards, values, next_val):
-		values = values + [next_val]
-
-		adv_batch = list()
-		for i in range(len(rewards)):
-			gae = 0.0
-			for j in range(i, len(rewards)):
-				TD_i = rewards[j] + self.gamma*values[j+1] - values[j]
-				gae += TD_i * (self.gamma*self.td_lambda)**(j - i)
-
-			adv_batch.append(gae)
-
-		return adv_batch
-
-
 	def choose_next_action(self, state):
 		action_probs = self.session.run(
 			self.policy_network.output_layer_pi,
