@@ -413,9 +413,6 @@ class PseudoCountQLearner(ValueBasedLearner):
         global_steps_at_last_record = self.global_step.value()
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
-            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            self.save_vars()
-
             rewards =      []
             states =       []
             actions =      []
@@ -427,6 +424,9 @@ class PseudoCountQLearner(ValueBasedLearner):
             ep_t = 0
 
             while not episode_over:
+                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+                self.save_vars()
+
                 # Choose next action and execute it
                 a, q_values = self.choose_next_action(s)
 
