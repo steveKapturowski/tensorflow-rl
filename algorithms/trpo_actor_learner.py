@@ -390,9 +390,13 @@ class TRPOLearner(BaseA3CLearner):
 				self._run_worker()
 
 		except KeyboardInterrupt:
+			while not self.task_queue.empty():
+				print 'T{} emptying task queue'.format(self.actor_id)
+				self.task_queue.get_nowait()
+
 			while not self.experience_queue.empty():
-				print 'T{} emptying queue'.format(self.actor_id)
-				self.experience_queue.get()
+				print 'T{} emptying experience queue'.format(self.actor_id)
+				self.experience_queue.get_nowait()
 
 
 
