@@ -87,13 +87,8 @@ class BasePGQLearner(BaseA3CLearner):
         # print 'max_TQ={}, Q_a={}'.format(max_TQ[:5], Q_a[:5])
 
         self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
-
-
-    def softmax(self, x, temperature):
-        x /= temperature
-        exp_x = np.exp(x - np.max(x))
-
-        return exp_x / exp_x.sum()
+        # self.apply_gradients_to_shared_memory_vars(batch_grads)
+        # return batch_grads
 
 
 class PGQLearner(BasePGQLearner):
@@ -107,9 +102,8 @@ class PGQLearner(BasePGQLearner):
         network_output_pi = network_output_pi.reshape(-1)
         network_output_v = np.asscalar(network_output_v)
         q_tilde = q_tilde[0]
-        
-        probs = self.softmax(q_tilde, self.beta)
-        action_index = self.sample_policy_action(probs)
+
+        action_index = self.sample_policy_action(network_output_pi)
         new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
 
@@ -128,7 +122,6 @@ class PGQLearner(BasePGQLearner):
         steps_at_last_reward = self.local_step
         total_episode_reward = 0.0
         mean_entropy = 0.0
-        mean_value = 0.0
         q_update_counter = 0
         episode_start_step = 0
         
@@ -157,8 +150,6 @@ class PGQLearner(BasePGQLearner):
                 
                 # Choose next action and execute it
                 a, readout_v_t, readout_pi_t, q_tilde = self.choose_next_action(s)
-                delta = self.local_step - episode_start_step
-                mean_value = (delta*mean_value + readout_v_t) / (1+delta)
 
                 if self.is_master() and (self.local_step % 100 == 0):
                     logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
@@ -220,18 +211,20 @@ class PGQLearner(BasePGQLearner):
                 [self.local_network.get_gradients, self.local_network.entropy],
                 feed_dict=feed_dict)
 
+            # grads = [p + q for p, q in zip(policy_grads, q_grads)]
             self.apply_gradients_to_shared_memory_vars(grads)
+            self.apply_batch_q_update()
 
-            q_update_counter += 1
-            if q_update_counter % 4 == 0:
-                self.apply_batch_q_update()
+            # q_update_counter += 1
+            # if q_update_counter % 4 == 0:
+            
 
             delta_old = local_step_start - episode_start_step
             delta_new = self.local_step -  local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
             
             s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
-                s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
+                s, mean_entropy, np.array(values).mean(), episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)
 
 
 @Experimental
@@ -266,8 +259,7 @@ class PGQLSTMLearner(BasePGQLearner):
         network_output_v = np.asscalar(network_output_v)
         q_tilde = q_tilde[0]
         
-        probs = self.softmax(q_tilde, self.beta)
-        action_index = self.sample_policy_action(probs)
+        action_index = self.sample_policy_action(network_output_pi)
         new_action = np.zeros([self.num_actions])
         new_action[action_index] = 1
 
