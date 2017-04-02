@@ -4,11 +4,10 @@
 
 Tensorflow based implementations of [A3C](https://arxiv.org/abs/1602.01783),
 [PGQ](https://arxiv.org/abs/1611.01626), 
-[TRPO](https://arxiv.org/abs/1502.05477), and
+[TRPO](https://arxiv.org/abs/1502.05477),
+[DQN+CTS](https://arxiv.org/abs/1606.01868), and
 [CEM](http://www.aaai.org/Papers/ICML/2003/ICML03-068.pdf)
 originally based on https://github.com/traai/async-deep-rl. I extensively refactored most of the code and beyond the new algorithms added several additional options including the a3c-lstm architecture, a fully-connected architecture to allow training on non-image-based gym environments, and support for the AdaMax optimizer.
-
-There's also implementations of the A3C+ and DDQN+ models from [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/abs/1606.01868) but they're very preliminary and I haven't yet been successful in reproducing their results on Montezuma's Revenge.
 
 The code also includes some experimental ideas I'm toying with and I'm planning on adding the following implementations
 in the near future:
@@ -23,6 +22,8 @@ break something as I'm planning on doing a lot more refactoring.
 
 I tried to match my PGQ implementation as closely as possible to what they describe in the paper but I've noticed the
 average episode reward can exhibit a pathological oscillatory behavior or suddenly collapse during training. If someone spots a flaw in my implementation I'd be extremely grateful to get your feedback.
+
+There's also an implementation of the A3C+ model from [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/abs/1606.01868) but I'm still running some experiments to verify that I can get similar results to the paper.
 
 # Running the code
 First you'll need to install the cython extensions needed for the hog updates and CTS density model:
