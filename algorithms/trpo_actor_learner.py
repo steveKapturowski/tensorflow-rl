@@ -49,8 +49,9 @@ class TRPOLearner(BaseA3CLearner):
 		self.max_kl = args.max_kl
 		self.max_rollout = args.max_rollout
 		self.episodes_per_batch = args.trpo_episodes
-		self.episode_counter = args.episode_counter
-		self.queue = args.queue
+		# self.episode_counter = args.episode_counter
+		self.experience_queue = args.experience_queue
+		self.task_queue = args.task_queue
 		self._build_ops()
 
 
@@ -84,6 +85,38 @@ class TRPOLearner(BaseA3CLearner):
 
 		self.pg_placeholder = tf.placeholder(tf.float32, shape=self.pg.get_shape().as_list(), name='pg_placeholder')
 		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(-self.pg_placeholder, flat_kl_grads)
+
+
+	def cg(self, f_Ax, b, cg_iters=10, callback=None, verbose=False, residual_tol=1e-10):
+
+		def fisher_vector_product(p):
+			feed[self.flat_tangent] = p
+			return self.session.run(self.fvp, feed) + pms.cg_damping * p
+		p = b.copy()
+		r = b.copy()
+		x = np.zeros_like(b)
+		rdotr = r.dot(r)
+
+		for i in xrange(cg_iters):
+			if callback is not None:
+				callback(x)
+			if verbose: print fmtstr % (i, rdotr, np.linalg.norm(x))
+			z = f_Ax(p)
+			v = rdotr / (p.dot(z) + 1e-8)
+			x += v * p
+			r -= v * z
+			newrdotr = r.dot(r)
+			mu = newrdotr / (rdotr + 1e-8)
+			p = r + mu * p
+
+			rdotr = newrdotr
+			if rdotr < residual_tol:
+				break
+
+		if callback is not None:
+			callback(x)
+		if verbose: print fmtstr % (i + 1, rdotr, np.linalg.norm(x))  # pylint: disable=W0631
+		return x
 
 
 	def _conjugate_gradient_ops(self, pg_grads, kl_grads, max_iterations=20, residual_tol=1e-10):
@@ -130,6 +163,52 @@ class TRPOLearner(BaseA3CLearner):
 		neggdotstepdir = -tf.reduce_sum(pg_grads*stepdir)
 
 		return fullstep, -neggdotstepdir
+
+
+	# def _conjugate_gradient_ops(self, pg_grads, kl_grads, max_iterations=20, residual_tol=1e-10):
+	# 	'''
+	# 	Construct conjugate gradient descent algorithm inside computation graph for improved efficiency
+	# 	'''
+	# 	i0 = tf.constant(0, dtype=tf.int32)
+	# 	loop_condition = lambda i, r, p, x, rdotr: tf.logical_or(
+	# 		tf.less(rdotr, residual_tol), tf.less(i, max_iterations))
+
+
+	# 	def body(i, r, p, x, rdotr):
+	# 		fvp = utils.ops.flatten_vars(tf.gradients(
+	# 			tf.reduce_sum(tf.stop_gradient(p)*kl_grads),
+	# 			self.policy_network.params))
+
+	# 		z = fvp + self.cg_damping * p
+
+	# 		alpha = rdotr / (tf.reduce_sum(p*z) + 1e-8)
+	# 		x += alpha * p
+	# 		r -= alpha * z
+
+	# 		new_rdotr = tf.reduce_sum(r*r)
+	# 		beta = new_rdotr / (rdotr + 1e-8)
+	# 		p = r + beta * p
+
+	# 		return i+1, r, p, x, new_rdotr
+
+	# 	_, r, p, stepdir, rdotr = tf.while_loop(
+	# 		loop_condition,
+	# 		body,
+	# 		loop_vars=[i0,
+	# 				   pg_grads,
+	# 				   pg_grads,
+	# 				   tf.zeros_like(pg_grads),
+	# 				   tf.reduce_sum(pg_grads*pg_grads)])
+
+	# 	fvp = utils.ops.flatten_vars(tf.gradients(
+	# 		tf.reduce_sum(tf.stop_gradient(stepdir)*kl_grads),
+	# 		self.policy_network.params)) + self.cg_damping * stepdir
+
+	# 	shs = 0.5 * tf.reduce_sum(stepdir*fvp)
+	# 	fullstep = stepdir * tf.sqrt(2.0 * self.max_kl / shs)
+	# 	neggdotstepdir = -tf.reduce_sum(pg_grads*stepdir)
+
+	# 	return fullstep, -neggdotstepdir
 
 
 	def choose_next_action(self, state):
@@ -188,6 +267,8 @@ class TRPOLearner(BaseA3CLearner):
 
 	def update_grads(self, data):
 		#we need to compute the policy gradient in minibatches to avoid GPU OOM errors on Atari
+		
+		print 'run minibatches...'
 		pg = self.run_minibatches(data, self.pg)[0]
 
 		#subsample data for conjugate gradient step
@@ -201,9 +282,12 @@ class TRPOLearner(BaseA3CLearner):
 			self.old_action_probs:                  data['pi'][subsample],
 			self.pg_placeholder:                    pg
 		}
+
+		print 'theta / fullstep...'
 		theta_prev, fullstep, neggdotstepdir = self.session.run(
 			[self.theta, self.fullstep, self.neggdotstepdir], feed_dict=feed_dict)
 
+		print 'running linesearch...'
 		new_theta = self.linesearch(data, theta_prev, fullstep)
 		self.assign_vars(self.policy_network, new_theta)
 
@@ -212,10 +296,10 @@ class TRPOLearner(BaseA3CLearner):
 
 	def _run_worker(self):		
 		while True:
-			if self.episode_counter.value() >= self.episodes_per_batch:
-				time.sleep(.01)
-				continue
-
+			# if self.episode_counter.value() >= self.episodes_per_batch:
+			# 	time.sleep(.01)
+			# 	continue
+			self.task_queue.get()
 			self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 			s = self.emulator.get_initial_state()
 
@@ -249,8 +333,8 @@ class TRPOLearner(BaseA3CLearner):
 			logger.debug('T{} / Episode Reward {}'.format(
 				self.actor_id, episode_reward))
 
-			self.queue.put((data, episode_reward))
-			self.episode_counter.increment()
+			self.experience_queue.put((data, episode_reward))
+			# self.episode_counter.increment()
 			
 
 	def _run_master(self):
@@ -261,10 +345,14 @@ class TRPOLearner(BaseA3CLearner):
 				'action': list(),
 				'reward': list(),
 			}
+			#launch worker tasks
+			for i in xrange(self.episodes_per_batch):
+				self.task_queue.put(i)
+
 			#collect worker experience
 			episode_rewards = list()
 			for _ in xrange(self.episodes_per_batch):
-				worker_data, reward = self.queue.get()
+				worker_data, reward = self.experience_queue.get()
 				episode_rewards.append(reward)
 				for key, value in worker_data.items():
 					data[key].extend(value)
@@ -274,8 +362,10 @@ class TRPOLearner(BaseA3CLearner):
 			self.update_shared_memory()
 
 			#discard old data
-			while not self.queue.empty(): self.queue.get()
-			self.episode_counter.set_value(0)
+			# while not self.experience_queue.empty():
+			# 	print 'discarding old data'
+			# 	self.experience_queue.get()
+			# self.episode_counter.set_value(0)
 
 			mean_episode_reward = np.array(episode_rewards).mean()
 			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {}'.format(
@@ -283,14 +373,26 @@ class TRPOLearner(BaseA3CLearner):
 
 
 	def _run(self):
-		if self.is_master():
-			try:
+		# if self.is_master():
+		# 	try:
+		# 		self._run_master()
+		# 	except KeyboardInterrupt:
+		# 		while not self.experience_queue.empty():
+		# 			print 'emptying queue'
+		# 			self.experience_queue.get()
+		# else:
+		# 	self._run_worker()
+
+		try:
+			if self.is_master():
 				self._run_master()
-			except KeyboardInterrupt:
-				while not self.queue.empty():
-					self.queue.get()
-		else:
-			self._run_worker()
+			else:
+				self._run_worker()
+
+		except KeyboardInterrupt:
+			while not self.experience_queue.empty():
+				print 'T{} emptying queue'.format(self.actor_id)
+				self.experience_queue.get()
 
 
 

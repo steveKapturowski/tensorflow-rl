@@ -377,8 +377,6 @@ class PseudoCountQLearner(ValueBasedLearner):
             feed_dict={self.target_network.input_ph: s_f})[range(self.batch_size), q_max_idx]
 
         y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
-        # y_target = r_i + self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
-        # y_target = r_i
 
         feed_dict={
             self.local_network.input_ph: s_i,

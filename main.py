@@ -103,6 +103,7 @@ def main(args):
     #spin up processes and block
     if (args.visualize == 2): args.visualize = 0        
     actor_learners = []
+    task_queue = Queue()
     experience_queue = Queue()
     for i in xrange(args.num_actor_learners):
         if (args.visualize == 2) and (i == args.num_actor_learners - 1):
@@ -113,8 +114,10 @@ def main(args):
         rng = np.random.RandomState(int(time.time()))
         args.random_seed = rng.randint(1000)
             
-        #pass in gpu name to learner here and wrap each learner in device context
-        args.queue = experience_queue #only used by TRPO
+        #only used by TRPO
+        args.task_queue = task_queue
+        args.experience_queue = experience_queue
+
         args.input_shape = input_shape
         actor_learners.append(Learner(args))
         actor_learners[-1].start()
