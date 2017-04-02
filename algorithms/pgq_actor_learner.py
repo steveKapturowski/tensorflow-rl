@@ -86,8 +86,8 @@ class BasePGQLearner(BaseA3CLearner):
         )
         # print 'max_TQ={}, Q_a={}'.format(max_TQ[:5], Q_a[:5])
 
-        self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
-        # self.apply_gradients_to_shared_memory_vars(batch_grads)
+        # self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
+        self.apply_gradients_to_shared_memory_vars(batch_grads)
         # return batch_grads
 
 
