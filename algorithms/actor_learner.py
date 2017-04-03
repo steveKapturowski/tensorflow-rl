@@ -331,7 +331,7 @@ class ActorLearner(Process):
             offset += size
         
         self.session.run(dest_net.sync_with_shared_memory, 
-                feed_dict=feed_dict)
+            feed_dict=feed_dict)
 
     
     def _get_summary_vars(self):

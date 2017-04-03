@@ -79,24 +79,32 @@ def main(args):
         'num_act': num_actions,
         'args': args
     })
-
     #initialize shared variables
-    args.learning_vars = SharedVars(network)
-    
+    args.learning_vars = SharedVars(network.params)
+
     args.opt_state = SharedVars(
-        network, opt_type=args.opt_type, lr=args.initial_lr
+        network.params, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
 
     args.batch_opt_state = SharedVars(
-        network, opt_type=args.opt_type, lr=args.initial_lr
+        network.params, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
 
+    #TODO: need to refactor so TRPO+GAE doesn't need special treatment
+    if args.alg_type == 'trpo':
+        baseline_network = PolicyValueNetwork({
+            'name': 'shared_value_network',
+            'input_shape': input_shape,
+            'num_act': num_actions,
+            'args': args
+        }, use_policy_head=False)
+        args.baseline_vars = SharedVars(baseline_network.params)
+        
     if args.alg_type in ['q', 'sarsa', 'dueling', 'dqn-cts']:
-        args.target_vars = SharedVars(network)
+        args.target_vars = SharedVars(network.params)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
-    
+
     args.barrier = Barrier(args.num_actor_learners)
-    args.episode_counter = SharedCounter(0)
     args.global_step = SharedCounter(0)
     args.num_actions = num_actions
 

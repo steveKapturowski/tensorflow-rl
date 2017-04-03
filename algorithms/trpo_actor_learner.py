@@ -27,18 +27,20 @@ class TRPOLearner(BaseA3CLearner):
 		args.entropy_regularisation_strength = 0.0
 		super(TRPOLearner, self).__init__(args)
 
-		policy_conf = {'name': 'local_learning_{}'.format(self.actor_id),
+		policy_conf = {'name': 'policy_network_{}'.format(self.actor_id),
 					   'input_shape': self.input_shape,
 					   'num_act': self.num_actions,
 					   'args': args}
+		value_conf = policy_conf.copy()
+		value_conf['name'] = 'value_network_{}'.format(self.actor_id)
 
 		#we use separate networks as in the paper since so we don't do damage to the trust region updates
 		self.policy_network = PolicyValueNetwork(policy_conf, use_value_head=False)
 		self.local_network = self.policy_network
-		#self.value_network = PolicyValueNetwork(value_conf, use_policy_head=False)
+		self.value_network = PolicyValueNetwork(value_conf, use_policy_head=False)
 
 		if self.is_master():
-			var_list = self.policy_network.params #+self.value_network.params
+			var_list = self.policy_network.params + self.value_network.params
 			self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
 
@@ -49,7 +51,7 @@ class TRPOLearner(BaseA3CLearner):
 		self.max_kl = args.max_kl
 		self.max_rollout = args.max_rollout
 		self.episodes_per_batch = args.trpo_episodes
-		# self.episode_counter = args.episode_counter
+		self.baseline_vars = args.baseline_vars
 		self.experience_queue = args.experience_queue
 		self.task_queue = args.task_queue
 		self._build_ops()
@@ -85,38 +87,6 @@ class TRPOLearner(BaseA3CLearner):
 
 		self.pg_placeholder = tf.placeholder(tf.float32, shape=self.pg.get_shape().as_list(), name='pg_placeholder')
 		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(-self.pg_placeholder, flat_kl_grads)
-
-
-	def cg(self, f_Ax, b, cg_iters=10, callback=None, verbose=False, residual_tol=1e-10):
-
-		def fisher_vector_product(p):
-			feed[self.flat_tangent] = p
-			return self.session.run(self.fvp, feed) + pms.cg_damping * p
-		p = b.copy()
-		r = b.copy()
-		x = np.zeros_like(b)
-		rdotr = r.dot(r)
-
-		for i in xrange(cg_iters):
-			if callback is not None:
-				callback(x)
-			if verbose: print fmtstr % (i, rdotr, np.linalg.norm(x))
-			z = f_Ax(p)
-			v = rdotr / (p.dot(z) + 1e-8)
-			x += v * p
-			r -= v * z
-			newrdotr = r.dot(r)
-			mu = newrdotr / (rdotr + 1e-8)
-			p = r + mu * p
-
-			rdotr = newrdotr
-			if rdotr < residual_tol:
-				break
-
-		if callback is not None:
-			callback(x)
-		if verbose: print fmtstr % (i + 1, rdotr, np.linalg.norm(x))  # pylint: disable=W0631
-		return x
 
 
 	def _conjugate_gradient_ops(self, pg_grads, kl_grads, max_iterations=20, residual_tol=1e-10):
@@ -163,52 +133,6 @@ class TRPOLearner(BaseA3CLearner):
 		neggdotstepdir = -tf.reduce_sum(pg_grads*stepdir)
 
 		return fullstep, -neggdotstepdir
-
-
-	# def _conjugate_gradient_ops(self, pg_grads, kl_grads, max_iterations=20, residual_tol=1e-10):
-	# 	'''
-	# 	Construct conjugate gradient descent algorithm inside computation graph for improved efficiency
-	# 	'''
-	# 	i0 = tf.constant(0, dtype=tf.int32)
-	# 	loop_condition = lambda i, r, p, x, rdotr: tf.logical_or(
-	# 		tf.less(rdotr, residual_tol), tf.less(i, max_iterations))
-
-
-	# 	def body(i, r, p, x, rdotr):
-	# 		fvp = utils.ops.flatten_vars(tf.gradients(
-	# 			tf.reduce_sum(tf.stop_gradient(p)*kl_grads),
-	# 			self.policy_network.params))
-
-	# 		z = fvp + self.cg_damping * p
-
-	# 		alpha = rdotr / (tf.reduce_sum(p*z) + 1e-8)
-	# 		x += alpha * p
-	# 		r -= alpha * z
-
-	# 		new_rdotr = tf.reduce_sum(r*r)
-	# 		beta = new_rdotr / (rdotr + 1e-8)
-	# 		p = r + beta * p
-
-	# 		return i+1, r, p, x, new_rdotr
-
-	# 	_, r, p, stepdir, rdotr = tf.while_loop(
-	# 		loop_condition,
-	# 		body,
-	# 		loop_vars=[i0,
-	# 				   pg_grads,
-	# 				   pg_grads,
-	# 				   tf.zeros_like(pg_grads),
-	# 				   tf.reduce_sum(pg_grads*pg_grads)])
-
-	# 	fvp = utils.ops.flatten_vars(tf.gradients(
-	# 		tf.reduce_sum(tf.stop_gradient(stepdir)*kl_grads),
-	# 		self.policy_network.params)) + self.cg_damping * stepdir
-
-	# 	shs = 0.5 * tf.reduce_sum(stepdir*fvp)
-	# 	fullstep = stepdir * tf.sqrt(2.0 * self.max_kl / shs)
-	# 	neggdotstepdir = -tf.reduce_sum(pg_grads*stepdir)
-
-	# 	return fullstep, -neggdotstepdir
 
 
 	def choose_next_action(self, state):
@@ -264,15 +188,33 @@ class TRPOLearner(BaseA3CLearner):
 		logger.debug('No update')
 		return x
 
+	def fit_baseline(self, data):
+		feed_dict={
+			self.value_network.input_ph:         data['state'],
+			self.value_network.critic_target_ph: data['reward'],
+		}
+		self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
+
+
+	def predict_values(self, data):		
+		return self.session.run(
+			self.value_network.output_layer_v,
+			feed_dict={self.value_network.input_ph: data['state']})[:, 0]
+
 
 	def update_grads(self, data):
 		#we need to compute the policy gradient in minibatches to avoid GPU OOM errors on Atari
-		
-		print 'run minibatches...'
+
+		values = self.predict_values(data)
+		advantages = data['reward'] - values
+		data['reward'] = advantages
+
+		print 'fitting baseline...'
+		self.fit_baseline(data)
+
+		print 'running policy gradient...'
 		pg = self.run_minibatches(data, self.pg)[0]
 
-		#subsample data for conjugate gradient step
-		# subsample = np.random.choice(len(data['state']), self.batch_size, replace=False)
 		data_size = len(data['state'])
 		subsample = np.random.choice(data_size, int(data_size*self.cg_subsample), replace=False)
 		feed_dict={
@@ -283,7 +225,7 @@ class TRPOLearner(BaseA3CLearner):
 			self.pg_placeholder:                    pg
 		}
 
-		print 'theta / fullstep...'
+		print 'running conjugate gradient descent...'
 		theta_prev, fullstep, neggdotstepdir = self.session.run(
 			[self.theta, self.fullstep, self.neggdotstepdir], feed_dict=feed_dict)
 
@@ -298,6 +240,7 @@ class TRPOLearner(BaseA3CLearner):
 		while True:
 			self.task_queue.get()
 			self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+			self.sync_net_with_shared_memory(self.value_network, self.baseline_vars)
 			s = self.emulator.get_initial_state()
 
 			data = {
