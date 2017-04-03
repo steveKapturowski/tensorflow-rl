@@ -44,7 +44,7 @@ class TRPOLearner(BaseA3CLearner):
 			self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
 
-		self.batch_size = 512
+		self.batch_size = 256
 		self.num_epochs = args.trpo_epochs
 		self.cg_damping = args.cg_damping
 		self.cg_subsample = args.cg_subsample

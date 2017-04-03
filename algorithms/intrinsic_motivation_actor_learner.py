@@ -482,8 +482,6 @@ class PseudoCountQLearner(ValueBasedLearner):
                     mc_returns.insert(0, running_total)
 
                 mixed_returns = self.cts_eta*np.array(rewards) + (1-self.cts_eta)*np.array(mc_returns)
-                # mixed_returns = np.array(rewards)
-                # mixed_returns = np.array(mc_returns)
 
                 #update replay memory
                 states.append(new_s)
