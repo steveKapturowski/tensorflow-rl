@@ -45,7 +45,7 @@ class TRPOLearner(BaseA3CLearner):
                                         keep_checkpoint_every_n_hours=2)
 
 		self.batch_size = 512
-		self.num_epochs = 1000
+		self.num_epochs = args.trpo_epochs
 		self.cg_damping = args.cg_damping
 		self.cg_subsample = args.cg_subsample
 		self.max_kl = args.max_kl
@@ -205,9 +205,10 @@ class TRPOLearner(BaseA3CLearner):
 	def update_grads(self, data):
 		#we need to compute the policy gradient in minibatches to avoid GPU OOM errors on Atari
 
-		values = self.predict_values(data)
-		advantages = data['reward'] - values
-		data['reward'] = advantages
+		# values = self.predict_values(data)
+		# advantages = data['reward'] - values
+		# data['reward'] = advantages
+		data['reward'] = data['advantage']
 
 		print 'fitting baseline...'
 		self.fit_baseline(data)
@@ -238,7 +239,10 @@ class TRPOLearner(BaseA3CLearner):
 
 	def _run_worker(self):		
 		while True:
-			self.task_queue.get()
+			signal = self.task_queue.get()
+			if signal == 'EXIT':
+				break
+
 			self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 			self.sync_net_with_shared_memory(self.value_network, self.baseline_vars)
 			s = self.emulator.get_initial_state()
@@ -279,10 +283,11 @@ class TRPOLearner(BaseA3CLearner):
 	def _run_master(self):
 		for epoch in range(self.num_epochs):
 			data = {
-				'state':  list(),
-				'pi':     list(),
-				'action': list(),
-				'reward': list(),
+				'state':     list(),
+				'pi':        list(),
+				'action':    list(),
+				'reward':    list(),
+				'advantage': list(),
 			}
 			#launch worker tasks
 			for i in xrange(self.episodes_per_batch):
@@ -293,13 +298,16 @@ class TRPOLearner(BaseA3CLearner):
 			for _ in xrange(self.episodes_per_batch):
 				worker_data, reward = self.experience_queue.get()
 				episode_rewards.append(reward)
+
+				values = self.predict_values(worker_data)
+				advantages = self.compute_gae(worker_data['reward'], values.tolist(), 0)
+				worker_data['advantage'] = advantages
 				for key, value in worker_data.items():
 					data[key].extend(value)
 					
 			kl = self.update_grads({
 				k: np.array(v) for k, v in data.items()})
 			self.update_shared_memory()
-
 
 			mean_episode_reward = np.array(episode_rewards).mean()
 			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {}'.format(
@@ -308,7 +316,7 @@ class TRPOLearner(BaseA3CLearner):
 
 	def _cleanup(self):
 		if self.is_master():
-			queue = self.task_queue 
+			queue = self.task_queue
 		else:
 			queue = self.experience_queue
 
@@ -320,12 +328,13 @@ class TRPOLearner(BaseA3CLearner):
 		try:
 			if self.is_master():
 				self._run_master()
+				for _ in xrange(self.num_actor_learners):
+					self.task_queue.put('EXIT')
 			else:
 				self._run_worker()
 
 		except KeyboardInterrupt:
-			#need to clean up queues or processes won't exit
+			logger.warning('Caught KeyboardInterrupt: Cleaning up worker queues -- Do not ctrl-c again!')
 			self._cleanup()
-
 
 
