@@ -193,7 +193,8 @@ class TRPOLearner(BaseA3CLearner):
 			self.value_network.input_ph:         data['state'],
 			self.value_network.critic_target_ph: data['reward'],
 		}
-		self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
+		grads = self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
+		self._apply_gradients_to_shared_memory_vars(grads, self.baseline_vars)
 
 
 	def predict_values(self, data):		

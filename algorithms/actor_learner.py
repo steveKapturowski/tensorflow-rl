@@ -241,11 +241,13 @@ class ActorLearner(Process):
             return 0.0
 
     def apply_gradients_to_shared_memory_vars(self, grads):
-        self._apply_gradients_to_shared_memory_vars(grads, self.opt_st)
+        self._apply_gradients_to_shared_memory_vars(grads, self.learning_vars)
 
 
     @only_on_train()
-    def _apply_gradients_to_shared_memory_vars(self, grads, opt_st):
+    def _apply_gradients_to_shared_memory_vars(self, grads, shared_vars):
+            opt_st = self.opt_st
+
             #Flatten grads
             offset = 0
             for g in grads:
@@ -253,12 +255,12 @@ class ActorLearner(Process):
                 offset += g.size
             g = self.flat_grads
 
-            self.learning_vars.step.value += 1
-            T = self.learning_vars.step.value
+            shared_vars.step.value += 1
+            T = shared_vars.step.value
 
             if self.optimizer_type == "adam" and self.optimizer_mode == "shared":
-                p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
-                p_size = self.learning_vars.size
+                p = np.frombuffer(shared_vars.vars, ctypes.c_float)
+                p_size = shared_vars.size
                 m = np.frombuffer(opt_st.ms, ctypes.c_float)
                 v = np.frombuffer(opt_st.vs, ctypes.c_float)
                 opt_st.lr.value =  1.0 * opt_st.lr.value * (1 - self.b2**T)**0.5 / (1 - self.b1**T) 
@@ -270,8 +272,8 @@ class ActorLearner(Process):
                 beta_2 = .999
                 lr = opt_st.lr.value
 
-                p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
-                p_size = self.learning_vars.size
+                p = np.frombuffer(shared_vars.vars, ctypes.c_float)
+                p_size = shared_vars.size
                 m = np.frombuffer(opt_st.ms, ctypes.c_float)
                 u = np.frombuffer(opt_st.vs, ctypes.c_float)
 
@@ -284,8 +286,8 @@ class ActorLearner(Process):
                 else: #shared 
                     m = np.frombuffer(opt_st.vars, ctypes.c_float)
                 
-                p = np.frombuffer(self.learning_vars.vars, ctypes.c_float)
-                p_size = self.learning_vars.size
+                p = np.frombuffer(shared_vars.vars, ctypes.c_float)
+                p_size = shared_vars.size
                 _type = 0 if self.optimizer_type == "momentum" else 1
                 
                 #print "BEFORE", "RMSPROP m", m[0], "GRAD", g[0], self.flat_grads[0], self.flat_grads2[0]
