@@ -334,7 +334,7 @@ class TRPOLearner(BaseA3CLearner):
 				self._run_worker()
 
 		except KeyboardInterrupt:
-			logger.warning('Caught KeyboardInterrupt: Cleaning up worker queues -- Do not ctrl-c again!')
+			logger.warning('Caught KeyboardInterrupt: Cleaning up worker queues -- Do not press ctrl-c again!')
 			self._cleanup()
 
 
