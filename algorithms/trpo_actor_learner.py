@@ -296,9 +296,6 @@ class TRPOLearner(BaseA3CLearner):
 
 	def _run_worker(self):		
 		while True:
-			# if self.episode_counter.value() >= self.episodes_per_batch:
-			# 	time.sleep(.01)
-			# 	continue
 			self.task_queue.get()
 			self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 			s = self.emulator.get_initial_state()
@@ -334,7 +331,6 @@ class TRPOLearner(BaseA3CLearner):
 				self.actor_id, episode_reward))
 
 			self.experience_queue.put((data, episode_reward))
-			# self.episode_counter.increment()
 			
 
 	def _run_master(self):
@@ -361,28 +357,23 @@ class TRPOLearner(BaseA3CLearner):
 				k: np.array(v) for k, v in data.items()})
 			self.update_shared_memory()
 
-			#discard old data
-			# while not self.experience_queue.empty():
-			# 	print 'discarding old data'
-			# 	self.experience_queue.get()
-			# self.episode_counter.set_value(0)
 
 			mean_episode_reward = np.array(episode_rewards).mean()
 			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {}'.format(
 				epoch+1, kl, mean_episode_reward))
 
 
-	def _run(self):
-		# if self.is_master():
-		# 	try:
-		# 		self._run_master()
-		# 	except KeyboardInterrupt:
-		# 		while not self.experience_queue.empty():
-		# 			print 'emptying queue'
-		# 			self.experience_queue.get()
-		# else:
-		# 	self._run_worker()
+	def _cleanup(self):
+		if self.is_master():
+			queue = self.task_queue 
+		else:
+			queue = self.experience_queue
 
+		while not queue.empty():
+			queue.get_nowait()
+
+
+	def _run(self):
 		try:
 			if self.is_master():
 				self._run_master()
@@ -390,13 +381,8 @@ class TRPOLearner(BaseA3CLearner):
 				self._run_worker()
 
 		except KeyboardInterrupt:
-			while not self.task_queue.empty():
-				print 'T{} emptying task queue'.format(self.actor_id)
-				self.task_queue.get_nowait()
-
-			while not self.experience_queue.empty():
-				print 'T{} emptying experience queue'.format(self.actor_id)
-				self.experience_queue.get_nowait()
+			#need to clean up queues or processes won't exit
+			self._cleanup()
 
 
 
