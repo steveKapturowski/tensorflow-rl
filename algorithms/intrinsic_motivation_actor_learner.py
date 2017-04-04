@@ -457,7 +457,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                     update_target = False
                     exec_update_target = True
 
-                if self.local_step % 4 == 0:
+                if self.local_step % self.q_update_interval == 0:
                     self.batch_update()
                 
                 self.local_network.global_step = global_step

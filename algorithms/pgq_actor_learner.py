@@ -23,7 +23,7 @@ class BasePGQLearner(BaseA3CLearner):
                          'input_shape': self.input_shape,
                          'num_act': self.num_actions,
                          'args': args}
-        
+
         self.local_network = PolicyValueNetwork(conf_learning)
         self.reset_hidden_state()
             
@@ -84,11 +84,7 @@ class BasePGQLearner(BaseA3CLearner):
                 self.terminal_indicator: is_terminal.astype(np.int),
             }
         )
-        # print 'max_TQ={}, Q_a={}'.format(max_TQ[:5], Q_a[:5])
-
-        # self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
         self.apply_gradients_to_shared_memory_vars(batch_grads)
-        # return batch_grads
 
 
 class PGQLearner(BasePGQLearner):
@@ -211,13 +207,19 @@ class PGQLearner(BasePGQLearner):
                 [self.local_network.get_gradients, self.local_network.entropy],
                 feed_dict=feed_dict)
 
-            # grads = [p + q for p, q in zip(policy_grads, q_grads)]
             self.apply_gradients_to_shared_memory_vars(grads)
-            self.apply_batch_q_update()
 
-            # q_update_counter += 1
-            # if q_update_counter % 4 == 0:
-            
+            q_update_counter += 1
+            if q_update_counter % self.q_update_interval == 0:
+                self.apply_batch_q_update()
+
+            # policy_grads, entropy = self.session.run(
+            #     [self.local_network.get_gradients, self.local_network.entropy],
+            #     feed_dict=feed_dict)
+            # q_grads = self.apply_batch_q_update()
+
+            # grads = [p + q for p, q in zip(policy_grads, q_grads)]
+            # self.apply_gradients_to_shared_memory_vars(grads)
 
             delta_old = local_step_start - episode_start_step
             delta_new = self.local_step -  local_step_start

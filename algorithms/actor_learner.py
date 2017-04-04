@@ -67,6 +67,7 @@ class ActorLearner(Process):
         self.is_train = args.is_train
         self.input_shape = args.input_shape
         self.reward_clip_val = args.reward_clip_val
+        self.q_update_interval = args.q_update_interval
         self.restore_checkpoint = args.restore_checkpoint
         
         # Shared mem vars

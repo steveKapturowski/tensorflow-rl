@@ -220,6 +220,7 @@ def get_config():
     parser.add_argument('--cts_beta', default=.05, type=float, help='weight by which to scale novelty bonuses', dest='cts_beta')
     parser.add_argument('--cts_eta', default=.9, type=float, help='mixing param between 1-step TD-Error and Monte-Carlo Error', dest='cts_eta')
     parser.add_argument('--density_model', default='cts', type=str, help='density model to use for generating novelty bonuses: cts, or pixel-counts', dest='density_model')
+    parser.add_argument('--q_update_interval', default=4, type=int, help='Number of steps between successive batch q-learning updates', dest='q_update_interval')
 
     if args.config_path:
         with open(args.config_path, 'r') as f:
