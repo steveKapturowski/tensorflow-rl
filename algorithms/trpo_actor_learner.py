@@ -28,7 +28,7 @@ class TRPOLearner(BaseA3CLearner):
 		args.entropy_regularisation_strength = 0.0
 		super(TRPOLearner, self).__init__(args)
 
-		self.batch_size = 256
+		self.batch_size = 512
 		self.num_epochs = args.trpo_epochs
 		self.cg_damping = args.cg_damping
 		self.cg_subsample = args.cg_subsample
@@ -48,7 +48,6 @@ class TRPOLearner(BaseA3CLearner):
 		value_conf['name'] = 'value_network_{}'.format(self.actor_id)
 
 		self.device = '/gpu:0' if self.is_master() else '/cpu:0'
-		# self.device = '/gpu:0'
 		with tf.device(self.device):
 			#we use separate networks as in the paper since so we don't do damage to the trust region updates
 			self.policy_network = PolicyValueNetwork(policy_conf, use_value_head=False)
