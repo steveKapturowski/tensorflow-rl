@@ -18,13 +18,17 @@ class BasePGQLearner(BaseA3CLearner):
 
         super(BasePGQLearner, self).__init__(args)
 
-        # args.entropy_regularisation_strength = 0.0
+        self.replay_size = args.replay_size
+        self.pgq_fraction = args.pgq_fraction
+        self.batch_update_size = args.batch_update_size
         conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
                          'input_shape': self.input_shape,
                          'num_act': self.num_actions,
                          'args': args}
 
         self.local_network = PolicyValueNetwork(conf_learning)
+        self._build_q_ops()
+
         self.reset_hidden_state()
             
         if self.is_master():
@@ -32,10 +36,12 @@ class BasePGQLearner(BaseA3CLearner):
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
 
+
+    def _build_q_ops(self):
         # pgq specific initialization
-        self.pgq_fraction = args.pgq_fraction
-        self.batch_size = args.batch_update_size
-        self.replay_memory = ReplayMemory(args.replay_size)
+        self.pgq_fraction = self.pgq_fraction
+        self.batch_size = self.batch_update_size
+        self.replay_memory = ReplayMemory(self.replay_size)
         self.q_tilde = self.local_network.beta * (
             self.local_network.log_output_layer_pi
             + tf.expand_dims(self.local_network.output_layer_entropy, 1)
@@ -62,14 +68,13 @@ class BasePGQLearner(BaseA3CLearner):
             self.q_gradients = [tf.clip_by_norm(
                 g, self.local_network.clip_norm) for g in self.q_gradients]
 
-
-        if (self.optimizer_mode == "local"):
-            if (self.optimizer_type == "rmsprop"):
-                self.batch_opt_st = np.ones(size, dtype=ctypes.c_float)
-            else:
-                self.batch_opt_st = np.zeros(size, dtype=ctypes.c_float)
-        elif (self.optimizer_mode == "shared"):
-                self.batch_opt_st = args.batch_opt_state
+        # if (self.optimizer_mode == "local"):
+        #     if (self.optimizer_type == "rmsprop"):
+        #         self.batch_opt_st = np.ones(size, dtype=ctypes.c_float)
+        #     else:
+        #         self.batch_opt_st = np.zeros(size, dtype=ctypes.c_float)
+        # elif (self.optimizer_mode == "shared"):
+        #         self.batch_opt_st = args.batch_opt_state
 
 
     def apply_batch_q_update(self):
@@ -286,7 +291,8 @@ class PGQLSTMLearner(BasePGQLearner):
         )
         # print 'max_TQ={}, Q_a={}'.format(max_TQ[:5], Q_a[:5])
 
-        self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
+        # self._apply_gradients_to_shared_memory_vars(batch_grads, opt_st=self.batch_opt_st)
+        self.apply_gradients_to_shared_memory_vars(batch_grads)
 
 
     def _run(self):

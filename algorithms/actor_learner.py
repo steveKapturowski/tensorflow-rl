@@ -1,10 +1,12 @@
 # -*- encoding: utf-8 -*-
-import numpy as np
-import utils.logger
-import tensorflow as tf
+import time
 import ctypes
 import tempfile
-import time
+import utils.logger
+import multiprocessing
+import tensorflow as tf
+import numpy as np
+
 from utils import checkpoint_utils
 from utils.decorators import only_on_train
 from utils.hogupdatemv import apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
@@ -29,6 +31,7 @@ ONE_LIFE_GAMES = [
     'Tennis-v0',
     #Classic Control
     'CartPole-v0',
+    'Pendulum-v0',
     'MountainCar-v0',
     'LunarLander-v2',
 ]
@@ -173,15 +176,15 @@ class ActorLearner(Process):
 
 
     def run(self):
+        num_cpus = multiprocessing.cpu_count()
         gpu_options = tf.GPUOptions(
-            # per_process_gpu_memory_fraction=.8,
             allow_growth=True
         )
         self.session = tf.Session(config=tf.ConfigProto(
-            gpu_options=gpu_options,
-            intra_op_parallelism_threads=4,
-            inter_op_parallelism_threads=4
-            ))
+            intra_op_parallelism_threads=num_cpus,
+            inter_op_parallelism_threads=num_cpus,
+            allow_soft_placement=True,
+            gpu_options=gpu_options))
 
 
         if self.is_master():

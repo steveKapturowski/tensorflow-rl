@@ -6,6 +6,7 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 
+from multiprocessing.queues import Empty
 from policy_based_actor_learner import BaseA3CLearner
 from networks.policy_v_network import PolicyValueNetwork
 
@@ -27,23 +28,6 @@ class TRPOLearner(BaseA3CLearner):
 		args.entropy_regularisation_strength = 0.0
 		super(TRPOLearner, self).__init__(args)
 
-		policy_conf = {'name': 'policy_network_{}'.format(self.actor_id),
-					   'input_shape': self.input_shape,
-					   'num_act': self.num_actions,
-					   'args': args}
-		value_conf = policy_conf.copy()
-		value_conf['name'] = 'value_network_{}'.format(self.actor_id)
-
-		#we use separate networks as in the paper since so we don't do damage to the trust region updates
-		self.policy_network = PolicyValueNetwork(policy_conf, use_value_head=False)
-		self.local_network = self.policy_network
-		self.value_network = PolicyValueNetwork(value_conf, use_policy_head=False)
-
-		if self.is_master():
-			var_list = self.policy_network.params + self.value_network.params
-			self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
-                                        keep_checkpoint_every_n_hours=2)
-
 		self.batch_size = 256
 		self.num_epochs = args.trpo_epochs
 		self.cg_damping = args.cg_damping
@@ -54,7 +38,27 @@ class TRPOLearner(BaseA3CLearner):
 		self.baseline_vars = args.baseline_vars
 		self.experience_queue = args.experience_queue
 		self.task_queue = args.task_queue
-		self._build_ops()
+
+
+		policy_conf = {'name': 'policy_network_{}'.format(self.actor_id),
+					   'input_shape': self.input_shape,
+					   'num_act': self.num_actions,
+					   'args': args}
+		value_conf = policy_conf.copy()
+		value_conf['name'] = 'value_network_{}'.format(self.actor_id)
+
+		self.device = '/gpu:0' if self.is_master() else '/cpu:0'
+		with tf.device(self.device):
+			#we use separate networks as in the paper since so we don't do damage to the trust region updates
+			self.policy_network = PolicyValueNetwork(policy_conf, use_value_head=False)
+			self.value_network = PolicyValueNetwork(value_conf, use_policy_head=False)
+			self.local_network = self.policy_network
+			self._build_ops()
+
+		if self.is_master():
+			var_list = self.policy_network.params + self.value_network.params
+			self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
+                                        keep_checkpoint_every_n_hours=2)
 
 
 	def _build_ops(self):
@@ -315,27 +319,13 @@ class TRPOLearner(BaseA3CLearner):
 				epoch+1, kl, mean_episode_reward))
 
 
-	def _cleanup(self):
-		if self.is_master():
-			queue = self.task_queue
-		else:
-			queue = self.experience_queue
-
-		while not queue.empty():
-			queue.get_nowait()
-
-
 	def _run(self):
-		try:
-			if self.is_master():
-				self._run_master()
-				for _ in xrange(self.num_actor_learners):
-					self.task_queue.put('EXIT')
-			else:
-				self._run_worker()
+		if self.is_master():
+			self._run_master()
+			for _ in xrange(self.num_actor_learners):
+				self.task_queue.put('EXIT')
+		else:
+			self._run_worker()
 
-		except KeyboardInterrupt:
-			logger.warning('Caught KeyboardInterrupt: Cleaning up worker queues -- Do not press ctrl-c again!')
-			self._cleanup()
 
 

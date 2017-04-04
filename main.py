@@ -7,12 +7,11 @@ import yaml
 import argparse
 import numpy as np
 import utils.logger
+import multiprocessing
 import tensorflow as tf
 
 from networks.q_network import QNetwork
 from multiprocessing import Process, Queue
-# from multiprocessing import Queue
-# from threading import Thread as Process
 from networks.dueling_network import DuelingNetwork
 from networks.policy_v_network import PolicyNetwork, PolicyValueNetwork, PolicyRepeatNetwork, SequencePolicyVNetwork
 from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
@@ -108,6 +107,11 @@ def main(args):
     args.global_step = SharedCounter(0)
     args.num_actions = num_actions
 
+    cuda_visible_devices = os.getenv('CUDA_VISIBLE_DEVICES')
+    num_gpus = 0
+    if cuda_visible_devices:
+        num_gpus = len(cuda_visible_devices.split())
+
     #spin up processes and block
     if (args.visualize == 2): args.visualize = 0        
     actor_learners = []
@@ -118,6 +122,7 @@ def main(args):
             args.args.visualize = 1
 
         args.actor_id = i
+        args.device = '/gpu:{}'.format(i % num_gpus) if num_gpus else '/cpu:0'
         
         rng = np.random.RandomState(int(time.time()))
         args.random_seed = rng.randint(1000)
@@ -130,8 +135,14 @@ def main(args):
         actor_learners.append(Learner(args))
         actor_learners[-1].start()
 
-    for t in actor_learners:
-        t.join()
+
+    try:
+        for t in actor_learners:
+            t.join()
+    except KeyboardInterrupt:
+        #Terminate with extreme prejudice
+        for t in actor_learners:
+            t.terminate()     
     
     logger.info('All training threads finished!')
 
