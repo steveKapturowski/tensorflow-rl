@@ -194,10 +194,6 @@ class TRPOLearner(BaseA3CLearner):
 		return x
 
 	def fit_baseline(self, data):
-		# feed_dict={
-		# 	self.value_network.input_ph:         data['state'],
-		# 	self.value_network.critic_target_ph: data['reward'],
-		# }
 		data_size = len(data['state'])
 		grads = [np.zeros(g.get_shape().as_list(), dtype=np.float32) for g in self.value_network.get_gradients]
 		for start in range(0, data_size, self.batch_size):
@@ -211,8 +207,6 @@ class TRPOLearner(BaseA3CLearner):
 			for i, g in enumerate(output_i):
 				grads[i] += g * (end-start)/float(data_size)
 
-		# grads = self.run_minibatches(data, self.value_network.get_gradients)
-		# grads = self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
 		self._apply_gradients_to_shared_memory_vars(grads, self.baseline_vars)
 
 
@@ -333,7 +327,7 @@ class TRPOLearner(BaseA3CLearner):
 			t2 = time.time()
 
 			mean_episode_reward = np.array(episode_rewards).mean()
-			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {} / Experience Time {:.2f}s / Training Time {:.2f}'.format(
+			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {} / Experience Time {:.2f}s / Training Time {:.2f}s'.format(
 				epoch+1, kl, mean_episode_reward, t1-t0, t2-t1))
 
 
