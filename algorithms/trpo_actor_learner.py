@@ -48,6 +48,7 @@ class TRPOLearner(BaseA3CLearner):
 		value_conf['name'] = 'value_network_{}'.format(self.actor_id)
 
 		self.device = '/gpu:0' if self.is_master() else '/cpu:0'
+		# self.device = '/gpu:0'
 		with tf.device(self.device):
 			#we use separate networks as in the paper since so we don't do damage to the trust region updates
 			self.policy_network = PolicyValueNetwork(policy_conf, use_value_head=False)
@@ -193,11 +194,25 @@ class TRPOLearner(BaseA3CLearner):
 		return x
 
 	def fit_baseline(self, data):
-		feed_dict={
-			self.value_network.input_ph:         data['state'],
-			self.value_network.critic_target_ph: data['reward'],
-		}
-		grads = self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
+		# feed_dict={
+		# 	self.value_network.input_ph:         data['state'],
+		# 	self.value_network.critic_target_ph: data['reward'],
+		# }
+		data_size = len(data['state'])
+		grads = [np.zeros(g.get_shape().as_list(), dtype=np.float32) for g in self.value_network.get_gradients]
+		for start in range(0, data_size, self.batch_size):
+			end = start + np.minimum(self.batch_size, data_size-start)
+			feed_dict={
+				self.value_network.input_ph:         data['state'][start:end],
+				self.value_network.critic_target_ph: data['reward'][start:end],
+			}
+			output_i = self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
+			
+			for i, g in enumerate(output_i):
+				grads[i] += g * (end-start)/float(data_size)
+
+		# grads = self.run_minibatches(data, self.value_network.get_gradients)
+		# grads = self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
 		self._apply_gradients_to_shared_memory_vars(grads, self.baseline_vars)
 
 
@@ -300,6 +315,7 @@ class TRPOLearner(BaseA3CLearner):
 
 			#collect worker experience
 			episode_rewards = list()
+			t0 = time.time()
 			for _ in xrange(self.episodes_per_batch):
 				worker_data, reward = self.experience_queue.get()
 				episode_rewards.append(reward)
@@ -310,13 +326,15 @@ class TRPOLearner(BaseA3CLearner):
 				for key, value in worker_data.items():
 					data[key].extend(value)
 					
+			t1 = time.time()
 			kl = self.update_grads({
 				k: np.array(v) for k, v in data.items()})
 			self.update_shared_memory()
+			t2 = time.time()
 
 			mean_episode_reward = np.array(episode_rewards).mean()
-			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {}'.format(
-				epoch+1, kl, mean_episode_reward))
+			logger.info('Epoch {} / Mean KL Divergence {} / Mean Reward {} / Experience Time {:.2f}s / Training Time {:.2f}'.format(
+				epoch+1, kl, mean_episode_reward, t1-t0, t2-t1))
 
 
 	def _run(self):

@@ -177,13 +177,15 @@ class ActorLearner(Process):
 
     def run(self):
         num_cpus = multiprocessing.cpu_count()
-        gpu_options = tf.GPUOptions(
-            allow_growth=True
-        )
+        if self.is_master():
+            gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
+        else:
+            # gpu_options = tf.GPUOptions()
+            gpu_options = tf.GPUOptions(allow_growth=True)
         self.session = tf.Session(config=tf.ConfigProto(
             intra_op_parallelism_threads=num_cpus,
             inter_op_parallelism_threads=num_cpus,
-            allow_soft_placement=True,
+            # allow_soft_placement=True,
             gpu_options=gpu_options))
 
 
