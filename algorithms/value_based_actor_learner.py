@@ -25,11 +25,8 @@ class ValueBasedLearner(ActorLearner):
                          'input_shape': self.input_shape,
                          'num_act': self.num_actions,
                          'args': args}
-
-        conf_target = {'name': "local_target_{}".format(self.actor_id),
-                       'input_shape': self.input_shape,
-                       'num_act': self.num_actions,
-                       'args': args}
+        conf_target = conf_learning.copy()
+        conf_target['name'] = 'local_target_{}'.format(self.actor_id)
         
         self.local_network = network_type(conf_learning)
         self.target_network = network_type(conf_target)

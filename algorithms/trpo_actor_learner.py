@@ -130,13 +130,18 @@ class TRPOLearner(BaseA3CLearner):
 
 		fvp = utils.ops.flatten_vars(tf.gradients(
 			tf.reduce_sum(tf.stop_gradient(stepdir)*kl_grads),
-			self.policy_network.params)) + self.cg_damping * stepdir
+			self.policy_network.params)) #+ self.cg_damping * stepdir
+
+		# shs = 0.5 * tf.reduce_sum(stepdir*fvp)
+		# fullstep = stepdir * tf.sqrt(2.0 * self.max_kl / shs)
+		# neggdotstepdir = tf.reduce_sum(pg_grads*stepdir)
 
 		shs = 0.5 * tf.reduce_sum(stepdir*fvp)
-		fullstep = stepdir * tf.sqrt(2.0 * self.max_kl / shs)
-		neggdotstepdir = -tf.reduce_sum(pg_grads*stepdir)
+		lm = tf.sqrt(shs / self.max_kl)
+		fullstep = stepdir / lm
+		neggdotstepdir = tf.reduce_sum(pg_grads*stepdir) / lm
 
-		return fullstep, -neggdotstepdir
+		return fullstep, neggdotstepdir
 
 
 	def choose_next_action(self, state):
@@ -171,26 +176,46 @@ class TRPOLearner(BaseA3CLearner):
 		return outputs
 
 
-	#There doesn't seem to be a clean way to build the line search into the computation graph
-	#so we'll have to hop back and forth between cpu and gpu each iteration
-	def linesearch(self, data, x, fullstep):
-		max_backtracks = 10
+	# def linesearch(self, data, x, fullstep):
+	# 	max_backtracks = 10
 
+	# 	fval = self.run_minibatches(data, self.policy_loss)
+
+	# 	for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
+	# 		xnew = x + stepfrac * fullstep
+	# 		self.assign_vars(self.policy_network, xnew)
+	# 		newfval, kl = self.run_minibatches(data, self.policy_loss, self.kl)
+
+	# 		improvement = fval - newfval
+	# 		logger.debug('Improvement {} / Mean KL {}'.format(improvement, kl))
+
+	# 		if improvement > 0 and kl < self.max_kl:
+	# 			return xnew
+
+	# 	logger.debug('No update')
+	# 	return x
+
+
+	def linesearch(self, data, x, fullstep, expected_improve_rate):
+		accept_ratio = .1
+		max_backtracks = 10
+    
 		fval = self.run_minibatches(data, self.policy_loss)
 
 		for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
-			xnew = x + stepfrac * fullstep
-			self.assign_vars(self.policy_network, xnew)
-			newfval, kl = self.run_minibatches(data, self.policy_loss, self.kl)
+		    xnew = x + stepfrac * fullstep
+		    self.assign_vars(self.policy_network, xnew)
+		    newfval, = self.run_minibatches(data, self.policy_loss)
 
-			improvement = fval - newfval
-			logger.debug('Improvement {} / Mean KL {}'.format(improvement, kl))
-
-			if improvement > 0 and kl < self.max_kl:
-				return xnew
+		    actual_improve = fval - newfval
+		    expected_improve = expected_improve_rate * stepfrac
+		    ratio = actual_improve / expected_improve
+		    if ratio > accept_ratio and actual_improve > 0:
+		        return xnew
 
 		logger.debug('No update')
 		return x
+
 
 	def fit_baseline(self, data):
 		data_size = len(data['state'])
@@ -244,7 +269,7 @@ class TRPOLearner(BaseA3CLearner):
 			[self.theta, self.fullstep, self.neggdotstepdir], feed_dict=feed_dict)
 
 		print 'running linesearch...'
-		new_theta = self.linesearch(data, theta_prev, fullstep)
+		new_theta = self.linesearch(data, theta_prev, fullstep, neggdotstepdir)
 		self.assign_vars(self.policy_network, new_theta)
 
 		return self.session.run(self.kl, feed_dict)
