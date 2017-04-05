@@ -82,8 +82,8 @@ class BasePGQLearner(BaseA3CLearner):
 
 
     def apply_batch_q_update(self):
-        # if len(self.replay_memory) < self.replay_memory.maxlen//10:
-        #     return
+        if len(self.replay_memory) < self.replay_memory.maxlen//10:
+            return
 
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
@@ -168,7 +168,7 @@ class PGQLearner(BasePGQLearner):
                 total_episode_reward += reward
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(reward)
-                self.replay_memory.append((s, a, reward, new_s, episode_over))
+                self.replay_memory.append(s, a, reward, episode_over)
                 
                 rewards.append(reward)
                 states.append(s)
@@ -355,14 +355,11 @@ class PGQLSTMLearner(BasePGQLearner):
                 total_episode_reward += reward
                 # Rescale or clip immediate reward
                 reward = self.rescale_reward(reward)
-                self.replay_memory.append((
-                    s,
-                    previous_lstm_state[0],
+                self.replay_memory.append(
+                    s, previous_lstm_state[0],
                     a,
                     reward,
-                    new_s,
-                    new_lstm_state[0],
-                    episode_over))
+                    episode_over)
                 
                 rewards.append(reward)
                 states.append(s)

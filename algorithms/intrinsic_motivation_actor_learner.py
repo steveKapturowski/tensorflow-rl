@@ -487,12 +487,11 @@ class PseudoCountQLearner(ValueBasedLearner):
                 states.append(new_s)
                 episode_length = len(rewards)
                 for i in range(episode_length):
-                    self.replay_memory.append((
+                    self.replay_memory.append(
                         states[i],
                         actions[i],
                         mixed_returns[i],
-                        states[i+1],
-                        i+1 == episode_length))
+                        i+1 == episode_length)
 
             #update shared target vars
             if exec_update_target:
