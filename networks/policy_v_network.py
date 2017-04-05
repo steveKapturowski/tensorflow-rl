@@ -14,7 +14,7 @@ class PolicyValueNetwork(Network):
         
         self.beta = conf['args'].entropy_regularisation_strength
                 
-        with tf.name_scope(self.name):
+        with tf.variable_scope(self.name):
             self.loss = 0.0
             if use_policy_head:
                 self.loss += self._build_policy_head()

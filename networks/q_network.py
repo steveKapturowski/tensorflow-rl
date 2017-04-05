@@ -12,8 +12,7 @@ class QNetwork(Network):
 
         super(QNetwork, self).__init__(conf)
                 
-        with tf.name_scope(self.name):
-
+        with tf.variable_scope(self.name):
             self.target_ph = tf.placeholder('float32', [None], name='target')
             self.loss = self._build_q_head()
             self._build_gradient_ops()

@@ -23,7 +23,7 @@ class Network(object):
         self.input_shape = conf['input_shape']
         self.use_recurrent = conf['args'].alg_type.endswith('-lstm')
 
-        with tf.name_scope(self.name):
+        with tf.variable_scope(self.name):
             self.selected_action_ph = tf.placeholder(
                 'float32', [self.batch_size, self.num_actions], name='selected_action')
                 
