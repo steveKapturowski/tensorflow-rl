@@ -42,11 +42,10 @@ class ReplayMemory(object):
 		return self.maxlen if self.full else self.position
 
 	def append(self, s_i, a, r, is_terminal):
-		self.screens[self.position]
-		self.screens[self.position]
-		self.actions[self.position]
-		self.rewards[self.position]
-		self.is_terminal[self.position]
+		self.screens[self.position] = s_i
+		self.actions[self.position] = a
+		self.rewards[self.position] = r
+		self.is_terminal[self.position] = is_terminal
 
 		self.position = (self.position + 1) % self.maxlen
 
