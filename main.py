@@ -211,6 +211,7 @@ def get_config():
     parser.add_argument('--replay_size', default=100000, type=int, help='Maximum capacity of replay memory', dest='replay_size')
     parser.add_argument('--batch_update_size', default=32, type=int, help='Minibatch size for q-learning updates', dest='batch_update_size')
     parser.add_argument('--exploration_strategy', default='epsilon-greedy', type=str, help='boltzmann or epsilon-greedy', dest='exploration_strategy')
+    parser.add_argument('--temperature', default=1.0, type=float, help='temperature to use for boltzmann exploration', dest='bolzmann_temperature')
 
     #a3c args 
     parser.add_argument('--entropy', default=0.01, type=float, help='Strength of the entropy regularization term (needed for actor-critic)', dest='entropy_regularisation_strength')

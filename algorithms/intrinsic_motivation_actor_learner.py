@@ -225,7 +225,10 @@ class PseudoCountQLearner(ValueBasedLearner):
 
 
     def generate_final_epsilon(self):
-        return self.final_epsilon
+        if self.is_master:
+            return 0.1
+        else:
+            return np.exp(-np.random.uniform(1, 4))
 
 
     def _get_summary_vars(self):

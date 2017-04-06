@@ -37,10 +37,12 @@ class ValueBasedLearner(ActorLearner):
                                         keep_checkpoint_every_n_hours=2)
 
         # Exploration epsilons 
-        self.epsilon = 1.0
         self.initial_epsilon = 1.0
+        self.epsilon = 1.0 if self.is_train else 0.01
         self.final_epsilon = self.generate_final_epsilon()
         self.epsilon_annealing_steps = args.epsilon_annealing_steps
+        self.exploration_strategy = args.exploration_strategy
+        self.bolzmann_temperature = args.bolzmann_temperature
 
 
     def generate_final_epsilon(self):
@@ -67,6 +69,20 @@ class ValueBasedLearner(ActorLearner):
         return [episode_reward, episode_avg_max_q, logged_epsilon]
 
 
+    def epsilon_greedy(self, q_values):
+        if np.random.rand() <= self.epsilon:
+            return np.random.randint(0, self.num_actions)
+        else:
+            return np.argmax(q_values)
+
+
+    def boltzmann_exploration(self, q_values):
+        exp_minus_max = np.exp(q_values - q_values.max())
+        probs = exp_minus_max / exp_minus_max.sum()
+        
+        return np.random.choice(self.num_actions, p=probs)
+
+
     def choose_next_action(self, state):
         """ Epsilon greedy """
         new_action = np.zeros([self.num_actions])
@@ -75,13 +91,10 @@ class ValueBasedLearner(ActorLearner):
             self.local_network.output_layer,
             feed_dict={self.local_network.input_ph: [state]})[0]
             
-        if not self.is_train:
-            self.epsilon = 0.01
-
-        if np.random.rand() <= self.epsilon:
-            action_index = np.random.randint(0, self.num_actions)
+        if self.exploration_strategy == 'epsilon-greedy':
+            action_index = self.epsilon_greedy(q_values)
         else:
-            action_index = np.argmax(q_values)
+            action_index = self.boltzmann_exploration(q_values)
                 
         new_action[action_index] = 1
         self.reduce_thread_epsilon()
