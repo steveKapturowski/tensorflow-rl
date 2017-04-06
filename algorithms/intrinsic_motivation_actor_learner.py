@@ -127,8 +127,7 @@ class PseudoCountA3CLearner(A3CLearner):
                 total_episode_reward += reward
                 
                 current_frame = new_s[...,-1]
-                # bonus = self.density_model.update(current_frame)
-                bonus = 0.0
+                bonus = self.density_model.update(current_frame)
                 bonuses.append(bonus)
 
                 if self.is_master() and (self.local_step % 200 == 0):
@@ -433,8 +432,7 @@ class PseudoCountQLearner(ValueBasedLearner):
                 max_q = np.max(q_values)
 
                 current_frame = new_s[...,-1]
-                # bonus = self.density_model.update(current_frame)
-                bonus = 0.0
+                bonus = self.density_model.update(current_frame)
                 bonuses.append(bonus)
 
                 # Rescale or clip immediate reward

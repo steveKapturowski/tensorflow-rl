@@ -210,7 +210,8 @@ def get_config():
     parser.add_argument('--q_target_update_steps', default=10000, type=int, help='Interval (in nr. of global steps) at which the parameters of the Q target network are updated (obs! 1 step = 4 video frames) (needed for Q-learning and Sarsa)', dest='q_target_update_steps') 
     parser.add_argument('--replay_size', default=100000, type=int, help='Maximum capacity of replay memory', dest='replay_size')
     parser.add_argument('--batch_update_size', default=32, type=int, help='Minibatch size for q-learning updates', dest='batch_update_size')
-    
+    parser.add_argument('--exploration_strategy', default='epsilon-greedy', type=str, help='boltzmann or epsilon-greedy', dest='exploration_strategy')
+
     #a3c args 
     parser.add_argument('--entropy', default=0.01, type=float, help='Strength of the entropy regularization term (needed for actor-critic)', dest='entropy_regularisation_strength')
     parser.add_argument('--max_global_steps', default=200000000, type=int, help='Max. number of training steps', dest='max_global_steps')
