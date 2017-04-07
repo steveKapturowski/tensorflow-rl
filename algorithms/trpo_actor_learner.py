@@ -29,6 +29,7 @@ class TRPOLearner(BaseA3CLearner):
 		super(TRPOLearner, self).__init__(args)
 
 		self.batch_size = 512
+		self.max_cg_iters = 20
 		self.num_epochs = args.trpo_epochs
 		self.cg_damping = args.cg_damping
 		self.cg_subsample = args.cg_subsample
@@ -90,7 +91,7 @@ class TRPOLearner(BaseA3CLearner):
 		flat_kl_grads = utils.ops.flatten_vars(kl_grads)
 
 		self.pg_placeholder = tf.placeholder(tf.float32, shape=self.pg.get_shape().as_list(), name='pg_placeholder')
-		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(-self.pg_placeholder, flat_kl_grads)
+		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(-self.pg_placeholder, flat_kl_grads, max_iterations=self.max_cg_iters)
 
 
 	def _conjugate_gradient_ops(self, pg_grads, kl_grads, max_iterations=20, residual_tol=1e-10):
@@ -117,6 +118,8 @@ class TRPOLearner(BaseA3CLearner):
 			beta = new_rdotr / (rdotr + 1e-8)
 			p = r + beta * p
 
+			new_rdotr = tf.Print(new_rdotr, [i, new_rdotr], 'Iteration / Residual: ')
+
 			return i+1, r, p, x, new_rdotr
 
 		_, r, p, stepdir, rdotr = tf.while_loop(
@@ -133,7 +136,7 @@ class TRPOLearner(BaseA3CLearner):
 			self.policy_network.params))
 
 		shs = 0.5 * tf.reduce_sum(stepdir*fvp)
-		lm = tf.sqrt(shs / self.max_kl)
+		lm = tf.sqrt((shs + 1e-8) / self.max_kl)
 		fullstep = stepdir / lm
 		neggdotstepdir = tf.reduce_sum(pg_grads*stepdir) / lm
 
