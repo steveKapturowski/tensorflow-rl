@@ -68,7 +68,7 @@ class AtariEnvironment(object):
     of size agent_history_length from which environment state
     is constructed.
     """
-    def __init__(self, game, visualize=False, resized_width=RESIZE_WIDTH, resized_height=RESIZE_HEIGHT, agent_history_length=4, frame_skip=4, single_life_episodes=False):
+    def __init__(self, game, visualize=False, use_rgb=False, resized_width=RESIZE_WIDTH, resized_height=RESIZE_HEIGHT, agent_history_length=4, frame_skip=4, single_life_episodes=False):
         self.game = game
         self.env = gym.make(game)
         self.env.frameskip = frame_skip
@@ -76,6 +76,7 @@ class AtariEnvironment(object):
         self.resized_height = resized_height
         self.agent_history_length = agent_history_length
         self.single_life_episodes = single_life_episodes
+        self.use_rgb = use_rgb
 
         if hasattr(self.env.action_space, 'n'):
             num_actions = self.env.action_space.n
@@ -113,7 +114,11 @@ class AtariEnvironment(object):
         x_t = self.env.reset()
 
         x_t = self.get_preprocessed_frame(x_t)
-        s_t = np.stack((x_t, x_t, x_t, x_t), axis=len(x_t.shape))
+
+        if self.use_rgb:
+            s_t = x_t
+        else:
+            s_t = np.stack((x_t, x_t, x_t, x_t), axis=len(x_t.shape))
         
         self.current_lives = self.get_lives()
         for i in range(self.agent_history_length-1):
@@ -122,15 +127,23 @@ class AtariEnvironment(object):
         return s_t
 
     def get_preprocessed_frame(self, observation):
-        """
-        See Methods->Preprocessing in Mnih et al.
-        1) Get image grayscale
-        2) Rescale image
-        """
         if len(observation.shape) > 1:
-            return resize(rgb2gray(observation), (self.resized_width, self.resized_height))
+            if not self.use_rgb:
+                observation = rgb2gray(observation)
+            return resize(observation, (self.resized_width, self.resized_height))
         else:
             return observation
+
+    def get_state(self, frame):
+        if self.use_rgb:
+            state = frame
+        else:
+            state = np.empty(list(frame.shape)+[self.agent_history_length])
+            for i in range(self.agent_history_length-1):
+                state[..., i] = self.state_buffer[i] 
+            state[..., self.agent_history_length-1] = frame
+
+        return state
 
     def next(self, action_index):
         """
@@ -144,23 +157,18 @@ class AtariEnvironment(object):
         
         action_index = np.argmax(action_index)
         
-        x_t1, r_t, terminal, info = self.env.step(self.gym_actions[action_index])
-        x_t1 = self.get_preprocessed_frame(x_t1)
-
-        s_t1 = np.empty(list(x_t1.shape)+[self.agent_history_length])
-        for i in range(self.agent_history_length-1):
-            s_t1[..., i] = self.state_buffer[i] 
-        
-        s_t1[..., self.agent_history_length-1] = x_t1
+        frame, reward, terminal, info = self.env.step(self.gym_actions[action_index])
+        frame = self.get_preprocessed_frame(frame)
+        state = self.get_state(frame)
 
         # Pop the oldest frame, add the current frame to the queue
         self.state_buffer.popleft()
-        self.state_buffer.append(x_t1)
+        self.state_buffer.append(frame)
 
         if self.single_life_episodes:
             terminal |= self.get_lives() < self.current_lives
         self.current_lives = self.get_lives()
 
-        return s_t1, r_t, terminal
+        return state, reward, terminal
 
 

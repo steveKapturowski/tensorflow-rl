@@ -98,6 +98,7 @@ class ActorLearner(Process):
             self.emulator = AtariEnvironment(
                 args.game,
                 args.visualize,
+                use_rgb=args.use_rgb,
                 frame_skip=args.frame_skip,
                 single_life_episodes=args.single_life_episodes,
             )
