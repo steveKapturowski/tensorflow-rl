@@ -93,7 +93,7 @@ class AtariEnvironment(object):
 
         # Screen buffer of size AGENT_HISTORY_LENGTH to be able
         # to build state arrays of size [1, AGENT_HISTORY_LENGTH, width, height]
-        self.state_buffer = deque()
+        self.state_buffer = deque(maxlen=self.agent_history_length-1)
         
         self.visualize = visualize
         
@@ -109,16 +109,15 @@ class AtariEnvironment(object):
         Resets the atari game, clears the state buffer
         """
         # Clear the state buffer
-        self.state_buffer = deque()
+        self.state_buffer.clear()
 
         x_t = self.env.reset()
-
         x_t = self.get_preprocessed_frame(x_t)
 
         if self.use_rgb:
             s_t = x_t
         else:
-            s_t = np.stack((x_t, x_t, x_t, x_t), axis=len(x_t.shape))
+            s_t = np.stack([x_t]*self.agent_history_length, axis=len(x_t.shape))
         
         self.current_lives = self.get_lives()
         for i in range(self.agent_history_length-1):
@@ -161,8 +160,6 @@ class AtariEnvironment(object):
         frame = self.get_preprocessed_frame(frame)
         state = self.get_state(frame)
 
-        # Pop the oldest frame, add the current frame to the queue
-        self.state_buffer.popleft()
         self.state_buffer.append(frame)
 
         if self.single_life_episodes:

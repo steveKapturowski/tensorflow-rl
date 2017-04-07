@@ -100,6 +100,7 @@ class ActorLearner(Process):
                 args.visualize,
                 use_rgb=args.use_rgb,
                 frame_skip=args.frame_skip,
+                agent_history_length=args.history_length,
                 single_life_episodes=args.single_life_episodes,
             )
         elif args.env == 'ALE':

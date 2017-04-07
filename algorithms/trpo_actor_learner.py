@@ -205,12 +205,13 @@ class TRPOLearner(BaseA3CLearner):
 		for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
 		    xnew = x + stepfrac * fullstep
 		    self.assign_vars(self.policy_network, xnew)
-		    newfval, = self.run_minibatches(data, self.policy_loss)
+		    newfval, kl = self.run_minibatches(data, self.policy_loss, self.kl)
 
 		    actual_improve = fval - newfval
 		    expected_improve = expected_improve_rate * stepfrac
+
 		    ratio = actual_improve / expected_improve
-		    if ratio > accept_ratio and actual_improve > 0:
+		    if kl < self.max_kl and ratio > accept_ratio and actual_improve > 0:
 		        return xnew
 
 		logger.debug('No update')

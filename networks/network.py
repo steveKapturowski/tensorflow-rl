@@ -21,7 +21,7 @@ class Network(object):
         self.clip_norm = conf['args'].clip_norm
         self.clip_norm_type = conf['args'].clip_norm_type
         self.input_shape = conf['input_shape']
-        self.input_channels = 3 if conf['args'].use_rgb else 4
+        self.input_channels = 3 if conf['args'].use_rgb else conf['args'].history_length
         self.use_recurrent = conf['args'].alg_type.endswith('-lstm')
 
         with tf.variable_scope(self.name):
