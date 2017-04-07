@@ -130,11 +130,7 @@ class TRPOLearner(BaseA3CLearner):
 
 		fvp = utils.ops.flatten_vars(tf.gradients(
 			tf.reduce_sum(tf.stop_gradient(stepdir)*kl_grads),
-			self.policy_network.params)) #+ self.cg_damping * stepdir
-
-		# shs = 0.5 * tf.reduce_sum(stepdir*fvp)
-		# fullstep = stepdir * tf.sqrt(2.0 * self.max_kl / shs)
-		# neggdotstepdir = tf.reduce_sum(pg_grads*stepdir)
+			self.policy_network.params))
 
 		shs = 0.5 * tf.reduce_sum(stepdir*fvp)
 		lm = tf.sqrt(shs / self.max_kl)
@@ -176,42 +172,25 @@ class TRPOLearner(BaseA3CLearner):
 		return outputs
 
 
-	# def linesearch(self, data, x, fullstep):
-	# 	max_backtracks = 10
-
-	# 	fval = self.run_minibatches(data, self.policy_loss)
-
-	# 	for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
-	# 		xnew = x + stepfrac * fullstep
-	# 		self.assign_vars(self.policy_network, xnew)
-	# 		newfval, kl = self.run_minibatches(data, self.policy_loss, self.kl)
-
-	# 		improvement = fval - newfval
-	# 		logger.debug('Improvement {} / Mean KL {}'.format(improvement, kl))
-
-	# 		if improvement > 0 and kl < self.max_kl:
-	# 			return xnew
-
-	# 	logger.debug('No update')
-	# 	return x
-
-
 	def linesearch(self, data, x, fullstep, expected_improve_rate):
 		accept_ratio = .1
-		max_backtracks = 10
+		backtrack_ratio = .7
+		max_backtracks = 15
     
 		fval = self.run_minibatches(data, self.policy_loss)
 
-		for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
+		for (_n_backtracks, stepfrac) in enumerate(backtrack_ratio**np.arange(max_backtracks)):
 		    xnew = x + stepfrac * fullstep
 		    self.assign_vars(self.policy_network, xnew)
 		    newfval, kl = self.run_minibatches(data, self.policy_loss, self.kl)
 
-		    actual_improve = fval - newfval
-		    expected_improve = expected_improve_rate * stepfrac
+		    improvement = fval - newfval
+		    logger.debug('Improvement {} / Mean KL {}'.format(improvement, kl))
 
-		    ratio = actual_improve / expected_improve
-		    if kl < self.max_kl and ratio > accept_ratio and actual_improve > 0:
+		    # expected_improve = expected_improve_rate * stepfrac
+		    # ratio = actual_improve / expected_improve
+		    # if ratio > accept_ratio and actual_improve > 0:
+		    if kl < self.max_kl and improvement > 0:
 		        return xnew
 
 		logger.debug('No update')

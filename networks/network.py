@@ -21,6 +21,7 @@ class Network(object):
         self.clip_norm = conf['args'].clip_norm
         self.clip_norm_type = conf['args'].clip_norm_type
         self.input_shape = conf['input_shape']
+        self.activation = conf['args'].activation
         self.input_channels = 3 if conf['args'].use_rgb else conf['args'].history_length
         self.use_recurrent = conf['args'].alg_type.endswith('-lstm')
 
@@ -30,27 +31,27 @@ class Network(object):
                 
             if self.arch == 'FC':
                 self.input_ph = tf.placeholder('float32', [self.batch_size]+self.input_shape+[self.input_channels], name='input')
-                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 40, activation='relu')
-                self.w2, self.b2, self.o2 = layers.fc('fc2', self.o1, 40, activation='relu')
+                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 40, activation=self.activation)
+                self.w2, self.b2, self.o2 = layers.fc('fc2', self.o1, 40, activation=self.activation)
                 self.ox = self.o2
             elif self.arch == 'ATARI-TRPO':
                 self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
-                self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 4, self.input_channels, 2)
-                self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 16, 4, 16, 2)
-                self.w3, self.b3, self.o3 = layers.fc('fc3', layers.flatten(self.o2), 20, activation='relu')
+                self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 4, self.input_channels, 2, activation=self.activation)
+                self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 16, 4, 16, 2, activation=self.activation)
+                self.w3, self.b3, self.o3 = layers.fc('fc3', layers.flatten(self.o2), 20, activation=self.activation)
                 self.ox = self.o3
             elif self.arch == 'NIPS':
                 self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
-                self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 8, self.input_channels, 4)
-                self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 32, 4, 16, 2)
-                self.w3, self.b3, self.o3 = layers.fc('fc3', layers.flatten(self.o2), 256, activation='relu')
+                self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 8, self.input_channels, 4, activation=self.activation)
+                self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 32, 4, 16, 2, activation=self.activation)
+                self.w3, self.b3, self.o3 = layers.fc('fc3', layers.flatten(self.o2), 256, activation=self.activation)
                 self.ox = self.o3
             elif self.arch == 'NATURE':
                 self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
-                self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 32, 8, self.input_channels, 4)
-                self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 64, 4, 32, 2)
-                self.w3, self.b3, self.o3 = layers.conv2d('conv3', self.o2, 64, 3, 64, 1)
-                self.w4, self.b4, self.o4 = layers.fc('fc4', layers.flatten(self.o3), 512, activation='relu')
+                self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 32, 8, self.input_channels, 4, activation=self.activation)
+                self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 64, 4, 32, 2, activation=self.activation)
+                self.w3, self.b3, self.o3 = layers.conv2d('conv3', self.o2, 64, 3, 64, 1, activation=self.activation)
+                self.w4, self.b4, self.o4 = layers.fc('fc4', layers.flatten(self.o3), 512, activation=self.activation)
                 self.ox = self.o4
             else:
                 raise Exception('Invalid architecture `{}`'.format(self.arch))

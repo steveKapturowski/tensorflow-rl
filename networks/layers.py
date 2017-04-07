@@ -7,14 +7,24 @@ def flatten(_input):
     dim = reduce(lambda a, b: a*b, shape[1:])
     return tf.reshape(_input, [-1, dim], name='_flattened')
 
-def conv2d(name, _input, filters, size, channels, stride, padding='VALID'):
+def apply_activation(out, name, activation):
+    if activation == 'relu':
+        out = tf.nn.relu(out, name=name+'_relu')
+    elif activation == 'softplus':
+        out = tf.nn.softplus(out, name=name+'_softplus')
+    elif activation == 'tanh':
+        out = tf.nn.tanh(out, name=name+'_tanh')
+    #else assume linear
+
+    return out
+
+def conv2d(name, _input, filters, size, channels, stride, activation='relu', padding='VALID'):
     w = conv_weight_variable([size,size,channels,filters], name+'_weights')
     b = conv_bias_variable([filters], size, size, channels, name+'_biases')
-    conv = tf.nn.conv2d(_input, w, strides=[1, stride, stride, 1], 
+    conv = tf.nn.conv2d(_input, w, strides=[1, stride, stride, 1],
             padding=padding, name=name+'_convs') + b
 
-    out = tf.nn.relu(conv, name=name+'_activations')
-        
+    out = apply_activation(conv, name, activation)
     return w, b, out
 
 def conv_weight_variable(shape, name):
@@ -31,14 +41,7 @@ def fc(name, _input, output_dim, activation='relu'):
     b = fc_bias_variable([output_dim], input_dim, name+'_biases')
     out = tf.matmul(_input, w) + b
 
-    if activation == 'relu':
-        out = tf.nn.relu(out, name=name+'_relu')
-    elif activation == 'softplus':
-        out = tf.nn.softplus(out, name=name+'_softplus')
-    elif activation == 'tanh':
-        out = tf.nn.tanh(out, name=name+'_tanh')
-    #else assume linear
-
+    out = apply_activation(out, name, activation)
     return w, b, out
 
 def fc_weight_variable(shape, name):
