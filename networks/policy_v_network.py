@@ -45,30 +45,16 @@ class PolicyValueNetwork(Network):
             self.log_output_selected_action * self.adv_actor_ph
             + self.beta * self.output_layer_entropy
         )
-
         return self.actor_objective
 
     def _build_value_head(self):
         self.critic_target_ph = tf.placeholder('float32', [None], name='target')
         self.wv, self.bv, self.output_layer_v = layers.fc(
             'fc_value4', self.ox, 1, activation='linear')
-
         # Advantage critic
         self.adv_critic = tf.subtract(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
         # Critic loss
-        if self.clip_loss_delta > 0:
-            quadratic_part = tf.reduce_mean(tf.pow(
-                tf.minimum(
-                    tf.abs(self.adv_critic), self.clip_loss_delta
-                ), 2))
-            linear_part = tf.subtract(tf.abs(self.adv_critic), quadratic_part)
-            #OBS! For the standard L2 loss, we should multiply by 0.5. However, the authors of the paper
-            # recommend multiplying the gradients of the V function by 0.5. Thus the 0.5 
-            self.critic_loss = tf.multiply(tf.constant(0.5), tf.nn.l2_loss(quadratic_part) + \
-                self.clip_loss_delta * linear_part)
-        else:
-            self.critic_loss = 0.5 * tf.reduce_mean(tf.pow(self.adv_critic, 2))
-
+        self.critic_loss = self._huber_loss(self.adv_critic)
         return self.critic_loss
 
 

@@ -55,7 +55,6 @@ def get_num_actions(rom_path, rom_name):
     ale.loadROM(filename)
     return len(ale.getMinimalActionSet())
 
-
 def main(args):
     args.batch_size = None
     logger.debug('CONFIGURATION: {}'.format(args))
@@ -63,7 +62,7 @@ def main(args):
     """ Set up the graph, the agents, and run the agents in parallel. """
     if args.env == 'GYM':
         from environments import atari_environment
-        num_actions = atari_environment.get_num_actions(args.game)
+        num_actions, action_space = atari_environment.get_actions(args.game)
         input_shape = atari_environment.get_input_shape(args.game)
     else:
         num_actions = get_num_actions(args.rom_path, args.game)
@@ -188,7 +187,7 @@ def get_config():
     parser.add_argument('--pgq_fraction', default=0.5, type=float, help='fraction by which to multiply q gradients', dest='pgq_fraction')
     parser.add_argument('--activation', default='relu', type=str, help='specify relu, softplus, or tanh activations', dest='activation')
     parser.add_argument('--use_rgb', action='store_true', help='If set use rgb image channels instead of stacked luninance frames', dest='use_rgb')
-    
+
     #optimizer args
     parser.add_argument('--opt_type', default='rmsprop', help='Type of optimizer: rmsprop, momentum, adam', dest='opt_type')
     parser.add_argument('--opt_mode', default='shared', help='Whether to use \"local\" or \"shared\" vector(s) for the momemtum/optimizer statistics', dest='opt_mode')

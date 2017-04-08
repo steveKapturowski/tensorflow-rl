@@ -26,31 +26,36 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+import numpy as np
+import gym
 
+from gym.spaces import Box, Discrete
 from skimage.transform import resize
 from skimage.color import rgb2gray
-import numpy as np
 from collections import deque
-import gym
 
 
 RESIZE_WIDTH = 84
 RESIZE_HEIGHT = 84
 
 
-def get_num_actions(game):
+def get_actions(game):
     env = gym.make(game)
-    if hasattr(env.action_space, 'n'):
+    if isinstance(env.action_space, Discrete):
         num_actions = env.action_space.n
+    elif isinstance(env.action_space, Box):
+        num_actions = np.prod(env.action_space.shape)
     else:
-        num_actions = env.action_space.num_discrete_space
+        raise Exception('Unsupported Action Space \'{}\''.format(
+            type(env.action_space).__name__))
 
     if game in ['Pong-v0', 'Breakout-v0']:
         # Gym currently specifies 6 actions for pong
         # and breakout when only 3 are needed. This
         # is a lame workaround.
         num_actions = 3
-    return num_actions
+
+    return num_actions, env.action_space
 
 
 def get_input_shape(game):
