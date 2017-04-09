@@ -203,11 +203,15 @@ class TRPOLearner(BaseA3CLearner):
 	def fit_baseline(self, data):
 		data_size = len(data['state'])
 		grads = [np.zeros(g.get_shape().as_list(), dtype=np.float32) for g in self.value_network.get_gradients]
+		
+		#permute data in minibatches so we don't introduce bias
+		perm = np.random.permutation(data_size)
 		for start in range(0, data_size, self.batch_size):
 			end = start + np.minimum(self.batch_size, data_size-start)
+			batch_idx = perm[start:end]
 			feed_dict={
-				self.value_network.input_ph:         data['state'][start:end],
-				self.value_network.critic_target_ph: data['reward'][start:end],
+				self.value_network.input_ph:         data['state'][batch_idx],
+				self.value_network.critic_target_ph: data['reward'][batch_idx]
 			}
 			output_i = self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
 			

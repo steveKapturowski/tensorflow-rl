@@ -13,6 +13,7 @@ import tensorflow as tf
 from networks.q_network import QNetwork
 from multiprocessing import Process, Queue
 from networks.dueling_network import DuelingNetwork
+from networks.continuous_actions import ContinuousPolicyNetwork, ContinuousPolicyValueNetwork
 from networks.policy_v_network import PolicyNetwork, PolicyValueNetwork, PolicyRepeatNetwork, SequencePolicyVNetwork
 from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
 from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
@@ -40,13 +41,9 @@ ALGORITHMS = {
     'dqn-cts': (PseudoCountQLearner, QNetwork),
     'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
     'a3c-repeat': (ARA3CLearner, PolicyRepeatNetwork),
+    'a3c-continuous': (A3CLearner, ContinuousPolicyValueNetwork),
+    'trpo-continuous': (TRPOLearner, ContinuousPolicyNetwork),
 }
-
-
-def get_learning_rate(low, high):
-    """ Return LogUniform(low, high) learning rate. """
-    lr = np.exp(random.uniform(np.log(low), np.log(high)))
-    return lr
 
 def get_num_actions(rom_path, rom_name):
     from ale_python_interface import ALEInterface
@@ -134,7 +131,6 @@ def main(args):
         actor_learners.append(Learner(args))
         actor_learners[-1].start()
 
-
     try:
         for t in actor_learners:
             t.join()
@@ -197,7 +193,8 @@ def get_config():
     parser.add_argument('--momentum', default=0.99, type=float, help='Discount factor for the history/coming gradient, for the Rmsprop optimizer', dest='momentum')
     parser.add_argument('-lr', '--initial_lr', default=0.001, type=float, help='Initial value for the learning rate. Default = LogUniform(10**-4, 10**-2)', dest='initial_lr')
     parser.add_argument('-lra', '--lr_annealing_steps', default=200000000, type=int, help='Nr. of global steps during which the learning rate will be linearly annealed towards zero', dest='lr_annealing_steps')
-    
+    parser.add_argument('--max_episode_steps', default=None, type=int, help='max rollout steps per trpo episode', dest='max_episode_steps')
+
     #clipping args
     parser.add_argument('--clip_loss', default=0.0, type=float, help='If bigger than 0.0, the loss will be clipped at +/-clip_loss', dest='clip_loss_delta')
     parser.add_argument('--clip_norm', default=40, type=float, help='If clip_norm_type is local/global, grads will be clipped at the specified maximum (avaerage) L2-norm', dest='clip_norm')

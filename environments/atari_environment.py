@@ -39,8 +39,12 @@ RESIZE_WIDTH = 84
 RESIZE_HEIGHT = 84
 
 
-def get_actions(game):
-    env = gym.make(game)
+def get_actions(game_or_env):
+    if isinstance(game_or_env, str):
+        env = gym.make(game_or_env)
+    else:
+        env = game_or_env
+
     if isinstance(env.action_space, Discrete):
         num_actions = env.action_space.n
     elif isinstance(env.action_space, Box):
@@ -49,7 +53,7 @@ def get_actions(game):
         raise Exception('Unsupported Action Space \'{}\''.format(
             type(env.action_space).__name__))
 
-    if game in ['Pong-v0', 'Breakout-v0']:
+    if env.spec.id in ['Pong-v0', 'Breakout-v0']:
         # Gym currently specifies 6 actions for pong
         # and breakout when only 3 are needed. This
         # is a lame workaround.
@@ -73,34 +77,27 @@ class AtariEnvironment(object):
     of size agent_history_length from which environment state
     is constructed.
     """
-    def __init__(self, game, visualize=False, use_rgb=False, resized_width=RESIZE_WIDTH, resized_height=RESIZE_HEIGHT, agent_history_length=4, frame_skip=4, single_life_episodes=False):
+    def __init__(self, game, visualize=False, use_rgb=False, resized_width=RESIZE_WIDTH,
+                 resized_height=RESIZE_HEIGHT, agent_history_length=4, frame_skip=4,
+                 max_episode_steps=None, single_life_episodes=False):
         self.game = game
         self.env = gym.make(game)
         self.env.frameskip = frame_skip
+        if max_episode_steps:
+            self.env.spec.max_episode_steps = max_episode_steps
+
         self.resized_width = resized_width
         self.resized_height = resized_height
         self.agent_history_length = agent_history_length
         self.single_life_episodes = single_life_episodes
+        self.visualize = visualize
         self.use_rgb = use_rgb
-
-        if hasattr(self.env.action_space, 'n'):
-            num_actions = self.env.action_space.n
-        else:
-            num_actions = self.env.action_space.num_discrete_space
-
-        self.gym_actions = range(num_actions)
-        if self.env.spec.id in ['Pong-v0', 'Breakout-v0']:
-            print 'Doing workaround for pong or breakout'
-            # Gym returns 6 possible actions for breakout and pong.
-            # Only three are used, the rest are no-ops. This just lets us
-            # pick from a simplified "LEFT", "RIGHT", "NOOP" action space.
-            self.gym_actions = [1,2,3]
 
         # Screen buffer of size AGENT_HISTORY_LENGTH to be able
         # to build state arrays of size [1, AGENT_HISTORY_LENGTH, width, height]
         self.state_buffer = deque(maxlen=self.agent_history_length-1)
-        
-        self.visualize = visualize
+        self.gym_actions = range(get_actions(self.env)[0])
+
         
     def get_lives(self):
         if hasattr(self.env.env, 'ale'):

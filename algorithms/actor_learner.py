@@ -101,6 +101,7 @@ class ActorLearner(Process):
                 use_rgb=args.use_rgb,
                 frame_skip=args.frame_skip,
                 agent_history_length=args.history_length,
+                max_episode_steps=args.max_episode_steps,
                 single_life_episodes=args.single_life_episodes,
             )
         elif args.env == 'ALE':

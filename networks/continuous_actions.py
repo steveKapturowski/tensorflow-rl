@@ -13,7 +13,7 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
     '''
     def __init__(self, conf, **kwargs):
         self.action_space = conf['args'].action_space
-        super(ContinuousPolicyNetwork, self).__init__(conf, **kwargs)
+        super(ContinuousPolicyValueNetwork, self).__init__(conf, **kwargs)
 
     def _build_policy_head(self):
         self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')       
@@ -36,6 +36,11 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
 
     def sample_action(self, session, state):
         return session.run(self.N.sample(), feed_dict={self.input_ph: [state]})
+
+
+class ContinuousPolicyNetwork(ContinuousPolicyValueNetwork):
+    def __init__(self, conf):
+        super(ContinuousPolicyNetwork, self).__init__(conf, use_value_head=False)
 
 
 class NAFNetwork(QNetwork):
