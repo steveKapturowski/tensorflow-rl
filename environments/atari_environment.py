@@ -53,13 +53,14 @@ def get_actions(game_or_env):
         raise Exception('Unsupported Action Space \'{}\''.format(
             type(env.action_space).__name__))
 
+    indices = range(num_actions)
     if env.spec.id in ['Pong-v0', 'Breakout-v0']:
-        # Gym currently specifies 6 actions for pong
-        # and breakout when only 3 are needed. This
-        # is a lame workaround.
+        # Gym currently specifies 6 actions for pong and breakout when only 3 are needed
+        # TODO: patch the environments instead
         num_actions = 3
+        indices = [1 ,2, 3]
 
-    return num_actions, env.action_space
+    return num_actions, env.action_space, indices
 
 
 def get_input_shape(game):
@@ -96,7 +97,7 @@ class AtariEnvironment(object):
         # Screen buffer of size AGENT_HISTORY_LENGTH to be able
         # to build state arrays of size [1, AGENT_HISTORY_LENGTH, width, height]
         self.state_buffer = deque(maxlen=self.agent_history_length-1)
-        self.gym_actions = range(get_actions(self.env)[0])
+        self.gym_actions = get_actions(self.env)[2]
 
         
     def get_lives(self):
@@ -146,7 +147,7 @@ class AtariEnvironment(object):
 
         return state
 
-    def next(self, action_index):
+    def next(self, action):
         """
         Excecutes an action in the gym environment.
         Builds current state (concatenation of agent_history_length-1 previous frames and current one).
@@ -156,9 +157,11 @@ class AtariEnvironment(object):
         if self.visualize:
             self.env.render()
         
-        action_index = np.argmax(action_index)
-        
-        frame, reward, terminal, info = self.env.step(self.gym_actions[action_index])
+        if isinstance(self.env.action_space, Discrete):
+            action_index = np.argmax(action)
+            action = self.gym_actions[action_index]
+
+        frame, reward, terminal, info = self.env.step(action)
         frame = self.get_preprocessed_frame(frame)
         state = self.get_state(frame)
 
