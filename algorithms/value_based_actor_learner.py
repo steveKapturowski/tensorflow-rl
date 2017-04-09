@@ -38,7 +38,7 @@ class ValueBasedLearner(ActorLearner):
 
         # Exploration epsilons 
         self.initial_epsilon = 1.0
-        self.epsilon = 1.0 if self.is_train else 0.01
+        self.epsilon = 1.0 if self.is_train else 0.1
         self.final_epsilon = self.generate_final_epsilon()
         self.epsilon_annealing_steps = args.epsilon_annealing_steps
         self.exploration_strategy = args.exploration_strategy
@@ -111,12 +111,6 @@ class ValueBasedLearner(ActorLearner):
             self.target_update_flags.updated[i] = 1
 
 
-    def run(self):
-        super(ValueBasedLearner, self).run()
-        #cProfile.runctx('self._run()', globals(), locals(), 'profile-{}.out'.format(self.actor_id))
-        self._run()
-
-
     def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
                       ep_t, episode_ave_max_q, episode_over):
         # prevent the agent from getting stuck
@@ -173,11 +167,8 @@ class ValueBasedLearner(ActorLearner):
         
 class NStepQLearner(ValueBasedLearner):
 
-    def _run(self):
+    def train(self):
         """ Main actor learner loop for n-step Q learning. """
-        if not self.is_train:
-            return self.test()  
-
         logger.debug("Actor {} resuming at Step {}, {}".format(self.actor_id, 
             self.global_step.value(), time.ctime()))
 
@@ -297,7 +288,7 @@ class OneStepSARSALearner(ValueBasedLearner):
     def generate_final_epsilon(self):
         return 0.05
 
-    def _run(self):
+    def train(self):
         """ Main actor learner loop for 1-step SARSA learning. """
         logger.debug("Actor {} resuming at Step {}, {}".format(self.actor_id, 
             self.global_step.value(), time.ctime()))

@@ -31,12 +31,6 @@ class BaseA3CLearner(ActorLearner):
         return action_index
 
 
-    def run(self):
-        super(BaseA3CLearner, self).run()
-        #cProfile.runctx('self._run()', globals(), locals(), 'profile-{}.out'.format(self.actor_id))
-        self._run()
-
-
     def compute_gae(self, rewards, values, next_val):
         values = values + [next_val]
 
@@ -129,10 +123,7 @@ class A3CLearner(BaseA3CLearner):
         return new_action, network_output_v, network_output_pi
 
 
-    def _run(self):
-        if not self.is_train:
-            return self.test()
-
+    def train(self):
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
             self.global_step.value()))

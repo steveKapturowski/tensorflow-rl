@@ -116,10 +116,7 @@ class PGQLearner(BasePGQLearner):
         return new_action, network_output_v, network_output_pi
 
 
-    def _run(self):
-        if not self.is_train:
-            return self.test()
-
+    def train(self):
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
             self.global_step.value()))
@@ -295,10 +292,7 @@ class PGQLSTMLearner(BasePGQLearner):
         self.apply_gradients_to_shared_memory_vars(batch_grads)
 
 
-    def _run(self):
-        if not self.is_train:
-            return self.test()
-
+    def train(self):
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
             self.global_step.value()))

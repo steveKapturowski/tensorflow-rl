@@ -64,7 +64,7 @@ class CEMLearner(BaseA3CLearner):
 		return np.array(rewards)[elite].mean()
 
 
-	def _run(self):
+	def train(self):
 		for epoch in range(100):
 			num_samples = 25
 			episode_rewards = list()

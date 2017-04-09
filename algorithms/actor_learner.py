@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import gym
 import time
 import ctypes
 import tempfile
@@ -60,6 +61,7 @@ class ActorLearner(Process):
 
         self.actor_id = args.actor_id
         self.alg_type = args.alg_type
+        self.record_video = args.record_video
         self.max_local_steps = args.max_local_steps
         self.optimizer_type = args.opt_type
         self.optimizer_mode = args.opt_mode
@@ -147,12 +149,9 @@ class ActorLearner(Process):
         '''
         Run test monitor for `num_episodes`
         '''
-        log_dir = tempfile.mkdtemp()
-        self.emulator.env.monitor.start(log_dir)
         self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
 
         rewards = list()
-        logger.info('writing monitor log to {}'.format(log_dir))
         for episode in range(num_episodes):
             s = self.emulator.get_initial_state()
             self.reset_hidden_state()
@@ -175,22 +174,8 @@ class ActorLearner(Process):
                     max(rewards),
                 ))
 
-        self.emulator.env.monitor.close()
 
-
-    def get_gpu_options(self):
-        return tf.GPUOptions(allow_growth=True)
-
-
-    def run(self):
-        num_cpus = multiprocessing.cpu_count()
-        self.session = tf.Session(config=tf.ConfigProto(
-            intra_op_parallelism_threads=num_cpus,
-            inter_op_parallelism_threads=num_cpus,
-            gpu_options=self.get_gpu_options(),
-            allow_soft_placement=True))
-
-
+    def synchronize_workers(self):
         if self.is_master():
             #Initizlize Tensorboard summaries
             self.summary_op = tf.summary.merge_all()
@@ -206,22 +191,48 @@ class ActorLearner(Process):
 
         # Wait until actor 0 finishes initializing shared memory
         self.barrier.wait()
-        # Ensure we don't add any more nodes to the graph
-        self.session.graph.finalize()
-        
+
         if not self.is_master():
             logger.debug("T{}: Syncing with shared memory...".format(self.actor_id))
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)  
             if hasattr(self, 'target_vars'):
                 self.sync_net_with_shared_memory(self.target_network, self.target_vars)
 
+        # Ensure we don't add any more nodes to the graph
+        self.session.graph.finalize()
         # Wait until all actors are ready to start 
         self.barrier.wait()
-        
         # Introduce a different start delay for each actor, so that they do not run in synchronism.
         # This is to avoid concurrent updates of parameters as much as possible 
         time.sleep(0.1877 * self.actor_id)
         self.start_time = time.time()
+
+
+    def get_gpu_options(self):
+        return tf.GPUOptions(allow_growth=True)
+
+
+    def run(self):
+        num_cpus = multiprocessing.cpu_count()
+        self.session = tf.Session(config=tf.ConfigProto(
+            intra_op_parallelism_threads=num_cpus,
+            inter_op_parallelism_threads=num_cpus,
+            gpu_options=self.get_gpu_options(),
+            allow_soft_placement=True))
+
+        log_dir = tempfile.mkdtemp()
+        video_callable = None if self.record_video else False #None will use capped_cubic_video_schedule
+        self.emulator.env = gym.wrappers.Monitor(self.emulator.env, log_dir, video_callable=video_callable)
+        self.synchronize_workers()
+
+        if self.is_train:
+            self.train()
+        else:
+            self.test()
+
+        logger.info('writing T{} monitor log to {}'.format(self.actor_id, log_dir))
+        self.emulator.env.close()
+
 
     def save_vars(self):
         if self.is_master() and self.global_step.value()-self.last_saving_step >= CHECKPOINT_INTERVAL:

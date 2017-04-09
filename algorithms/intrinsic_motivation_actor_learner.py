@@ -80,10 +80,7 @@ class PseudoCountA3CLearner(A3CLearner):
             self.density_model = PerPixelDensityModel(**model_args)
 
 
-    def _run(self):
-        if not self.is_train:
-            return self.test()
-
+    def train(self):
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
             self.global_step.value()))
@@ -225,10 +222,7 @@ class PseudoCountQLearner(ValueBasedLearner):
 
 
     def generate_final_epsilon(self):
-        if self.is_master:
-            return 0.1
-        else:
-            return np.exp(-np.random.uniform(1, 4))
+        return self.final_epsilon
 
 
     def _get_summary_vars(self):
@@ -391,11 +385,8 @@ class PseudoCountQLearner(ValueBasedLearner):
         self.apply_gradients_to_shared_memory_vars(grads)
 
 
-    def _run(self):
+    def train(self):
         """ Main actor learner loop for n-step Q learning. """
-        if not self.is_train:
-            return self.test()  
-
         logger.debug("Actor {} resuming at Step {}, {}".format(self.actor_id, 
             self.global_step.value(), time.ctime()))
 

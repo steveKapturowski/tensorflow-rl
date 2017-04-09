@@ -106,8 +106,8 @@ class TRPOLearner(BaseA3CLearner):
 		Construct conjugate gradient descent algorithm inside computation graph for improved efficiency
 		'''
 		i0 = tf.constant(0, dtype=tf.int32)
-		loop_condition = lambda i, r, p, x, rdotr: tf.logical_or(
-			tf.less(rdotr, residual_tol), tf.less(i, max_iterations))
+		loop_condition = lambda i, r, p, x, rdotr: tf.logical_and(
+			tf.greater(rdotr, residual_tol), tf.less(i, max_iterations))
 
 
 		def body(i, r, p, x, rdotr):
@@ -362,7 +362,7 @@ class TRPOLearner(BaseA3CLearner):
 				epoch+1, kl, mean_episode_reward, t1-t0, t2-t1))
 
 
-	def _run(self):
+	def train(self):
 		if self.is_master():
 			self._run_master()
 			for _ in xrange(self.num_actor_learners):
