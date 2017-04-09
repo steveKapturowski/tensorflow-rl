@@ -32,10 +32,9 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
             self.log_output_selected_action * self.adv_actor_ph
             + self.beta * self.output_layer_entropy
         )
-        return self.actor_objective
+        self.sample_action = self.N.sample()
 
-    def sample_action(self, session, state):
-        return session.run(self.N.sample(), feed_dict={self.input_ph: [state]})
+        return self.actor_objective
 
 
 class ContinuousPolicyNetwork(ContinuousPolicyValueNetwork):
@@ -48,10 +47,6 @@ class NAFNetwork(QNetwork):
     Implements Normalized Advantage Functions from "Continuous Deep Q-Learning
     with Model-based Acceleration" (https://arxiv.org/pdf/1603.00748.pdf)
     '''
-    def __init__(self, conf):
-        self.noise_process_std = 0.1
-        super(ContinuousPolicyNetwork, self).__init__(conf)
-
     def _build_q_head(self):
         self.w_value, self.b_value, self.value = layers.fc('fc_value', self.ox, 1, activation='linear')
         self.w_L, self.b_L, self.L_full = layers.fc('L_full', self.ox, self.num_actions, activation='linear')
@@ -68,11 +63,5 @@ class NAFNetwork(QNetwork):
         diff = tf.subtract(self.target_ph, q_selected_action)
         return self._huber_loss(diff)
 
-    def sample_action(self, session, state):
-        mu = session.run(self.mu, feed_dict={self.input_ph: [state]})
-        return self.add_noise(mu)
-
-    def sample_noise_process(self, mu):
-        return np.random.normal(mu, self.noise_process_std)
 
 

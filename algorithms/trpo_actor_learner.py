@@ -72,22 +72,29 @@ class TRPOLearner(BaseA3CLearner):
 		batch_idx = tf.range(0, tf.shape(action)[0])
 		selected_prob = utils.ops.slice_2d(self.action_probs, batch_idx, action)
 		old_selected_prob = utils.ops.slice_2d(self.old_action_probs, batch_idx, action)
+		
+		self.theta = utils.ops.flatten_vars(self.policy_network.params)
 		self.policy_loss = -tf.reduce_mean(tf.multiply(
 			self.policy_network.adv_actor_ph,
 			selected_prob / old_selected_prob
 		))
-
-		self.theta = utils.ops.flatten_vars(self.policy_network.params)
-		self.kl = utils.stats.mean_kl_divergence_op(self.old_action_probs, self.action_probs)
 		self.pg = utils.ops.flatten_vars(
 			tf.gradients(self.policy_loss, self.policy_network.params))
 
-		kl_firstfixed = tf.reduce_mean(tf.reduce_sum(tf.multiply(
-			tf.stop_gradient(self.action_probs),
-			tf.log(tf.stop_gradient(self.action_probs + eps) / (self.action_probs + eps))
-		), axis=1))
+		def discrete_kl_divergence():
+			kl = utils.stats.mean_kl_divergence_op(self.old_action_probs, self.action_probs)
+			kl_firstfixed = tf.reduce_mean(tf.reduce_sum(tf.multiply(
+				tf.stop_gradient(self.action_probs),
+				tf.log(tf.stop_gradient(self.action_probs + eps) / (self.action_probs + eps))
+			), axis=1))
+			return kl, kl_firstfixed
 
-		kl_grads = tf.gradients(kl_firstfixed, self.policy_network.params)
+		def gaussian_kl_divergence():
+			pass
+
+		self.kl, self.kl_firstfixed = discrete_kl_divergence()
+
+		kl_grads = tf.gradients(self.kl_firstfixed, self.policy_network.params)
 		flat_kl_grads = utils.ops.flatten_vars(kl_grads)
 
 		self.pg_placeholder = tf.placeholder(tf.float32, shape=self.pg.get_shape().as_list(), name='pg_placeholder')
@@ -155,6 +162,19 @@ class TRPOLearner(BaseA3CLearner):
 		new_action[action_index] = 1
 
 		return new_action, action_probs
+
+
+	# def choose_next_action(self, state):
+	# 	action = self.policy_network.sample_action(self.session, state)
+
+	# 	#need mu and sigma to calculate kl-divergence
+ #        action, mu, sigma = self.session.run([
+ #        	self.policy_network.sample_action,
+ #        	self.policy_network.mu,
+ #        	self.policy_network.sigma,
+ #        ], feed_dict={self.input_ph: [state]})
+
+ #        return action, mu, sigma
 
 
 	def run_minibatches(self, data, *ops):
