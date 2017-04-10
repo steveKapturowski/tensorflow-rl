@@ -268,10 +268,7 @@ class A3CLSTMLearner(BaseA3CLearner):
         return new_action, network_output_v, network_output_pi
 
 
-    def _run(self):
-        if not self.is_train:
-            return self.test()
-
+    def train(self):
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
             self.global_step.value()))
