@@ -3,7 +3,27 @@ import layers
 import numpy as np
 import tensorflow as tf
 from q_network import QNetwork
+from utils.distributions import DiagNormal
 from policy_v_network import PolicyValueNetwork
+
+
+class DiagNormal(object):
+    def __init__(self, mu, sigma):
+        self.mu = mu
+        self.sigma = sigma
+        self.dim = tf.shape(self.mu)[1]
+
+    def log_likelihood(self, x):
+        d = tf.cast(self.dim, tf.float32)
+        return - 0.5 * tf.reduce_sum(tf.pow((x - self.mu) / self.sigma, 2), axis=1) \
+            - 0.5 * tf.log(2.0 * np.pi) * d - tf.reduce_sum(tf.log(self.sigma), axis=1)
+
+    def entropy(self):
+        d = tf.cast(self.dim, tf.float32)
+        return tf.reduce_sum(tf.log(self.sigma), axis=1) + .5 * np.log(2 * np.pi * np.e) * d
+
+    def sample(self):
+        return self.mu + self.sigma * tf.random_normal([self.dim])
 
 
 class ContinuousPolicyValueNetwork(PolicyValueNetwork):
@@ -18,22 +38,34 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
     def _build_policy_head(self):
         self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')       
         self.w_mu, self.b_mu, self.mu = layers.fc(
-            'mean', self.ox, self.num_actions)
-        # self.w_sigma, self.b_sigma, self.sigma = layers.fc(
-        #     'std', self.ox, self.num_actions, activation='softplus')
-        self.sigma = self.mu
+            'mean', self.ox, self.num_actions, activation='tanh')
+        self.w_sigma, self.b_sigma, self.sigma = layers.fc(
+            'std', self.ox, self.num_actions, activation='softplus')
+        # self.sigma = self.mu
 
-        self.N = tf.contrib.distributions.Normal(mu=self.mu, sigma=.2)
-        # self.log_output_selected_action = tf.reduce_sum(self.N.log_pdf(self.selected_action_ph))
-        self.log_output_selected_action = tf.pow(self.selected_action_ph - self.mu, 2)
+        print 'mu, sigma', self.mu.get_shape(), self.sigma.get_shape()
+        self.N = DiagNormal(self.mu, self.sigma)
+        # self.N = DiagNormal(self.mu, [[.1]*self.sigma.get_shape().as_list()[1]])
+        self.log_output_selected_action = self.N.log_likelihood(self.selected_action_ph)
+
+        # self.N = tf.contrib.distributions.Normal(mu=self.mu, sigma=self.sigma)
+        # self.log_output_selected_action = self.N.log_pdf(self.selected_action_ph)
+        print 'log_pdf/entropy:', self.log_output_selected_action.get_shape(), self.N.entropy().get_shape()
+
+        self.log_output_selected_action = tf.expand_dims(self.log_output_selected_action, 1)
+        # raise Exception('muffin')
+        # self.log_output_selected_action = tf.Print(self.log_output_selected_action, [self.log_output_selected_action[:, 0]], 'log pdf: ')
+
+        # self.sigma = tf.Print(self.sigma, [self.sigma[:, 0]], 'sigma: ')
+        self.mu = tf.Print(self.mu, [self.mu[:, 0]], 'mu: ')
 
 
-        self.output_layer_entropy = .5*(tf.reduce_sum(2*self.N.entropy()-1, axis=1)+1)
+        self.output_layer_entropy = self.N.entropy() #.5*(tf.reduce_sum(2*self.N.entropy()-1, axis=1)+1)
         self.entropy = tf.reduce_mean(self.output_layer_entropy)
 
         self.actor_objective = -tf.reduce_mean(
             self.log_output_selected_action * self.adv_actor_ph
-            # + self.beta * self.output_layer_entropy
+            + self.beta * self.output_layer_entropy
         )
         self.sample_action = self.N.sample()
 

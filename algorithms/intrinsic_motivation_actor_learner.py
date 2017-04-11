@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import time
+import cPickle
 import numpy as np
 import utils.logger
 import tensorflow as tf
@@ -219,6 +220,21 @@ class PseudoCountQLearner(ValueBasedLearner):
             self.density_model = PerPixelDensityModel(**model_args)
 
         self._double_dqn_op()
+
+
+    def sync_density_model(self):
+        if isinstance(self.density_model, CTSDensityModel):
+            return #can't pickle this yet
+
+        logger.info('Synchronizing Density Model...')
+        if self.is_master:
+            with open('/tmp/density_model.pkl', 'wb') as f:
+                cPickle.dump(self.density_model, f)
+        self.barrier.wait()
+
+        with open('/tmp/density_model.pkl', 'rb') as f:
+            self.density_model = cPickle.load(f)
+        self.barrier.wait()
 
 
     def generate_final_epsilon(self):
@@ -494,6 +510,7 @@ class PseudoCountQLearner(ValueBasedLearner):
             if self.target_update_flags.updated[self.actor_id] == 1:
                 self.sync_net_with_shared_memory(self.target_network, self.target_vars)
                 self.target_update_flags.updated[self.actor_id] = 0
+                self.sync_density_model()
 
             s, total_episode_reward, _, ep_t, episode_ave_max_q, episode_over = \
                 self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses, total_augmented_reward)

@@ -65,13 +65,12 @@ class BaseA3CLearner(ActorLearner):
             elapsed_time = time.time() - self.start_time
             steps_per_sec = self.global_step.value() / elapsed_time
             perf = "{:.0f}".format(steps_per_sec)
-            logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s, Actions {}".format(
+            logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
                 self.actor_id,
                 self.local_episode,
                 self.global_step.value()/1000,
                 total_episode_reward,
-                perf,
-                sel_actions))
+                perf))
                 
             self.log_summary(total_episode_reward, mean_value, mean_entropy)
 

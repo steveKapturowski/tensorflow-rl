@@ -161,6 +161,8 @@ class AtariEnvironment(object):
             action_index = np.argmax(action)
             action = self.gym_actions[action_index]
 
+        # print '\nI am taking this action now:', action
+
         frame, reward, terminal, info = self.env.step(action)
         frame = self.get_preprocessed_frame(frame)
         state = self.get_state(frame)

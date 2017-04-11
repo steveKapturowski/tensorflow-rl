@@ -247,6 +247,7 @@ cdef class CTSDensityModel:
             [CTS(4, max_alphabet_size=num_bins) for _ in range(width)]
             for _ in range(height)
         ])
+        EzPickle.__init__(self)
                 
     def update(self, obs):
         obs = resize(obs, (self.height, self.width), preserve_range=True)
