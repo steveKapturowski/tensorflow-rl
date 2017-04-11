@@ -82,7 +82,7 @@ class DensityModelMixin(object):
         self.barrier.wait()
 
         with open('/tmp/density_model.pkl', 'rb') as f:
-            self.density_model = cPickle.load(f, protocol=2)
+            self.density_model = cPickle.load(f)
         self.barrier.wait()
 
 
