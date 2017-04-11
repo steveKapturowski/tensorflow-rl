@@ -3,6 +3,7 @@ import time
 import numpy as np
 import utils.logger
 import tensorflow as tf
+from gym.spaces import Discrete
 from utils import checkpoint_utils
 from utils.decorators import only_on_train
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
@@ -15,9 +16,9 @@ logger = utils.logger.getLogger('policy_based_actor_learner')
 class BaseA3CLearner(ActorLearner):
     def __init__(self, args):
         super(BaseA3CLearner, self).__init__(args)
+
         self.td_lambda = args.td_lambda
-        
-        # Shared mem vars
+        self.action_space = args.action_space
         self.learning_vars = args.learning_vars
         self.beta = args.entropy_regularisation_strength
         self.q_target_update_steps = args.q_target_update_steps
@@ -97,7 +98,7 @@ class A3CLearner(BaseA3CLearner):
                          'num_act': self.num_actions,
                          'args': args}
 
-        self.local_network = PolicyValueNetwork(conf_learning)
+        self.local_network = args.network(conf_learning)
         self.reset_hidden_state()
 
         if self.is_master():
@@ -107,20 +108,21 @@ class A3CLearner(BaseA3CLearner):
 
 
     def choose_next_action(self, state):
-        network_output_v, network_output_pi = self.session.run(
-                [self.local_network.output_layer_v,
-                 self.local_network.output_layer_pi], 
-                feed_dict={self.local_network.input_ph: [state]})
+        return self.local_network.get_action_and_value(self.session, state)
+
+        # network_output_v, network_output_pi = self.session.run(
+        #         [self.local_network.output_layer_v,
+        #          self.local_network.output_layer_pi], 
+        #         feed_dict={self.local_network.input_ph: [state]})
             
-        network_output_pi = network_output_pi.reshape(-1)
-        network_output_v = np.asscalar(network_output_v)
+        # network_output_pi = network_output_pi.reshape(-1)
+        # network_output_v = np.asscalar(network_output_v)
 
+        # action_index = self.sample_policy_action(network_output_pi)
+        # new_action = np.zeros([self.num_actions])
+        # new_action[action_index] = 1
 
-        action_index = self.sample_policy_action(network_output_pi)
-        new_action = np.zeros([self.num_actions])
-        new_action[action_index] = 1
-
-        return new_action, network_output_v, network_output_pi
+        # return new_action, network_output_v, network_output_pi
 
 
     def train(self):
@@ -198,8 +200,8 @@ class A3CLearner(BaseA3CLearner):
                 s_batch.append(states[i])
                 adv_batch.append(R - values[i])
                 
-                sel_actions.append(np.argmax(actions[i]))
-                
+                sel_action = np.argmax(actions[i]) if isinstance(self.action_space, Discrete) else actions[i].tolist()
+                sel_actions.append(sel_action)
 
             # Compute gradients on the local policy/V network and apply them to shared memory  
             feed_dict={
@@ -356,7 +358,8 @@ class A3CLSTMLearner(BaseA3CLearner):
                 s_batch.append(states[i])
                 adv_batch.append(R - values[i])
                 
-                sel_actions.append(np.argmax(actions[i]))
+                sel_action = np.argmax(actions[i]) if isinstance(self.action_space, Discrete) else actions[i].tolist()
+                sel_actions.append(sel_action)
                 
             # reverse everything so that the LSTM inputs are time-ordered
             y_batch.reverse()

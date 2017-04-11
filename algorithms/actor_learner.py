@@ -32,15 +32,29 @@ ONE_LIFE_GAMES = [
     'Tennis-v0',
     #Classic Control
     'CartPole-v0',
+    'CartPole-v1',
     'Pendulum-v0',
     'MountainCar-v0',
+    'Acrobot-v1',
+    'MountainCarContinuous-v0',
+    'Pendulum-v0',
+    #Box2D
     'LunarLander-v2',
-]
-CONTINUOUS_CONTROL = [
     'LunarLanderContinuous-v2',
     'BipedalWalker-v2',
     'BipedalWalkerHardcore-v2',
     'CarRacing-v0',
+    #MuJoCo
+    'InvertedPendulum-v1',
+    'IvertedDoublePendulum-v1',
+    'Reacher-v1',
+    'HalfCheetah-v1',
+    'Swimmer-v1',
+    'Hopper-v1',
+    'Walker2d-v1',
+    'Ant-v1',
+    'Humanoid-v1',
+    'HumanoidStandup-v1',
 ]
  
 logger = utils.logger.getLogger('actor_learner')
@@ -61,7 +75,7 @@ class ActorLearner(Process):
 
         self.actor_id = args.actor_id
         self.alg_type = args.alg_type
-        self.record_video = args.record_video
+        self.use_monitor = args.use_monitor
         self.max_local_steps = args.max_local_steps
         self.optimizer_type = args.opt_type
         self.optimizer_mode = args.opt_mode
@@ -212,6 +226,19 @@ class ActorLearner(Process):
         return tf.GPUOptions(allow_growth=True)
 
 
+    def monitor(self, func):
+        def monitored_func():
+            log_dir = tempfile.mkdtemp()
+            self.emulator.env = gym.wrappers.Monitor(self.emulator.env, log_dir)
+
+            func()
+
+            logger.info('writing T{} monitor log to {}'.format(self.actor_id, log_dir))
+            self.emulator.env.close()
+
+        return monitored_func
+
+
     def run(self):
         num_cpus = multiprocessing.cpu_count()
         self.session = tf.Session(config=tf.ConfigProto(
@@ -220,18 +247,16 @@ class ActorLearner(Process):
             gpu_options=self.get_gpu_options(),
             allow_soft_placement=True))
 
-        log_dir = tempfile.mkdtemp()
-        video_callable = None if self.record_video else False #None will use capped_cubic_video_schedule
-        self.emulator.env = gym.wrappers.Monitor(self.emulator.env, log_dir, video_callable=video_callable)
         self.synchronize_workers()
 
         if self.is_train:
-            self.train()
+            run_func = self.train
         else:
-            self.test()
+            run_func = self.test
 
-        logger.info('writing T{} monitor log to {}'.format(self.actor_id, log_dir))
-        self.emulator.env.close()
+        if self.use_monitor:
+            run_func = self.monitor(run_func)
+        run_func()
 
 
     def save_vars(self):

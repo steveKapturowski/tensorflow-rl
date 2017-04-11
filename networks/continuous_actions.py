@@ -17,24 +17,46 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
 
     def _build_policy_head(self):
         self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')       
-        self.w_mu, self.b_mu, self.mu, self.output_layer_pi = layers.fc(
-            'mean', self.ox, self.num_actions, activation='linear')
-        self.w_sigma, self.b_sigma, self.sigma = layers.fc(
-            'std', self.ox, self.num_actions, activation='softplus')
+        self.w_mu, self.b_mu, self.mu = layers.fc(
+            'mean', self.ox, self.num_actions)
+        # self.w_sigma, self.b_sigma, self.sigma = layers.fc(
+        #     'std', self.ox, self.num_actions, activation='softplus')
+        self.sigma = self.mu
 
-        self.N = tf.contrib.distributions.Normal(mu=self.mu, sigma=self.sigma)
-        self.log_output_selected_action = tf.reduce_sum(self.N.log_pdf(self.selected_action_ph))
+        self.N = tf.contrib.distributions.Normal(mu=self.mu, sigma=.2)
+        # self.log_output_selected_action = tf.reduce_sum(self.N.log_pdf(self.selected_action_ph))
+        self.log_output_selected_action = tf.pow(self.selected_action_ph - self.mu, 2)
 
-        self.output_layer_entropy = .5*(tf.reduce_sum(2*d.entropy()-1, axis=1)+1)
+
+        self.output_layer_entropy = .5*(tf.reduce_sum(2*self.N.entropy()-1, axis=1)+1)
         self.entropy = tf.reduce_mean(self.output_layer_entropy)
 
         self.actor_objective = -tf.reduce_mean(
             self.log_output_selected_action * self.adv_actor_ph
-            + self.beta * self.output_layer_entropy
+            # + self.beta * self.output_layer_entropy
         )
         self.sample_action = self.N.sample()
 
         return self.actor_objective
+
+    def get_action(self, session, state):
+        action = session.run([
+            self.sample_action,
+            self.mu,
+            self.sigma
+        ], feed_dict={self.input_ph: [state]})
+
+        return action[0], (mu[0], sigma[0])
+
+    def get_action_and_value(self, session, state):
+        action, v, mu, sigma = session.run([
+            self.sample_action,
+            self.output_layer_v,
+            self.mu,
+            self.sigma
+        ], feed_dict={self.input_ph: [state]})
+
+        return action[0], v[0, 0], (mu[0], sigma[0])
 
 
 class ContinuousPolicyNetwork(ContinuousPolicyValueNetwork):

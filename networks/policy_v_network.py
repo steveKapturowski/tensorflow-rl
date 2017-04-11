@@ -57,6 +57,21 @@ class PolicyValueNetwork(Network):
         self.critic_loss = self._huber_loss(self.adv_critic)
         return self.critic_loss
 
+    def get_action_and_value(self, session, state):
+        pi, v = session.run([
+            self.output_layer_pi,
+            self.output_layer_v,
+        ], feed_dict={self.input_ph: [state]})
+
+        pi = pi.reshape(-1)
+        v = np.asscalar(v)
+
+        action_index = np.random.choice(self.num_actions, p=pi)
+        action = np.zeros([self.num_actions])
+        action[action_index] = 1
+
+        return action, v, pi
+
 
 class PolicyNetwork(PolicyValueNetwork):
     def __init__(self, conf,):

@@ -64,6 +64,7 @@ def main(args):
     else:
         num_actions = get_num_actions(args.rom_path, args.game)
     
+    args.action_space = action_space
     args.summ_base_dir = '/tmp/summary_logs/{}/{}'.format(args.game, time.strftime('%m.%d/%H.%M'))
     logger.info('logging summaries to {}'.format(args.summ_base_dir))
 
@@ -74,13 +75,13 @@ def main(args):
         'num_act': num_actions,
         'args': args
     })
+    args.network = Network
+
     #initialize shared variables
     args.learning_vars = SharedVars(network.params)
-
     args.opt_state = SharedVars(
         network.params, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
-
     args.batch_opt_state = SharedVars(
         network.params, opt_type=args.opt_type, lr=args.initial_lr
     ) if args.opt_mode == 'shared' else None
@@ -180,7 +181,7 @@ def get_config():
     parser.add_argument('--max_decoder_steps', default=20, type=int, help='max number of steps that sequence decoder will be allowed to take', dest='max_decoder_steps')
     parser.add_argument('--test', action='store_false', help='if not set train agents in parallel, otherwise follow optimal policy with single agent', dest='is_train')
     parser.add_argument('--restore_checkpoint', action='store_true', help='resume training from last checkpoint', dest='restore_checkpoint')
-    parser.add_argument('--record_video', action='store_true', help='Record video if set', dest='record_video')
+    parser.add_argument('--use_monitor', action='store_true', help='Record video / episode stats if set', dest='use_monitor')
     parser.add_argument('--pgq_fraction', default=0.5, type=float, help='fraction by which to multiply q gradients', dest='pgq_fraction')
     parser.add_argument('--activation', default='relu', type=str, help='specify relu, softplus, or tanh activations', dest='activation')
     parser.add_argument('--use_rgb', action='store_true', help='If set use rgb image channels instead of stacked luninance frames', dest='use_rgb')
