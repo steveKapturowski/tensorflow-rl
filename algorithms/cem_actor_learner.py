@@ -21,7 +21,7 @@ class CEMLearner(BaseA3CLearner):
 					   'num_act': self.num_actions,
 					   'args': args}
 
-		self.local_network = PolicyNetwork(policy_conf)
+		self.local_network = args.network(policy_conf)
 		self.num_params = np.sum([
 			np.prod(v.get_shape().as_list())
 			for v in self.local_network.params])
@@ -29,6 +29,8 @@ class CEMLearner(BaseA3CLearner):
 		logger.info('Parameter count: {}'.format(self.num_params))
 		self.mu = np.zeros(self.num_params)
 		self.sigma = np.ones(self.num_params)
+		self.num_samples = args.episodes_per_batch
+		self.num_epochs = args.num_epochs
 
 		if self.is_master():
 			var_list = self.local_network.params
@@ -37,17 +39,7 @@ class CEMLearner(BaseA3CLearner):
 
 
 	def choose_next_action(self, state):
-		action_probs = self.session.run(
-			self.local_network.output_layer_pi,
-			feed_dict={self.local_network.input_ph: [state]})
-            
-		action_probs = action_probs.reshape(-1)
-
-		action_index = self.sample_policy_action(action_probs)
-		new_action = np.zeros([self.num_actions])
-		new_action[action_index] = 1
-
-		return new_action, action_probs
+		return self.local_network.get_action(self.session, state)
 
 
 	def sample_theta(self, N):
@@ -65,10 +57,9 @@ class CEMLearner(BaseA3CLearner):
 
 
 	def train(self):
-		for epoch in range(100):
-			num_samples = 25
+		for epoch in range(self.num_epochs):
 			episode_rewards = list()
-			population = self.sample_theta(num_samples)
+			population = self.sample_theta(self.num_samples)
 
 			for theta in population:
 				self.assign_vars(self.local_network, theta)

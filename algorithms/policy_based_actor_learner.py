@@ -107,7 +107,11 @@ class A3CLearner(BaseA3CLearner):
 
 
     def choose_next_action(self, state):
-        return self.local_network.get_action_and_value(self.session, state)
+        # return self.local_network.get_action_and_value(self.session, state)
+
+        action, v, dist = self.local_network.get_action_and_value(self.session, state)
+        return action, v, dist
+        # return np.random.random(2)*2-1, v, dist
 
         # network_output_v, network_output_pi = self.session.run(
         #         [self.local_network.output_layer_v,
@@ -189,7 +193,8 @@ class A3CLearner(BaseA3CLearner):
                     self.local_network.output_layer_v,
                     feed_dict={self.local_network.input_ph:[new_s]})[0][0]
                             
-             
+            R = 0
+
             sel_actions = []
             for i in reversed(xrange(len(states))):
                 R = rewards[i] + self.gamma * R

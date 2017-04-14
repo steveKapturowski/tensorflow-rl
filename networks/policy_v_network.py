@@ -11,23 +11,28 @@ class PolicyValueNetwork(Network):
  
     def __init__(self, conf, use_policy_head=True, use_value_head=True):
         super(PolicyValueNetwork, self).__init__(conf)
+        self.share_encoder_weights = False
+        encoded_state = self._build_encoder()
         
         self.beta = conf['args'].entropy_regularisation_strength
                 
         with tf.variable_scope(self.name):
             self.loss = 0.0
             if use_policy_head:
-                self.loss += self._build_policy_head()
+                self.loss += self._build_policy_head(encoded_state)
 
             if use_value_head:
-                self.loss += self._build_value_head()
+                if not self.share_encoder_weights:
+                    with tf.variable_scope('value_encoder'):
+                        encoded_state = self._build_encoder()
 
-            self._build_gradient_ops()
+                self.loss += self._build_value_head(encoded_state)
+            self._build_gradient_ops(self.loss)
 
-    def _build_policy_head(self):
+    def _build_policy_head(self, input_state):
         self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')       
         self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = layers.softmax_and_log_softmax(
-            'softmax_policy4', self.ox, self.num_actions)
+            'softmax_policy4', input_state, self.num_actions)
             
         # Entropy: ∑_a[-p_a ln p_a]
         self.output_layer_entropy = tf.reduce_sum(
@@ -47,15 +52,26 @@ class PolicyValueNetwork(Network):
         )
         return self.actor_objective
 
-    def _build_value_head(self):
+    def _build_value_head(self, input_state):
         self.critic_target_ph = tf.placeholder('float32', [None], name='target')
         self.wv, self.bv, self.output_layer_v = layers.fc(
-            'fc_value4', self.ox, 1, activation='linear')
+            'fc_value4', input_state, 1, activation='linear')
         # Advantage critic
         self.adv_critic = tf.subtract(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
         # Critic loss
         self.critic_loss = self._huber_loss(self.adv_critic)
         return self.critic_loss
+
+    def get_action(self, session, state):
+        pi = session.run(
+            self.output_layer_pi, feed_dict={self.input_ph: [state]})
+        pi = pi.reshape(-1)
+
+        action_index = np.random.choice(self.num_actions, p=pi)
+        action = np.zeros([self.num_actions])
+        action[action_index] = 1
+
+        return action, pi
 
     def get_action_and_value(self, session, state):
         pi, v = session.run([
@@ -89,17 +105,14 @@ class PolicyRepeatNetwork(PolicyValueNetwork):
         super(PolicyRepeatNetwork, self).__init__(conf)
         
 
-    def _build_policy_head(self):
+    def _build_policy_head(self, input_state):
         self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')
 
         self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = layers.softmax_and_log_softmax(
-            'action_policy', self.ox, self.num_actions)
-
-        # self.action_repeat_continuous = layers.fc(
-        #     'ar_continuous', self.ox, self.num_actions, activation='tanh')
+            'action_policy', input_state, self.num_actions)
 
         self.w_ar, self.b_ar, self.action_repeat_probs, self.log_action_repeat_probs = layers.softmax_and_log_softmax(
-            'repeat_policy', self.ox, self.max_repeat)
+            'repeat_policy', input_state, self.max_repeat)
 
         self.selected_repeat = tf.placeholder(tf.int32, [None], name='selected_repeat_placeholder')
         self.selected_repeat_onehot = tf.one_hot(self.selected_repeat, self.max_repeat)
@@ -137,7 +150,7 @@ class SequencePolicyVNetwork(PolicyValueNetwork):
         super(SequencePolicyVNetwork, self).__init__(conf)
 
         
-    def _build_policy_head(self):
+    def _build_policy_head(self, input_state):
         self.adv_actor_ph = tf.placeholder("float", [self.batch_size], name='advantage')
 
         with tf.variable_scope(self.name+'/lstm_decoder') as vs:
@@ -149,13 +162,13 @@ class SequencePolicyVNetwork(PolicyValueNetwork):
             self.use_fixed_action = tf.placeholder(tf.bool, name='use_fixed_action')
             self.temperature = tf.placeholder(tf.float32, name='temperature')
 
-            self.decoder_hidden_state_size = self.ox.get_shape().as_list()[-1]
+            self.decoder_hidden_state_size = input_state.get_shape().as_list()[-1]
             self.decoder_lstm_cell = CustomBasicLSTMCell(self.decoder_hidden_state_size, forget_bias=1.0)
             self.decoder_initial_state = tf.placeholder(tf.float32, [self.batch_size, 2*self.decoder_hidden_state_size], name='decoder_initial_state')
 
             self.network_state = tf.concat(axis=1, values=[
-                tf.zeros_like(self.ox), self.ox
-                # self.ox, tf.zeros_like(self.ox)
+                tf.zeros_like(input_state), input_state
+                # input_state, tf.zeros_like(input_state)
             ])
 
             self.W_actions = tf.get_variable('W_actions', shape=[self.decoder_hidden_state_size, self.num_actions+1], dtype='float32', initializer=tf.contrib.layers.xavier_initializer())
@@ -180,7 +193,6 @@ class SequencePolicyVNetwork(PolicyValueNetwork):
                 v for v in tf.trainable_variables()
                 if v.name.startswith(vs.name)
             ]
-
 
         print 'Decoder out: s,l,a=', self.decoder_state.get_shape(), self.logits.get_shape(), self.actions.get_shape()
 

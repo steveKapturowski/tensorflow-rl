@@ -8,9 +8,10 @@ from custom_lstm import CustomBasicLSTMCell
 class Network(object):
 
     def __init__(self, conf):
-        """ Initialize hyper-parameters, set up optimizer and network 
-        layers common across Q and Policy/V nets. """
-
+        '''
+        Initialize hyper-parameters, set up optimizer and network 
+        layers common across Q and Policy/V nets
+        '''
         self.name = conf['name']
         self.num_actions = conf['num_act']
         self.arch = conf['args'].arch
@@ -26,28 +27,32 @@ class Network(object):
         self.use_recurrent = conf['args'].alg_type.endswith('-lstm')
 
         with tf.variable_scope(self.name):
-            self.selected_action_ph = tf.placeholder(
-                'float32', [self.batch_size, self.num_actions], name='selected_action')
-                
             if self.arch == 'FC':
                 self.input_ph = tf.placeholder('float32', [self.batch_size]+self.input_shape+[self.input_channels], name='input')
-                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 40, activation=self.activation)
-                self.w2, self.b2, self.o2 = layers.fc('fc2', self.o1, 40, activation=self.activation)
-                self.ox = self.o2
-            elif self.arch == 'ATARI-TRPO':
+            else: #assume image input
                 self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
+
+            self.selected_action_ph = tf.placeholder(
+                'float32', [self.batch_size, self.num_actions], name='selected_action')
+
+
+    def _build_encoder(self):
+        with tf.variable_scope(self.name):
+            if self.arch == 'FC':
+                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 40, activation=self.activation)
+                # self.w2, self.b2, self.o2 = layers.fc('fc2', self.o1, 40, activation=self.activation)
+                self.ox = self.o1
+            elif self.arch == 'ATARI-TRPO':
                 self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 4, self.input_channels, 2, activation=self.activation)
                 self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 16, 4, 16, 2, activation=self.activation)
                 self.w3, self.b3, self.o3 = layers.fc('fc3', layers.flatten(self.o2), 20, activation=self.activation)
                 self.ox = self.o3
             elif self.arch == 'NIPS':
-                self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
                 self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 8, self.input_channels, 4, activation=self.activation)
                 self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 32, 4, 16, 2, activation=self.activation)
                 self.w3, self.b3, self.o3 = layers.fc('fc3', layers.flatten(self.o2), 256, activation=self.activation)
                 self.ox = self.o3
             elif self.arch == 'NATURE':
-                self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
                 self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 32, 8, self.input_channels, 4, activation=self.activation)
                 self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 64, 4, 32, 2, activation=self.activation)
                 self.w3, self.b3, self.o3 = layers.conv2d('conv3', self.o2, 64, 3, 64, 1, activation=self.activation)
@@ -84,6 +89,8 @@ class Network(object):
                     # Get all LSTM trainable params
                     self.lstm_trainable_variables = [v for v in 
                         tf.trainable_variables() if v.name.startswith(vs.name)]
+
+            return self.ox
 
 
     def _huber_loss(self, diff):
@@ -124,10 +131,10 @@ class Network(object):
                 self.params[i].assign(self.params_ph[i]))
 
 
-    def _build_gradient_ops(self):
+    def _build_gradient_ops(self, loss):
         self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
 
-        grads = tf.gradients(self.loss, self.params)
+        grads = tf.gradients(loss, self.params)
         self.get_gradients = self._clip_grads(grads)
         self._setup_shared_memory_ops()
 

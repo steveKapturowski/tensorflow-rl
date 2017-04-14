@@ -42,6 +42,7 @@ ALGORITHMS = {
     'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
     'a3c-repeat': (ARA3CLearner, PolicyRepeatNetwork),
     'a3c-continuous': (A3CLearner, ContinuousPolicyValueNetwork),
+    'cem-continuous': (CEMLearner, ContinuousPolicyNetwork),
     'trpo-continuous': (TRPOLearner, ContinuousPolicyNetwork),
 }
 
@@ -220,8 +221,8 @@ def get_config():
     parser.add_argument('--max_local_steps', default=5, type=int, help='Number of steps to gain experience from before every update for the Q learning/A3C algorithm', dest='max_local_steps')
     
     #trpo args
-    parser.add_argument('--trpo_epochs', default=1000, type=int, help='number of epochs for which to run TRPO', dest='trpo_epochs')
-    parser.add_argument('--trpo_episodes', default=50, type=int, help='number of episodes to batch for TRPO updates', dest='trpo_episodes')
+    parser.add_argument('--num_epochs', default=1000, type=int, help='number of epochs for which to run TRPO', dest='num_epochs')
+    parser.add_argument('--episodes_per_batch', default=50, type=int, help='number of episodes to batch for TRPO updates', dest='episodes_per_batch')
     parser.add_argument('--trpo_max_rollout', default=1000, type=int, help='max rollout steps per trpo episode', dest='max_rollout')
     parser.add_argument('--cg_subsample', default=0.1, type=float, help='rate at which to subsample data for TRPO conjugate gradient iteration', dest='cg_subsample')
     parser.add_argument('--cg_damping', default=0.001, type=float, help='conjugate gradient damping weight', dest='cg_damping')   

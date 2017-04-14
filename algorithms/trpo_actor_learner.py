@@ -30,12 +30,12 @@ class TRPOLearner(BaseA3CLearner):
 
 		self.batch_size = 512
 		self.max_cg_iters = 20
-		self.num_epochs = args.trpo_epochs
+		self.num_epochs = args.num_epochs
 		self.cg_damping = args.cg_damping
 		self.cg_subsample = args.cg_subsample
 		self.max_kl = args.max_kl
 		self.max_rollout = args.max_rollout
-		self.episodes_per_batch = args.trpo_episodes
+		self.episodes_per_batch = args.episodes_per_batch
 		self.baseline_vars = args.baseline_vars
 		self.experience_queue = args.experience_queue
 		self.task_queue = args.task_queue
