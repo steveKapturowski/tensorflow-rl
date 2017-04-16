@@ -6,7 +6,7 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 
-from multiprocessing.queues import Empty
+from utils.distributions import DiagNormal
 from policy_based_actor_learner import BaseA3CLearner
 from networks.policy_v_network import PolicyValueNetwork
 
@@ -90,7 +90,11 @@ class TRPOLearner(BaseA3CLearner):
 			return kl, kl_firstfixed
 
 		def gaussian_kl_divergence():
-			pass
+
+			kl_firstfixed = self.policy_network.N.kl_divergence(
+				tf.stop_gradient(self.policy_network.mu),
+				tf.stop_gradient(self.policy_network.sigma))
+			return kl, kl_firstfixed
 
 		self.kl, self.kl_firstfixed = discrete_kl_divergence()
 
@@ -151,30 +155,18 @@ class TRPOLearner(BaseA3CLearner):
 
 
 	def choose_next_action(self, state):
-		action_probs = self.session.run(
-			self.policy_network.output_layer_pi,
-			feed_dict={self.policy_network.input_ph: [state]})
+		return self.policy_network.get_action(self.session, state)
+		# action_probs = self.session.run(
+		# 	self.policy_network.output_layer_pi,
+		# 	feed_dict={self.policy_network.input_ph: [state]})
             
-		action_probs = action_probs.reshape(-1)
+		# action_probs = action_probs.reshape(-1)
 
-		action_index = self.sample_policy_action(action_probs)
-		new_action = np.zeros([self.num_actions])
-		new_action[action_index] = 1
+		# action_index = self.sample_policy_action(action_probs)
+		# new_action = np.zeros([self.num_actions])
+		# new_action[action_index] = 1
 
-		return new_action, action_probs
-
-
-	# def choose_next_action(self, state):
-	# 	action = self.policy_network.sample_action(self.session, state)
-
-	# 	#need mu and sigma to calculate kl-divergence
- #        action, mu, sigma = self.session.run([
- #        	self.policy_network.sample_action,
- #        	self.policy_network.mu,
- #        	self.policy_network.sigma,
- #        ], feed_dict={self.input_ph: [state]})
-
- #        return action, mu, sigma
+		# return new_action, action_probs
 
 
 	def run_minibatches(self, data, *ops):

@@ -192,9 +192,7 @@ class A3CLearner(BaseA3CLearner):
                 R = self.session.run(
                     self.local_network.output_layer_v,
                     feed_dict={self.local_network.input_ph:[new_s]})[0][0]
-                            
-            R = 0
-
+            
             sel_actions = []
             for i in reversed(xrange(len(states))):
                 R = rewards[i] + self.gamma * R
@@ -236,7 +234,7 @@ class A3CLSTMLearner(BaseA3CLearner):
                          'num_act': self.num_actions,
                          'args': args}
 
-        self.local_network = PolicyValueNetwork(conf_learning)
+        self.local_network = args.network(conf_learning)
         self.reset_hidden_state()
 
         if self.is_master():
@@ -250,28 +248,32 @@ class A3CLSTMLearner(BaseA3CLearner):
 
 
     def choose_next_action(self, state):
-        network_output_v, network_output_pi, self.lstm_state_out = self.session.run(
-            [
-                self.local_network.output_layer_v,
-                self.local_network.output_layer_pi,
-                self.local_network.lstm_state,
-            ],
-            feed_dict={
-                self.local_network.input_ph: [state],
-                self.local_network.step_size: [1],
-                self.local_network.initial_lstm_state: self.lstm_state_out,
-            })
+        action, v, dist, self.lstm_state_out = self.local_network.get_action_and_value(
+            self.session, state, lstm_state=self.lstm_state_out)
+        return action, v, dist
+
+        # network_output_v, network_output_pi, self.lstm_state_out = self.session.run(
+        #     [
+        #         self.local_network.output_layer_v,
+        #         self.local_network.output_layer_pi,
+        #         self.local_network.lstm_state,
+        #     ],
+        #     feed_dict={
+        #         self.local_network.input_ph: [state],
+        #         self.local_network.step_size: [1],
+        #         self.local_network.initial_lstm_state: self.lstm_state_out,
+        #     })
 
 
-        network_output_pi = network_output_pi.reshape(-1)
-        network_output_v = np.asscalar(network_output_v)
+        # network_output_pi = network_output_pi.reshape(-1)
+        # network_output_v = np.asscalar(network_output_v)
 
 
-        action_index = self.sample_policy_action(network_output_pi)
-        new_action = np.zeros([self.num_actions])
-        new_action[action_index] = 1
+        # action_index = self.sample_policy_action(network_output_pi)
+        # new_action = np.zeros([self.num_actions])
+        # new_action[action_index] = 1
 
-        return new_action, network_output_v, network_output_pi
+        # return new_action, network_output_v, network_output_pi
 
 
     def train(self):
@@ -340,8 +342,7 @@ class A3CLSTMLearner(BaseA3CLearner):
             if episode_over:
                 R = 0
             else:
-                # compute with repsect to target network
-                prev_lstm_state_out = self.lstm_state_out
+                prev_lstm_state_out = np.copy(self.lstm_state_out)
                 R = self.session.run(
                     self.local_network.output_layer_v,
                     feed_dict={
@@ -388,7 +389,7 @@ class A3CLSTMLearner(BaseA3CLearner):
             self.apply_gradients_to_shared_memory_vars(grads)
 
             delta_old = local_step_start - episode_start_step
-            delta_new = self.local_step -  local_step_start
+            delta_new = self.local_step - local_step_start
             
             s, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward = self.prepare_state(
                 s, entropy, np.array(values).mean(), episode_start_step, total_episode_reward, steps_at_last_reward, sel_actions, episode_over)

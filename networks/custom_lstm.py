@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
+import numpy as np
 
 from tensorflow.contrib.rnn import RNNCell
 
@@ -84,8 +85,15 @@ class CustomBasicLSTMCell(RNNCell):
 				total_arg_size += shape[1]
   
 		# Now the computation.
-		with tf.variable_scope(scope or "Linear"):      
-			matrix = tf.get_variable("Matrix", [total_arg_size, output_size])
+		with tf.variable_scope(scope or "Linear"):
+	 		input_channels = total_arg_size / 2
+			d = 1.0 / np.sqrt(input_channels)
+			# init = tf.random_uniform([total_arg_size, output_size], minval=-d, maxval=d)
+			init = tf.random_uniform_initializer(-d, d)
+
+			matrix = tf.get_variable("Matrix", [total_arg_size, output_size], dtype=tf.float32, initializer=init)
+			# matrix = tf.get_variable("Matrix", dtype=tf.float32, initializer=init)
+			# matrix = tf.get_variable("Matrix", [total_arg_size, output_size])
 
 			if len(args) == 1:
 				res = tf.matmul(args[0], matrix)
@@ -94,7 +102,7 @@ class CustomBasicLSTMCell(RNNCell):
 			if not bias:
 				return res
 			bias_term = tf.get_variable(
-				"Bias", [output_size],
+				"Bias", [output_size], dtype=tf.float32,
 				initializer=tf.constant_initializer(bias_start))
 
 			# Store as a member for copying. (Customized here)

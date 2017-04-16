@@ -334,9 +334,9 @@ class ActorLearner(Process):
                 p_size = shared_vars.size
                 _type = 0 if self.optimizer_type == "momentum" else 1
                 
-                #print "BEFORE", "RMSPROP m", m[0], "GRAD", g[0], self.flat_grads[0], self.flat_grads2[0]
+                # print "BEFORE", "RMSPROP m", m[0], "p", p[0:5], "GRAD", g[0], 'lr', lr
                 apply_grads_mom_rmsprop(m, g, p, p_size, _type, lr, self.alpha, self.e)
-                #print "AFTER", "RMSPROP m", m[0], "GRAD", g[0], self.flat_grads[0], self.flat_grads2[0]
+                # print "AFTER", "RMSPROP m", m[0], "p", p[0:5], "GRAD", g[0], 'lr', lr
 
     def rescale_reward(self, reward):
         if self.rescale_rewards:

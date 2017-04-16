@@ -40,13 +40,13 @@ class PolicyValueNetwork(Network):
                 self.output_layer_pi,
                 self.log_output_layer_pi
             ), axis=1)
-        self.entropy = tf.reduce_mean(self.output_layer_entropy)
+        self.entropy = tf.reduce_sum(self.output_layer_entropy)
             
         self.log_output_selected_action = tf.reduce_sum(
             self.log_output_layer_pi*self.selected_action_ph, 
             axis=1)
 
-        self.actor_objective = -tf.reduce_mean(
+        self.actor_objective = -tf.reduce_sum(
             self.log_output_selected_action * self.adv_actor_ph
             + self.beta * self.output_layer_entropy
         )
@@ -62,22 +62,43 @@ class PolicyValueNetwork(Network):
         self.critic_loss = self._huber_loss(self.adv_critic)
         return self.critic_loss
 
-    def get_action(self, session, state):
-        pi = session.run(
-            self.output_layer_pi, feed_dict={self.input_ph: [state]})
+    def get_action(self, session, state, lstm_state=None):
+        feed_dict = {self.input_ph: [state]}
+        if lstm_state is not None:
+            feed_dict[self.step_size] = [1]
+            feed_dict[self.initial_lstm_state] = lstm_state
+
+            pi, lstm_state = session.run([
+                self.output_layer_pi, self.lstm_state], feed_dict=feed_dict)
+        else:
+            pi = session.run(self.output_layer_pi, feed_dict=feed_dict)
+
         pi = pi.reshape(-1)
 
         action_index = np.random.choice(self.num_actions, p=pi)
         action = np.zeros([self.num_actions])
         action[action_index] = 1
 
-        return action, pi
+        if lstm_state is not None:
+            return action, pi, lstm_state
+        else:
+            return action, pi
 
-    def get_action_and_value(self, session, state):
-        pi, v = session.run([
-            self.output_layer_pi,
-            self.output_layer_v,
-        ], feed_dict={self.input_ph: [state]})
+    def get_action_and_value(self, session, state, lstm_state=None):
+        feed_dict = {self.input_ph: [state]}
+        if lstm_state is not None:
+            feed_dict[self.step_size] = [1]
+            feed_dict[self.initial_lstm_state] = lstm_state
+
+            pi, v, lstm_state = session.run([
+                self.output_layer_pi,
+                self.output_layer_v,
+                self.lstm_state], feed_dict=feed_dict)
+
+        else:
+            pi, v = session.run([
+                self.output_layer_pi,
+                self.output_layer_v], feed_dict=feed_dict)
 
         pi = pi.reshape(-1)
         v = np.asscalar(v)
@@ -86,7 +107,10 @@ class PolicyValueNetwork(Network):
         action = np.zeros([self.num_actions])
         action[action_index] = 1
 
-        return action, v, pi
+        if lstm_state is not None:
+            return action, v, pi, lstm_state
+        else:
+            return action, v, pi
 
 
 class PolicyNetwork(PolicyValueNetwork):
@@ -127,13 +151,13 @@ class PolicyRepeatNetwork(PolicyValueNetwork):
                 tf.expand_dims(self.log_output_layer_pi, 2) + tf.expand_dims(self.log_action_repeat_probs, 1)
             ), axis=[1, 2])
 
-        self.entropy = tf.reduce_mean(self.output_layer_entropy)
+        self.entropy = tf.reduce_sum(self.output_layer_entropy)
 
         self.log_output_selected_action = tf.reduce_sum(
             self.log_output_layer_pi*self.selected_action_ph,
             axis=1) + self.log_selected_repeat_prob
 
-        self.actor_objective = -tf.reduce_mean(
+        self.actor_objective = -tf.reduce_sum(
             self.log_output_selected_action * self.adv_actor_ph
             + self.beta * self.output_layer_entropy)
 
@@ -207,8 +231,8 @@ class SequencePolicyVNetwork(PolicyValueNetwork):
         log_sequence_probs = tf.reduce_sum(tf.reduce_sum(log_action_probs * self.action_outputs, 2), 1)
 
         # ∏a_i * ∑ log a_i
-        self.output_layer_entropy = - tf.reduce_mean(tf.stop_gradient(1 + log_sequence_probs) * log_sequence_probs)
-        self.entropy = - tf.reduce_mean(log_sequence_probs)
+        self.output_layer_entropy = - tf.reduce_sum(tf.stop_gradient(1 + log_sequence_probs) * log_sequence_probs)
+        self.entropy = - tf.reduce_sum(log_sequence_probs)
 
         print 'sp, lsp:', sequence_probs.get_shape(), log_sequence_probs.get_shape()
 

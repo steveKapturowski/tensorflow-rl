@@ -24,13 +24,23 @@ class Network(object):
         self.input_shape = conf['input_shape']
         self.activation = conf['args'].activation
         self.input_channels = 3 if conf['args'].use_rgb else conf['args'].history_length
-        self.use_recurrent = conf['args'].alg_type.endswith('-lstm')
+        self.use_recurrent = 'lstm' in conf['args'].alg_type
+        self._init_placeholders()
 
+
+    def _init_placeholders(self):
         with tf.variable_scope(self.name):
             if self.arch == 'FC':
                 self.input_ph = tf.placeholder('float32', [self.batch_size]+self.input_shape+[self.input_channels], name='input')
             else: #assume image input
                 self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
+
+            if self.use_recurrent:
+                # self.hidden_state_size = 256
+                self.hidden_state_size = 128
+                self.step_size = tf.placeholder(tf.float32, [None], name='step_size')
+                self.initial_lstm_state = tf.placeholder(
+                    tf.float32, [None, 2*self.hidden_state_size], name='initital_state')
 
             self.selected_action_ph = tf.placeholder(
                 'float32', [self.batch_size, self.num_actions], name='selected_action')
@@ -39,8 +49,7 @@ class Network(object):
     def _build_encoder(self):
         with tf.variable_scope(self.name):
             if self.arch == 'FC':
-                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 40, activation=self.activation)
-                # self.w2, self.b2, self.o2 = layers.fc('fc2', self.o1, 40, activation=self.activation)
+                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 200, activation=self.activation)
                 self.ox = self.o1
             elif self.arch == 'ATARI-TRPO':
                 self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 4, self.input_channels, 2, activation=self.activation)
@@ -63,14 +72,8 @@ class Network(object):
 
 
             if self.use_recurrent:
-                layer_name = 'lstm_layer'
-                self.hidden_state_size = 256
-                with tf.variable_scope(self.name+'/'+layer_name) as vs:
+                with tf.variable_scope(self.name+'/lstm_layer') as vs:
                     self.lstm_cell = CustomBasicLSTMCell(self.hidden_state_size, forget_bias=1.0)
-
-                    self.step_size = tf.placeholder(tf.float32, [None], name='step_size')
-                    self.initial_lstm_state = tf.placeholder(
-                        tf.float32, [None, 2*self.hidden_state_size], name='initital_state')
                     
                     batch_size = tf.shape(self.step_size)[0]
                     ox_reshaped = tf.reshape(self.ox,
@@ -84,7 +87,7 @@ class Network(object):
                         time_major=False,
                         scope=vs)
 
-                    self.ox = tf.reshape(lstm_outputs, [-1,256], name='reshaped_lstm_outputs')
+                    self.ox = tf.reshape(lstm_outputs, [-1,self.hidden_state_size], name='reshaped_lstm_outputs')
 
                     # Get all LSTM trainable params
                     self.lstm_trainable_variables = [v for v in 

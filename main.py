@@ -41,7 +41,7 @@ ALGORITHMS = {
     'dqn-cts': (PseudoCountQLearner, QNetwork),
     'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
     'a3c-repeat': (ARA3CLearner, PolicyRepeatNetwork),
-    'a3c-continuous': (A3CLearner, ContinuousPolicyValueNetwork),
+    'a3c-lstm-continuous': (A3CLSTMLearner, ContinuousPolicyValueNetwork),
     'cem-continuous': (CEMLearner, ContinuousPolicyNetwork),
     'trpo-continuous': (TRPOLearner, ContinuousPolicyNetwork),
 }
@@ -188,7 +188,7 @@ def get_config():
     parser.add_argument('--use_rgb', action='store_true', help='If set use rgb image channels instead of stacked luninance frames', dest='use_rgb')
 
     #optimizer args
-    parser.add_argument('--opt_type', default='rmsprop', help='Type of optimizer: rmsprop, momentum, adam', dest='opt_type')
+    parser.add_argument('--opt_type', default='rmsprop', help='Type of optimizer: rmsprop, momentum, adam, adamax', dest='opt_type')
     parser.add_argument('--opt_mode', default='shared', help='Whether to use \"local\" or \"shared\" vector(s) for the momemtum/optimizer statistics', dest='opt_mode')
     parser.add_argument('--b1', default=0.9, type=float, help='Beta1 for the Adam optimizer', dest='b1')
     parser.add_argument('--b2', default=0.999, type=float, help='Beta2 for the Adam optimizer', dest='b2')

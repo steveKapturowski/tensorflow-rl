@@ -14,7 +14,7 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
     '''
     def __init__(self, conf, **kwargs):
         self.action_space = conf['args'].action_space
-        self.use_state_dependent_std = False
+        self.use_state_dependent_std = True
         super(ContinuousPolicyValueNetwork, self).__init__(conf, **kwargs)
 
     def _build_policy_head(self, input_state):
@@ -28,9 +28,9 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
         self.log_output_selected_action = tf.expand_dims(self.log_output_selected_action, 1)
         
         self.output_layer_entropy = self.N.entropy()
-        self.entropy = tf.reduce_mean(self.output_layer_entropy)
+        self.entropy = tf.reduce_sum(self.output_layer_entropy)
 
-        self.actor_objective = -tf.reduce_mean(
+        self.actor_objective = -tf.reduce_sum(
             self.log_output_selected_action * self.adv_actor_ph
             + self.beta * self.output_layer_entropy
         )
@@ -49,24 +49,49 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
                 dtype=tf.float32, initializer=tf.random_uniform_initializer(-4, -2))
             return tf.expand_dims(tf.exp(self.log_sigma), 0)
 
-    def get_action(self, session, state):
-        action, mu, sigma = session.run([
-            self.sample_action,
-            self.mu,
-            self.sigma
-        ], feed_dict={self.input_ph: [state]})
+    def get_action(self, session, state, lstm_state=None):
+        feed_dict = {self.input_ph: [state]}
+        if lstm_state is not None:
+            feed_dict[self.step_size] = [1]
+            feed_dict[self.initial_lstm_state] = lstm_state
 
-        return action[0], (mu[0], sigma[0])
+            action, lstm_state, mu, sigma = session.run([
+                self.sample_action,
+                self.lstm_state,
+                self.mu,
+                self.sigma], feed_dict=feed_dict)
 
-    def get_action_and_value(self, session, state):
-        action, v, mu, sigma = session.run([
-            self.sample_action,
-            self.output_layer_v,
-            self.mu,
-            self.sigma
-        ], feed_dict={self.input_ph: [state]})
+            return action[0], (mu[0], sigma[0]), lstm_state
+        else:
+            action, mu, sigma = session.run([
+                self.sample_action,
+                self.mu,
+                self.sigma], feed_dict=feed_dict)
 
-        return action[0], v[0, 0], (mu[0], sigma[0])
+            return action[0], (mu[0], sigma[0])
+
+    def get_action_and_value(self, session, state, lstm_state=None):
+        feed_dict = {self.input_ph: [state]}
+        if lstm_state is not None:
+            feed_dict[self.step_size] = [1]
+            feed_dict[self.initial_lstm_state] = lstm_state
+
+            action, v, lstm_state, mu, sigma = session.run([
+                self.sample_action,
+                self.output_layer_v,
+                self.lstm_state,
+                self.mu,
+                self.sigma], feed_dict=feed_dict)
+
+            return action[0], v[0, 0], (mu[0], sigma[0]), lstm_state
+        else:
+            action, v, mu, sigma = session.run([
+                self.sample_action,
+                self.output_layer_v,
+                self.mu,
+                self.sigma], feed_dict=feed_dict)
+
+            return action[0], v[0, 0], (mu[0], sigma[0])
 
 
 class ContinuousPolicyNetwork(ContinuousPolicyValueNetwork):
