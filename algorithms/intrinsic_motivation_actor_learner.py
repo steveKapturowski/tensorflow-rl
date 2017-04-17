@@ -77,14 +77,15 @@ class DensityModelMixin(object):
     def sync_density_model(self):
         logger.info('Synchronizing Density Model...')
         if self.is_master:
-            with open('/tmp/density_model.pkl', 'wb') as f:
-                cPickle.dump(self.density_model, f, protocol=2)
-        self.barrier.wait()
+            raw_data = cPickle.dumps(self.density_model, protocol=2)
+            with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'wb') as f:
+                f.write(raw_data)
 
-        with self.barrier.counter.lock:
-            with open('/tmp/density_model.pkl', 'rb') as f:
-                self.density_model = cPickle.load(f)
-        self.barrier.wait()
+        else:
+            with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'rb') as f:
+                raw_data = f.read()
+
+            self.density_model = cPickle.loads(raw_data)
 
 
 @Experimental
@@ -345,46 +346,21 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
     #     self.apply_gradients_to_shared_memory_vars(grads)
 
 
-    def batch_update(self):
-        if len(self.replay_memory) < self.replay_memory.maxlen//10:
-            return
-
-        s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
-
-        q_max_idx = self.session.run(
-            self.local_network.output_layer, 
-            feed_dict={self.local_network.input_ph: s_f}).argmax(axis=1)
-
-        q_target_max = self.session.run(
-            self.target_network.output_layer,
-            feed_dict={self.target_network.input_ph: s_f})[range(self.batch_size), q_max_idx]
-
-        y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
-
-        feed_dict={
-            self.local_network.input_ph: s_i,
-            self.local_network.target_ph: y_target,
-            self.local_network.selected_action_ph: a_i
-        }
-        grads = self.session.run(self.local_network.get_gradients,
-                                 feed_dict=feed_dict)
-
-        self.apply_gradients_to_shared_memory_vars(grads)
-
-
     # def batch_update(self):
     #     if len(self.replay_memory) < self.replay_memory.maxlen//10:
     #         return
 
     #     s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-    #     feed_dict={
-    #         self.local_network.input_ph: s_f,
-    #         self.target_network.input_ph: s_f,
-    #         self.is_terminal: is_terminal,
-    #         self.one_step_reward: r_i,
-    #     }
-    #     y_target = self.session.run(self.y_target, feed_dict=feed_dict)
+    #     q_max_idx = self.session.run(
+    #         self.local_network.output_layer, 
+    #         feed_dict={self.local_network.input_ph: s_f}).argmax(axis=1)
+
+    #     q_target_max = self.session.run(
+    #         self.target_network.output_layer,
+    #         feed_dict={self.target_network.input_ph: s_f})[range(self.batch_size), q_max_idx]
+
+    #     y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
 
     #     feed_dict={
     #         self.local_network.input_ph: s_i,
@@ -393,7 +369,32 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
     #     }
     #     grads = self.session.run(self.local_network.get_gradients,
     #                              feed_dict=feed_dict)
+
     #     self.apply_gradients_to_shared_memory_vars(grads)
+
+
+    def batch_update(self):
+        if len(self.replay_memory) < self.replay_memory.maxlen//10:
+            return
+
+        s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
+
+        feed_dict={
+            self.local_network.input_ph: s_f,
+            self.target_network.input_ph: s_f,
+            self.is_terminal: is_terminal,
+            self.one_step_reward: r_i,
+        }
+        y_target = self.session.run(self.y_target, feed_dict=feed_dict)
+
+        feed_dict={
+            self.local_network.input_ph: s_i,
+            self.local_network.target_ph: y_target,
+            self.local_network.selected_action_ph: a_i
+        }
+        grads = self.session.run(self.local_network.get_gradients,
+                                 feed_dict=feed_dict)
+        self.apply_gradients_to_shared_memory_vars(grads)
 
 
     def train(self):
