@@ -382,11 +382,9 @@ class A3CLSTMLearner(BaseA3CLearner):
                 self.local_network.step_size : [len(s_batch)],
                 self.local_network.initial_lstm_state: local_lstm_state,
             }
-            grads, entropy, log_output_selected_action = self.session.run(
-                [self.local_network.get_gradients, self.local_network.entropy, self.local_network.log_output_selected_action],
+            grads, entropy = self.session.run(
+                [self.local_network.get_gradients, self.local_network.entropy],
                 feed_dict=feed_dict)
-
-            print 'log_output_selected_action:', log_output_selected_action.shape
             self.apply_gradients_to_shared_memory_vars(grads)
 
             delta_old = local_step_start - episode_start_step

@@ -26,7 +26,7 @@ class PolicyValueNetwork(Network):
                     with tf.variable_scope('value_encoder'):
                         encoded_state = self._build_encoder()
 
-                self.loss += self._build_value_head(encoded_state)
+                self.loss += 0.5 * self._build_value_head(encoded_state)
             self._build_gradient_ops(self.loss)
 
     def _build_policy_head(self, input_state):
