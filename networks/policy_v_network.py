@@ -11,10 +11,10 @@ class PolicyValueNetwork(Network):
  
     def __init__(self, conf, use_policy_head=True, use_value_head=True):
         super(PolicyValueNetwork, self).__init__(conf)
-        self.share_encoder_weights = False
-        encoded_state = self._build_encoder()
-        
         self.beta = conf['args'].entropy_regularisation_strength
+        self.share_encoder_weights = conf['args'].share_encoder_weights
+
+        encoded_state = self._build_encoder()
                 
         with tf.variable_scope(self.name):
             self.loss = 0.0

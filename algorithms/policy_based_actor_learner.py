@@ -50,7 +50,7 @@ class BaseA3CLearner(ActorLearner):
     def prepare_state(self, state, mean_entropy, mean_value, episode_start_step, total_episode_reward, 
                       steps_at_last_reward, sel_actions, episode_over):
         # prevent the agent from getting stuck
-        reset_game = False
+        reset_game = episode_over
 
         if (self.local_step - steps_at_last_reward > 5000
             or (self.emulator.get_lives() == 0
@@ -382,10 +382,11 @@ class A3CLSTMLearner(BaseA3CLearner):
                 self.local_network.step_size : [len(s_batch)],
                 self.local_network.initial_lstm_state: local_lstm_state,
             }
-            grads, entropy = self.session.run(
-                [self.local_network.get_gradients, self.local_network.entropy],
+            grads, entropy, log_output_selected_action = self.session.run(
+                [self.local_network.get_gradients, self.local_network.entropy, self.local_network.log_output_selected_action],
                 feed_dict=feed_dict)
 
+            print 'log_output_selected_action:', log_output_selected_action.shape
             self.apply_gradients_to_shared_memory_vars(grads)
 
             delta_old = local_step_start - episode_start_step
