@@ -41,6 +41,7 @@ ALGORITHMS = {
     'dqn-cts': (PseudoCountQLearner, QNetwork),
     'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
     'a3c-repeat': (ARA3CLearner, PolicyRepeatNetwork),
+    'a3c-continuous': (A3CLearner, ContinuousPolicyValueNetwork),
     'a3c-lstm-continuous': (A3CLSTMLearner, ContinuousPolicyValueNetwork),
     'cem-continuous': (CEMLearner, ContinuousPolicyNetwork),
     'trpo-continuous': (TRPOLearner, ContinuousPolicyNetwork),
