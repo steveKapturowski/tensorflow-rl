@@ -214,11 +214,6 @@ class ActorLearner(Process):
 
         # Ensure we don't add any more nodes to the graph
         self.session.graph.finalize()
-        # Wait until all actors are ready to start
-        self.barrier.wait()
-        # Introduce a different start delay for each actor, so that they do not run in synchronism.
-        # This is to avoid concurrent updates of parameters as much as possible 
-        time.sleep(0.1877 * self.actor_id)
         self.start_time = time.time()
 
 

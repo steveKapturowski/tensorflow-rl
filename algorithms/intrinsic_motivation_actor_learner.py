@@ -62,6 +62,8 @@ class PerPixelDensityModel(object):
 
 class DensityModelMixin(object):
     def _init_density_model(self, args):
+        self.density_model_update_steps = 10*args.q_target_update_steps
+
         model_args = {
             'height': args.cts_rescale_dim,
             'width': args.cts_rescale_dim,
@@ -74,18 +76,18 @@ class DensityModelMixin(object):
             self.density_model = PerPixelDensityModel(**model_args)
 
 
-    def sync_density_model(self):
-        logger.info('Synchronizing Density Model...')
-        if self.is_master:
-            raw_data = cPickle.dumps(self.density_model, protocol=2)
-            with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'wb') as f:
-                f.write(raw_data)
+    def write_density_model(self):
+        logger.info('T{} Writing Pickled Density Model to File...'.format(self.actor_id))
+        raw_data = cPickle.dumps(self.density_model, protocol=2)
+        with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'wb') as f:
+            f.write(raw_data)
 
-        else:
-            with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'rb') as f:
-                raw_data = f.read()
+    def read_density_model(self):
+        logger.info('T{} Synchronizing Density Model...'.format(self.actor_id))
+        with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'rb') as f:
+            raw_data = f.read()
 
-            self.density_model = cPickle.loads(raw_data)
+        self.density_model = cPickle.loads(raw_data)
 
 
 @Experimental
@@ -161,12 +163,19 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 
                 s = new_s
                 self.local_step += 1
-                #TODO: remove overloading hackery
-                _, sync_model = self.global_step.increment(self.q_target_update_steps)
-                if sync_model:
-                    self.sync_density_model()
-                
-            
+
+                #TODO: cleanup overloading hackery
+                # _, sync_model = self.global_step.increment(self.density_model_update_steps)
+                # if sync_model:
+                #     self.write_density_model()
+                #     for i in xrange(len(self.density_model_update_flags.updated)):
+                #         self.density_model_update_flags.updated[i] = 1
+
+                # if self.density_model_update_flags.updated[self.actor_id] == 1
+                #     self.read_density_model()
+                #     self.density_model_update_flags.updated[self.actor_id] = 0
+
+
             # Calculate the value offered by critic in the new state.
             if episode_over:
                 R = 0
@@ -346,33 +355,6 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
     #     self.apply_gradients_to_shared_memory_vars(grads)
 
 
-    # def batch_update(self):
-    #     if len(self.replay_memory) < self.replay_memory.maxlen//10:
-    #         return
-
-    #     s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
-
-    #     q_max_idx = self.session.run(
-    #         self.local_network.output_layer, 
-    #         feed_dict={self.local_network.input_ph: s_f}).argmax(axis=1)
-
-    #     q_target_max = self.session.run(
-    #         self.target_network.output_layer,
-    #         feed_dict={self.target_network.input_ph: s_f})[range(self.batch_size), q_max_idx]
-
-    #     y_target = r_i + self.cts_eta*self.gamma*q_target_max * (1 - is_terminal.astype(np.int))
-
-    #     feed_dict={
-    #         self.local_network.input_ph: s_i,
-    #         self.local_network.target_ph: y_target,
-    #         self.local_network.selected_action_ph: a_i
-    #     }
-    #     grads = self.session.run(self.local_network.get_gradients,
-    #                              feed_dict=feed_dict)
-
-    #     self.apply_gradients_to_shared_memory_vars(grads)
-
-
     def batch_update(self):
         if len(self.replay_memory) < self.replay_memory.maxlen//10:
             return
@@ -408,8 +390,6 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         a_batch = []
         y_batch = []
         bonuses = deque(maxlen=1000)
-
-        exec_update_target = False
         episode_over = False
         
         t0 = time.time()
@@ -455,12 +435,15 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 self.local_step += 1
                 episode_ave_max_q += max_q
                 
-                global_step, update_target = self.global_step.increment(
-                    self.q_target_update_steps)
-
-                if update_target:
-                    update_target = False
-                    exec_update_target = True
+                global_step, _ = self.global_step.increment()
+                if global_step % self.q_target_update_steps == 0:
+                    self.write_density_model()
+                    self.update_target()
+                # Sync local tensorflow target network params with shared target network params
+                if self.target_update_flags.updated[self.actor_id] == 1:
+                    self.sync_net_with_shared_memory(self.target_network, self.target_vars)
+                    self.target_update_flags.updated[self.actor_id] = 0
+                    self.read_density_model()
 
                 if self.local_step % self.q_update_interval == 0:
                     self.batch_update()
@@ -497,16 +480,6 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                         actions[i],
                         mixed_returns[i],
                         i+1 == episode_length)
-
-            #update shared target vars
-            if exec_update_target:
-                self.update_target()
-                exec_update_target = False
-            # Sync local tensorflow target network params with shared target network params
-            if self.target_update_flags.updated[self.actor_id] == 1:
-                self.sync_net_with_shared_memory(self.target_network, self.target_vars)
-                self.target_update_flags.updated[self.actor_id] = 0
-                self.sync_density_model()
 
             s, total_episode_reward, _, ep_t, episode_ave_max_q, episode_over = \
                 self.prepare_state(s, total_episode_reward, self.local_step, ep_t, episode_ave_max_q, episode_over, bonuses, total_augmented_reward)
