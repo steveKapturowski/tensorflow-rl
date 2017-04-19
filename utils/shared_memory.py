@@ -38,8 +38,9 @@ class Barrier:
     def wait(self):
         with self.counter.lock:
             self.counter.val.value += 1
-            if self.counter.val.value == self.n: 
+            if self.counter.val.value == self.n:
                 self.barrier.release()
+
         self.barrier.acquire()
         self.barrier.release()
 
