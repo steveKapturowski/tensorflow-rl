@@ -23,18 +23,18 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
             'mean', input_state, self.num_actions, activation='linear')
         self.sigma = self._build_sigma(input_state)
 
-        self.N = DiagNormal(self.mu, self.sigma)
-        self.log_output_selected_action = self.N.log_likelihood(self.selected_action_ph)
+        self.dist = DiagNormal(self.mu, self.sigma)
+        self.log_output_selected_action = self.dist.log_likelihood(self.selected_action_ph)
         self.log_output_selected_action = tf.expand_dims(self.log_output_selected_action, 1)
         
-        self.output_layer_entropy = self.N.entropy()
+        self.output_layer_entropy = self.dist.entropy()
         self.entropy = tf.reduce_sum(self.output_layer_entropy)
 
         self.actor_objective = -tf.reduce_sum(
             self.log_output_selected_action * self.adv_actor_ph
             + self.beta * self.output_layer_entropy
         )
-        self.sample_action = self.N.sample()
+        self.sample_action = self.dist.sample()
         # self.sample_action = tf.Print(self.sample_action, [self.sample_action], 'Action: ')
 
         return self.actor_objective

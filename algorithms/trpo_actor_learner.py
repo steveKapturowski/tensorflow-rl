@@ -70,9 +70,43 @@ class TRPOLearner(BaseA3CLearner):
 		action = tf.cast(tf.argmax(self.policy_network.selected_action_ph, axis=1), tf.int32)
 
 		batch_idx = tf.range(0, tf.shape(action)[0])
-		selected_prob = utils.ops.slice_2d(self.action_probs, batch_idx, action)
+		selected_prob = tf.exp(self.policy_network.log_output_selected_action)
 		old_selected_prob = utils.ops.slice_2d(self.old_action_probs, batch_idx, action)
 		
+		self.theta = utils.ops.flatten_vars(self.policy_network.params)
+		self.policy_loss = -tf.reduce_mean(tf.multiply(
+			self.policy_network.adv_actor_ph,
+			selected_prob / old_selected_prob
+		))
+
+		grads = tf.gradients(self.policy_loss, self.policy_network.params)
+		# print '\n\n\ngrads:', [v.name for g, v in zip(grads, self.policy_network.params) if g is None]
+		self.pg = utils.ops.flatten_vars(
+			tf.gradients(self.policy_loss, self.policy_network.params))
+
+
+		#TODO: convert to using discrete distribution object
+		self.kl = utils.stats.mean_kl_divergence_op(self.old_action_probs, self.action_probs)
+		self.kl_firstfixed = tf.reduce_mean(tf.reduce_sum(tf.multiply(
+			tf.stop_gradient(self.action_probs),
+			tf.log(tf.stop_gradient(self.action_probs + eps) / (self.action_probs + eps))
+		), axis=1))
+
+
+		kl_grads = tf.gradients(self.kl_firstfixed, self.policy_network.params)
+		flat_kl_grads = utils.ops.flatten_vars(kl_grads)
+
+		self.pg_placeholder = tf.placeholder(tf.float32, shape=self.pg.get_shape().as_list(), name='pg_placeholder')
+		self.fullstep, self.neggdotstepdir = self._conjugate_gradient_ops(-self.pg_placeholder, flat_kl_grads, max_iterations=self.max_cg_iters)
+
+
+	def _build_continuous_ops(self):
+		eps = 1e-10
+		self.dist_params = self.policy_network.dist.params()
+		self.old_params = tf.placeholder(tf.float32, shape=[None, tf.shape(self.dist_params)[1]], name='old_action_probs')
+
+		old_selected_prob = tf.exp(self.policy_network.log_output_selected_action)
+
 		self.theta = utils.ops.flatten_vars(self.policy_network.params)
 		self.policy_loss = -tf.reduce_mean(tf.multiply(
 			self.policy_network.adv_actor_ph,
@@ -81,22 +115,9 @@ class TRPOLearner(BaseA3CLearner):
 		self.pg = utils.ops.flatten_vars(
 			tf.gradients(self.policy_loss, self.policy_network.params))
 
-		def discrete_kl_divergence():
-			kl = utils.stats.mean_kl_divergence_op(self.old_action_probs, self.action_probs)
-			kl_firstfixed = tf.reduce_mean(tf.reduce_sum(tf.multiply(
-				tf.stop_gradient(self.action_probs),
-				tf.log(tf.stop_gradient(self.action_probs + eps) / (self.action_probs + eps))
-			), axis=1))
-			return kl, kl_firstfixed
-
-		def gaussian_kl_divergence():
-
-			kl_firstfixed = self.policy_network.N.kl_divergence(
-				tf.stop_gradient(self.policy_network.mu),
-				tf.stop_gradient(self.policy_network.sigma))
-			return kl, kl_firstfixed
-
-		self.kl, self.kl_firstfixed = discrete_kl_divergence()
+		self.kl = self.policy_network.dist.kl_divergence(self.old_params)
+		self.kl_firstfixed = self.policy_network.dist.kl_divergence(
+			tf.stop_gradient(self.dist_params))
 
 		kl_grads = tf.gradients(self.kl_firstfixed, self.policy_network.params)
 		flat_kl_grads = utils.ops.flatten_vars(kl_grads)

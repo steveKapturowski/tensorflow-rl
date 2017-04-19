@@ -49,7 +49,7 @@ class Network(object):
     def _build_encoder(self):
         with tf.variable_scope(self.name):
             if self.arch == 'FC':
-                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 200, activation=self.activation)
+                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 40, activation=self.activation)
                 self.ox = self.o1
             elif self.arch == 'ATARI-TRPO':
                 self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 4, self.input_channels, 2, activation=self.activation)

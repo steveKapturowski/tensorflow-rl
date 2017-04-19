@@ -89,7 +89,7 @@ def main(args):
     ) if args.opt_mode == 'shared' else None
 
     #TODO: need to refactor so TRPO+GAE doesn't need special treatment
-    if args.alg_type == 'trpo':
+    if args.alg_type in ['trpo', 'trpo-continuous']:
         baseline_network = PolicyValueNetwork({
             'name': 'shared_value_network',
             'input_shape': input_shape,
