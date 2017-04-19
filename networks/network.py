@@ -142,4 +142,7 @@ class Network(object):
         self.get_gradients = self._clip_grads(grads)
         self._setup_shared_memory_ops()
 
+
+    def get_input_shape(self):
+        return self.input_ph.get_shape().as_list()[1:]
         

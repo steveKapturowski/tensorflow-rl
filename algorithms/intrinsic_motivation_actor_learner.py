@@ -236,7 +236,10 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         self.cts_eta = args.cts_eta
         self.cts_beta = args.cts_beta
         self.batch_size = args.batch_update_size
-        self.replay_memory = ReplayMemory(args.replay_size)
+        self.replay_memory = ReplayMemory(
+            args.replay_size,
+            self.local_network.get_input_shape(),
+            self.num_actions)
 
         self._init_density_model(args)
         self._double_dqn_op()

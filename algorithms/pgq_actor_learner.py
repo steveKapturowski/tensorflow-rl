@@ -45,7 +45,10 @@ class BasePGQLearner(BaseA3CLearner):
         # pgq specific initialization
         self.pgq_fraction = self.pgq_fraction
         self.batch_size = self.batch_update_size
-        self.replay_memory = ReplayMemory(self.replay_size)
+        self.replay_memory = ReplayMemory(
+            self.replay_size,
+            self.local_network.get_input_shape(),
+            self.num_actions)
         self.q_tilde = self.batch_network.beta * (
             self.batch_network.log_output_layer_pi
             + tf.expand_dims(self.batch_network.output_layer_entropy, 1)
@@ -64,13 +67,7 @@ class BasePGQLearner(BaseA3CLearner):
 
         self.V_params = self.batch_network.params
         self.q_gradients = tf.gradients(self.q_objective, self.V_params)
-
-        if self.batch_network.clip_norm_type == 'global':
-            self.q_gradients = tf.clip_by_global_norm(
-                self.q_gradients, self.batch_network.clip_norm)[0]
-        elif self.batch_network.clip_norm_type == 'local':
-            self.q_gradients = [tf.clip_by_norm(
-                g, self.batch_network.clip_norm) for g in self.q_gradients]
+        self.q_gradients = self.batch_network._clip_grads(self.q_gradients)
 
         # if (self.optimizer_mode == "local"):
         #     if (self.optimizer_type == "rmsprop"):
@@ -216,8 +213,10 @@ class PGQLearner(BasePGQLearner):
             # q_update_counter += 1
             # if q_update_counter % self.q_update_interval == 0:
             #     self.apply_batch_q_update()
-
-            grads = [p + q for p, q in zip(policy_grads, q_grads)]
+            if q_grads is not None:
+                grads = [p + q for p, q in zip(policy_grads, q_grads)]
+            else:
+                grads = policy_grads
             self.apply_gradients_to_shared_memory_vars(grads)
 
             delta_old = local_step_start - episode_start_step

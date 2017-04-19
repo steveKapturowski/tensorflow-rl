@@ -6,13 +6,13 @@ import numpy as np
 
 class ReplayMemory(object):
 
-	def __init__(self, maxlen):
+	def __init__(self, maxlen, input_shape, action_size):
 		self.maxlen = maxlen
 		dirname = tempfile.mkdtemp()
 		#use memory maps so we won't have to worry about eating up lots of RAM
 		get_path = lambda name: os.path.join(dirname, name)
-		self.screens = np.memmap(get_path('screens'), dtype=np.float32, mode='w+', shape=(self.maxlen, 84, 84, 4))
-		self.actions = np.memmap(get_path('actions'), dtype=np.float32, mode='w+', shape=(self.maxlen, 18))
+		self.screens = np.memmap(get_path('screens'), dtype=np.float32, mode='w+', shape=tuple([self.maxlen]+input_shape))
+		self.actions = np.memmap(get_path('actions'), dtype=np.float32, mode='w+', shape=(self.maxlen, action_size))
 		self.rewards = np.memmap(get_path('rewards'), dtype=np.float32, mode='w+', shape=(self.maxlen,))
 		self.is_terminal = np.memmap(get_path('terminals'), dtype=np.bool, mode='w+', shape=(self.maxlen,))
 
