@@ -42,7 +42,7 @@ To evaluate a trained agent simply add the --test flag:
 python main.py Pong-v0 --alg_type a3c -n 1 --test --restore_checkpoint
 ```
 
-A3C run on Pong-v0 with default parameters and frameskip sampled uniformly over 3-5
+A3C run on Pong-v0 with default parameters and frameskip sampled uniformly over 3-4
 
 ![Pong A3C Reward](/images/pong-a3c-reward.png)
 
