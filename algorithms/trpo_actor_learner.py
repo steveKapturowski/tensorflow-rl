@@ -80,7 +80,6 @@ class TRPOLearner(BaseA3CLearner):
 		))
 
 		grads = tf.gradients(self.policy_loss, self.policy_network.params)
-		# print '\n\n\ngrads:', [v.name for g, v in zip(grads, self.policy_network.params) if g is None]
 		self.pg = utils.ops.flatten_vars(
 			tf.gradients(self.policy_loss, self.policy_network.params))
 

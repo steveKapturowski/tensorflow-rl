@@ -20,8 +20,8 @@ from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
 from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner, ARA3CLearner
 from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
 from algorithms.intrinsic_motivation_actor_learner import PseudoCountA3CLearner, PseudoCountQLearner
-from algorithms.pgq_actor_learner import PGQLearner, PGQLSTMLearner
 from algorithms.trpo_actor_learner import TRPOLearner
+from algorithms.pgq_actor_learner import PGQLearner
 from algorithms.cem_actor_learner import CEMLearner
 
 logger = utils.logger.getLogger('main')
@@ -35,7 +35,6 @@ ALGORITHMS = {
     'a3c-lstm': (A3CLSTMLearner, PolicyValueNetwork),
     'a3c-sequence-decoder': (ActionSequenceA3CLearner, SequencePolicyVNetwork),
     'pgq': (PGQLearner, PolicyValueNetwork),
-    'pgq-lstm': (PGQLSTMLearner, PolicyValueNetwork),
     'trpo': (TRPOLearner, PolicyNetwork),
     'cem': (CEMLearner, PolicyNetwork),
     'dqn-cts': (PseudoCountQLearner, QNetwork),
