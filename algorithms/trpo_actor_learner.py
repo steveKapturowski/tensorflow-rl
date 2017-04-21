@@ -262,13 +262,11 @@ class TRPOLearner(BaseA3CLearner):
 	def update_grads(self, data):
 		#we need to compute the policy gradient in minibatches to avoid GPU OOM errors on Atari
 
-		# values = self.predict_values(data)
-		# advantages = data['reward'] - values
-		# data['reward'] = advantages
-		data['reward'] = data['advantage']
-
 		print 'fitting baseline...'
 		self.fit_baseline(data)
+
+		normalized_advantage = (data['advantage'] - data['advantage'].mean()) #/(data['advantage'].std() + 1e-8)
+		data['reward'] = normalized_advantage
 
 		print 'running policy gradient...'
 		pg = self.run_minibatches(data, self.pg)[0]

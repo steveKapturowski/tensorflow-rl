@@ -72,40 +72,6 @@ class BasePGQLearner(BaseA3CLearner):
         self.q_gradients = self.batch_network._clip_grads(self.q_gradients)
 
 
-    # def _build_q_ops(self):
-    #     # pgq specific initialization
-    #     self.pgq_fraction = self.pgq_fraction
-    #     self.batch_size = self.batch_update_size
-    #     self.replay_memory = ReplayMemory(
-    #         self.replay_size,
-    #         self.local_network.get_input_shape(),
-    #         self.num_actions)
-
-    #     self.Qi_plus_1 = self.batch_network.beta * (
-    #         self.batch_network.log_output_layer_pi
-    #         + tf.expand_dims(self.batch_network.output_layer_entropy, 1)
-    #     ) + self.batch_network.output_layer_v
-    #     self.Qi = self.local_network.beta * (
-    #         self.local_network.log_output_layer_pi
-    #         + tf.expand_dims(self.local_network.output_layer_entropy, 1)
-    #     ) + self.local_network.output_layer_v
-
-    #     self.V = self.local_network.output_layer_v[:, 0]
-    #     self.log_pi = self.local_network.log_output_selected_action
-        
-    #     self.R = tf.placeholder('float32', [None], name='1-step_reward')
-    #     self.terminal_indicator = tf.placeholder(tf.float32, [None], name='terminal_indicator')
-    #     self.max_TQ = self.gamma*tf.reduce_max(self.Qi_plus_1, axis=1) * (1 - self.terminal_indicator)
-    #     self.Q_a = tf.reduce_sum(self.Qi * self.local_network.selected_action_ph[0], axis=1)
-
-    #     self.q_advantage = self.R + self.max_TQ - self.Q_a
-    #     self.q_objective = - self.pgq_fraction * tf.reduce_mean(tf.stop_gradient(self.q_advantage) * (0.5*self.V + self.log_pi))
-
-    #     self.V_params = self.batch_network.params
-    #     self.q_gradients = tf.gradients(self.q_objective, self.local_network.params)
-    #     self.q_gradients = self.batch_network._clip_grads(self.q_gradients)
-
-
     def batch_q_update(self):
         if len(self.replay_memory) < self.replay_memory.maxlen//10:
             return
@@ -241,13 +207,6 @@ class PGQLearner(BasePGQLearner):
                 grads = policy_grads
 
             self.apply_gradients_to_shared_memory_vars(grads)
-
-            # self.apply_gradients_to_shared_memory_vars(policy_grads)
-            # q_update_counter += 1
-            # if q_update_counter % self.q_update_interval == 0:
-            #     q_grads = self.batch_q_update()
-            #     if q_grads is not None:
-            #         self.apply_gradients_to_shared_memory_vars(q_grads)
 
             delta_old = local_step_start - episode_start_step
             delta_new = self.local_step -  local_step_start
