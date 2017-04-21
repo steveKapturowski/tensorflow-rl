@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import time
+import ctypes
 import numpy as np
 import utils.logger
 import tensorflow as tf
+from utils.hogupdatemv import copy
 from actor_learner import ONE_LIFE_GAMES
 from utils.decorators import Experimental
 from utils.replay_memory import ReplayMemory
@@ -63,19 +65,45 @@ class BasePGQLearner(BaseA3CLearner):
         self.max_TQ = self.gamma*tf.reduce_max(self.Qi_plus_1, 1) * (1 - self.terminal_indicator)
         self.Q_a = tf.reduce_sum(self.Qi * tf.split(axis=0, num_or_size_splits=2, value=self.batch_network.selected_action_ph)[0], 1)
 
-        self.q_objective = - self.pgq_fraction * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (self.V[:, 0] + self.log_pi[:, 0]))
+        self.q_objective = - self.pgq_fraction * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (0.5 * self.V[:, 0] + self.log_pi[:, 0]))
 
         self.V_params = self.batch_network.params
         self.q_gradients = tf.gradients(self.q_objective, self.V_params)
         self.q_gradients = self.batch_network._clip_grads(self.q_gradients)
 
-        # if (self.optimizer_mode == "local"):
-        #     if (self.optimizer_type == "rmsprop"):
-        #         self.batch_opt_st = np.ones(size, dtype=ctypes.c_float)
-        #     else:
-        #         self.batch_opt_st = np.zeros(size, dtype=ctypes.c_float)
-        # elif (self.optimizer_mode == "shared"):
-        #         self.batch_opt_st = args.batch_opt_state
+
+    # def _build_q_ops(self):
+    #     # pgq specific initialization
+    #     self.pgq_fraction = self.pgq_fraction
+    #     self.batch_size = self.batch_update_size
+    #     self.replay_memory = ReplayMemory(
+    #         self.replay_size,
+    #         self.local_network.get_input_shape(),
+    #         self.num_actions)
+
+    #     self.Qi_plus_1 = self.batch_network.beta * (
+    #         self.batch_network.log_output_layer_pi
+    #         + tf.expand_dims(self.batch_network.output_layer_entropy, 1)
+    #     ) + self.batch_network.output_layer_v
+    #     self.Qi = self.local_network.beta * (
+    #         self.local_network.log_output_layer_pi
+    #         + tf.expand_dims(self.local_network.output_layer_entropy, 1)
+    #     ) + self.local_network.output_layer_v
+
+    #     self.V = self.local_network.output_layer_v[:, 0]
+    #     self.log_pi = self.local_network.log_output_selected_action
+        
+    #     self.R = tf.placeholder('float32', [None], name='1-step_reward')
+    #     self.terminal_indicator = tf.placeholder(tf.float32, [None], name='terminal_indicator')
+    #     self.max_TQ = self.gamma*tf.reduce_max(self.Qi_plus_1, axis=1) * (1 - self.terminal_indicator)
+    #     self.Q_a = tf.reduce_sum(self.Qi * self.local_network.selected_action_ph[0], axis=1)
+
+    #     self.q_advantage = self.R + self.max_TQ - self.Q_a
+    #     self.q_objective = - self.pgq_fraction * tf.reduce_mean(tf.stop_gradient(self.q_advantage) * (0.5*self.V + self.log_pi))
+
+    #     self.V_params = self.batch_network.params
+    #     self.q_gradients = tf.gradients(self.q_objective, self.local_network.params)
+    #     self.q_gradients = self.batch_network._clip_grads(self.q_gradients)
 
 
     def batch_q_update(self):
@@ -84,9 +112,7 @@ class BasePGQLearner(BaseA3CLearner):
 
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-        # batch_grads, max_TQ, Q_a = self.session.run(
         batch_grads = self.session.run(
-            # [self.q_gradients, self.max_TQ, self.Q_a],
             self.q_gradients,
             feed_dict={
                 self.R: r_i,
@@ -96,7 +122,6 @@ class BasePGQLearner(BaseA3CLearner):
             }
         )
         return batch_grads
-        # self.apply_gradients_to_shared_memory_vars(batch_grads)
 
 
 class PGQLearner(BasePGQLearner):
@@ -131,6 +156,7 @@ class PGQLearner(BasePGQLearner):
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+            self.sync_net_with_shared_memory(self.batch_network, self.learning_vars)
             self.save_vars()
 
             local_step_start = self.local_step
@@ -174,8 +200,7 @@ class PGQLearner(BasePGQLearner):
                 
                 s = new_s
                 self.local_step += 1
-                self.global_step.increment()
-                
+                _, update_target = self.global_step.increment(self.q_target_update_steps)
             
             # Calculate the value offered by critic in the new state.
             if episode_over:
@@ -208,16 +233,21 @@ class PGQLearner(BasePGQLearner):
             policy_grads, entropy = self.session.run(
                 [self.local_network.get_gradients, self.local_network.entropy],
                 feed_dict=feed_dict)
-            q_grads = self.batch_q_update()
 
-            # q_update_counter += 1
-            # if q_update_counter % self.q_update_interval == 0:
-            #     self.apply_batch_q_update()
+            q_grads = self.batch_q_update()
             if q_grads is not None:
                 grads = [p + q for p, q in zip(policy_grads, q_grads)]
             else:
                 grads = policy_grads
+
             self.apply_gradients_to_shared_memory_vars(grads)
+
+            # self.apply_gradients_to_shared_memory_vars(policy_grads)
+            # q_update_counter += 1
+            # if q_update_counter % self.q_update_interval == 0:
+            #     q_grads = self.batch_q_update()
+            #     if q_grads is not None:
+            #         self.apply_gradients_to_shared_memory_vars(q_grads)
 
             delta_old = local_step_start - episode_start_step
             delta_new = self.local_step -  local_step_start

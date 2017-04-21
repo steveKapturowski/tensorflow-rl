@@ -1,10 +1,13 @@
 # -*- encoding: utf-8 -*-
-from networks.dueling_network import DuelingNetwork
-from networks.q_network import QNetwork
-from actor_learner import *
+import tensorflow as tf
+import numpy as np
 import time
 import sys
+
 from utils.hogupdatemv import copy
+from networks.q_network import QNetwork
+from networks.dueling_network import DuelingNetwork
+from actor_learner import ActorLearner, ONE_LIFE_GAMES
 #import cProfile
 
 
