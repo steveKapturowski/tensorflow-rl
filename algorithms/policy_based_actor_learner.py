@@ -205,7 +205,7 @@ class A3CLearner(BaseA3CLearner):
                 sel_action = np.argmax(actions[i]) if isinstance(self.action_space, Discrete) else actions[i].tolist()
                 sel_actions.append(sel_action)
 
-            # Compute gradients on the local policy/V network and apply them to shared memory  
+            # Compute gradients on the local policy/V network and apply them to shared memory
             feed_dict={
                 self.local_network.input_ph: s_batch, 
                 self.local_network.critic_target_ph: y_batch,

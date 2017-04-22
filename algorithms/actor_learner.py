@@ -263,7 +263,7 @@ class ActorLearner(Process):
     
     def update_shared_memory(self):
         # Initialize shared memory with tensorflow var values
-        params = self.session.run(self.local_network.params)   
+        params = self.session.run(self.local_network.params)
 
         # Merge all param matrices into a single 1-D array
         params = np.hstack([p.reshape(-1) for p in params])

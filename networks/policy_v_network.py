@@ -3,6 +3,7 @@ import layers
 import numpy as np
 import tensorflow as tf
 from network import Network
+from utils.distributions import Discrete
 from custom_lstm import CustomBasicLSTMCell
 from sequence_decoder import decoder, loop_gumbel_softmax
 
@@ -31,20 +32,17 @@ class PolicyValueNetwork(Network):
 
     def _build_policy_head(self, input_state):
         self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')       
-        self.wpi, self.bpi, self.output_layer_pi, self.log_output_layer_pi = layers.softmax_and_log_softmax(
-            'softmax_policy4', input_state, self.num_actions)
-            
-        # Entropy: ∑_a[-p_a ln p_a]
-        self.output_layer_entropy = tf.reduce_sum(
-            - 1.0 * tf.multiply(
-                self.output_layer_pi,
-                self.log_output_layer_pi
-            ), axis=1)
+        self.wpi, self.bpi, self.logits = layers.fc(
+            'logits', input_state, self.num_actions, activation='linear')
+        self.dist = Discrete(self.logits)
+
+        self.output_layer_entropy = self.dist.entropy()
         self.entropy = tf.reduce_sum(self.output_layer_entropy)
-            
-        self.log_output_selected_action = tf.reduce_sum(
-            self.log_output_layer_pi*self.selected_action_ph, 
-            axis=1)
+        
+        self.output_layer_pi = self.dist.probs
+        self.log_output_layer_pi = self.dist.log_probs
+        self.log_output_selected_action = self.dist.log_likelihood(self.selected_action_ph)
+        self.sample_action = self.dist.sample()
 
         self.actor_objective = -tf.reduce_sum(
             self.log_output_selected_action * self.adv_actor_ph
@@ -68,21 +66,19 @@ class PolicyValueNetwork(Network):
             feed_dict[self.step_size] = [1]
             feed_dict[self.initial_lstm_state] = lstm_state
 
-            pi, lstm_state = session.run([
-                self.output_layer_pi, self.lstm_state], feed_dict=feed_dict)
+            action, logits, lstm_state = session.run([
+                self.sample_action,
+                self.logits,
+                self.lstm_state], feed_dict=feed_dict)
+
+            return action, logits[0], lstm_state
         else:
-            pi = session.run(self.output_layer_pi, feed_dict=feed_dict)
+            action, logits = session.run([
+                self.sample_action,
+                self.logits], feed_dict=feed_dict)
 
-        pi = pi.reshape(-1)
+            return action, logits[0]
 
-        action_index = np.random.choice(self.num_actions, p=pi)
-        action = np.zeros([self.num_actions])
-        action[action_index] = 1
-
-        if lstm_state is not None:
-            return action, pi, lstm_state
-        else:
-            return action, pi
 
     def get_action_and_value(self, session, state, lstm_state=None):
         feed_dict = {self.input_ph: [state]}
@@ -90,27 +86,21 @@ class PolicyValueNetwork(Network):
             feed_dict[self.step_size] = [1]
             feed_dict[self.initial_lstm_state] = lstm_state
 
-            pi, v, lstm_state = session.run([
-                self.output_layer_pi,
+            action, logits, v, lstm_state = session.run([
+                self.sample_action,
+                self.logits,
                 self.output_layer_v,
                 self.lstm_state], feed_dict=feed_dict)
 
+            return action, v[0, 0], logits[0], lstm_state
+
         else:
-            pi, v = session.run([
-                self.output_layer_pi,
+            action, logits, v = session.run([
+                self.sample_action,
+                self.logits,
                 self.output_layer_v], feed_dict=feed_dict)
 
-        pi = pi.reshape(-1)
-        v = np.asscalar(v)
-
-        action_index = np.random.choice(self.num_actions, p=pi)
-        action = np.zeros([self.num_actions])
-        action[action_index] = 1
-
-        if lstm_state is not None:
-            return action, v, pi, lstm_state
-        else:
-            return action, v, pi
+            return action, v[0, 0], logits[0]
 
 
 class PolicyNetwork(PolicyValueNetwork):

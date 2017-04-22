@@ -14,16 +14,16 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
     '''
     def __init__(self, conf, **kwargs):
         self.action_space = conf['args'].action_space
-        self.use_state_dependent_std = True
+        self.use_state_dependent_std = False
         super(ContinuousPolicyValueNetwork, self).__init__(conf, **kwargs)
 
     def _build_policy_head(self, input_state):
         self.adv_actor_ph = tf.placeholder("float", [None], name='advantage')       
         self.w_mu, self.b_mu, self.mu = layers.fc(
             'mean', input_state, self.num_actions, activation='linear')
-        self.sigma = self._build_sigma(input_state)
+        self.sigma, dist_params = self._build_sigma(input_state)
 
-        self.dist = DiagNormal(self.mu, self.sigma)
+        self.dist = DiagNormal(dist_params)
         self.log_output_selected_action = self.dist.log_likelihood(self.selected_action_ph)
         self.log_output_selected_action = tf.expand_dims(self.log_output_selected_action, 1)
         
@@ -43,11 +43,14 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
         if self.use_state_dependent_std:
             self.w_sigma2, self.b_sigma2, self.sigma2 = layers.fc(
                 'std2', input_state, self.num_actions, activation='softplus')
-            return tf.sqrt(self.sigma2 + 1e-8)
+            sigma = tf.sqrt(self.sigma2 + 1e-8)
+            return sigma, tf.concat([self.mu, sigma], 1)
         else:
             self.log_sigma = tf.get_variable('log_sigma', self.mu.get_shape().as_list()[1],
                 dtype=tf.float32, initializer=tf.random_uniform_initializer(-4, -2))
-            return tf.expand_dims(tf.exp(self.log_sigma), 0)
+            sigma = tf.expand_dims(tf.exp(self.log_sigma), 0)
+            tiled_sigma = tf.tile(sigma, [tf.shape(self.mu)[0], 1])
+            return sigma, tf.concat([self.mu, tiled_sigma], 1)
 
     def get_action(self, session, state, lstm_state=None):
         feed_dict = {self.input_ph: [state]}
@@ -61,14 +64,14 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
                 self.mu,
                 self.sigma], feed_dict=feed_dict)
 
-            return action[0], (mu[0], sigma[0]), lstm_state
+            return action[0], (mu[0, 0], sigma[0, 0]), lstm_state
         else:
             action, mu, sigma = session.run([
                 self.sample_action,
                 self.mu,
                 self.sigma], feed_dict=feed_dict)
 
-            return action[0], (mu[0], sigma[0])
+            return action[0], (mu[0, 0], sigma[0, 0])
 
     def get_action_and_value(self, session, state, lstm_state=None):
         feed_dict = {self.input_ph: [state]}
@@ -83,7 +86,7 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
                 self.mu,
                 self.sigma], feed_dict=feed_dict)
 
-            return action[0], v[0, 0], (mu[0], sigma[0]), lstm_state
+            return action[0], v[0, 0], (mu[0, 0], sigma[0, 0]), lstm_state
         else:
             action, v, mu, sigma = session.run([
                 self.sample_action,
@@ -91,7 +94,7 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
                 self.mu,
                 self.sigma], feed_dict=feed_dict)
 
-            return action[0], v[0, 0], (mu[0], sigma[0])
+            return action[0], v[0, 0], (mu[0, 0], sigma[0, 0])
 
 
 class ContinuousPolicyNetwork(ContinuousPolicyValueNetwork):
