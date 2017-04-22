@@ -36,6 +36,10 @@ class BasePGQLearner(BaseA3CLearner):
             self._build_q_ops()
 
         self.reset_hidden_state()
+        self.replay_memory = ReplayMemory(
+            self.replay_size,
+            self.local_network.get_input_shape(),
+            self.num_actions)
             
         if self.is_master():
             var_list = self.local_network.params
@@ -47,10 +51,6 @@ class BasePGQLearner(BaseA3CLearner):
         # pgq specific initialization
         self.pgq_fraction = self.pgq_fraction
         self.batch_size = self.batch_update_size
-        self.replay_memory = ReplayMemory(
-            self.replay_size,
-            self.local_network.get_input_shape(),
-            self.num_actions)
         self.q_tilde = self.batch_network.beta * (
             self.batch_network.log_output_layer_pi
             + tf.expand_dims(self.batch_network.output_layer_entropy, 1)
@@ -122,8 +122,9 @@ class PGQLearner(BasePGQLearner):
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            self.sync_net_with_shared_memory(self.batch_network, self.learning_vars)
             self.save_vars()
+            params = self.session.run(self.local_network.flat_vars)
+            self.assign_vars(self.batch_network, params)
 
             local_step_start = self.local_step
             reset_game = False
@@ -166,7 +167,7 @@ class PGQLearner(BasePGQLearner):
                 
                 s = new_s
                 self.local_step += 1
-                _, update_target = self.global_step.increment(self.q_target_update_steps)
+                self.global_step.increment()
             
             # Calculate the value offered by critic in the new state.
             if episode_over:
@@ -196,17 +197,25 @@ class PGQLearner(BasePGQLearner):
                 self.local_network.selected_action_ph: a_batch,
                 self.local_network.adv_actor_ph: adv_batch,
             }
-            policy_grads, entropy = self.session.run(
+            grads, entropy = self.session.run(
                 [self.local_network.get_gradients, self.local_network.entropy],
                 feed_dict=feed_dict)
 
-            q_grads = self.batch_q_update()
-            if q_grads is not None:
-                grads = [p + q for p, q in zip(policy_grads, q_grads)]
-            else:
-                grads = policy_grads
-
             self.apply_gradients_to_shared_memory_vars(grads)
+
+
+            # q_grads = self.batch_q_update()
+            # if q_grads is not None:
+            #     grads = [p + q for p, q in zip(policy_grads, q_grads)]
+            # else:
+            #     grads = policy_grads
+            q_update_counter += 1
+            if q_update_counter % self.q_update_interval == 0:
+                q_grads = self.batch_q_update()
+                if q_grads is not None:
+                    # grads = [p + q for p, q in zip(grads, q_grads)]
+                    self.apply_gradients_to_shared_memory_vars(q_grads)
+
 
             delta_old = local_step_start - episode_start_step
             delta_new = self.local_step -  local_step_start

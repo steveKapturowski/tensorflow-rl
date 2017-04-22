@@ -210,9 +210,9 @@ class ActorLearner(Process):
             logger.debug("T{}: Syncing with shared memory...".format(self.actor_id))
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)  
             if hasattr(self, 'target_network'):
-                self.sync_net_with_shared_memory(self.target_network, self.target_vars)
+                self.sync_net_with_shared_memory(self.target_network, self.learning_vars)
             elif hasattr(self, 'batch_network'):
-                self.sync_net_with_shared_memory(self.batch_network, self.target_vars)
+                self.sync_net_with_shared_memory(self.batch_network, self.learning_vars)
 
         # Ensure we don't add any more nodes to the graph
         self.session.graph.finalize()

@@ -2,6 +2,7 @@
 import tensorflow as tf
 import numpy as np
 import layers
+import utils.ops
 from custom_lstm import CustomBasicLSTMCell
 
 
@@ -137,6 +138,7 @@ class Network(object):
 
     def _build_gradient_ops(self, loss):
         self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
+        self.flat_vars = utils.ops.flatten_vars(self.params)
 
         grads = tf.gradients(loss, self.params)
         self.get_gradients = self._clip_grads(grads)
