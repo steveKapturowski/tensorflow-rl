@@ -199,7 +199,7 @@ class TRPOLearner(BaseA3CLearner):
 			batch_idx = perm[start:end]
 			feed_dict={
 				self.value_network.input_ph:         data['state'][batch_idx],
-				self.value_network.critic_target_ph: data['reward'][batch_idx]
+				self.value_network.critic_target_ph: data['mc_return'][batch_idx]
 			}
 			output_i = self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
 			
@@ -217,10 +217,8 @@ class TRPOLearner(BaseA3CLearner):
 
 	def update_grads(self, data):
 		#we need to compute the policy gradient in minibatches to avoid GPU OOM errors on Atari
-
 		print 'fitting baseline...'
 		self.fit_baseline(data)
-
 
 		normalized_advantage = (data['advantage'] - data['advantage'].mean())/(data['advantage'].std() + 1e-8)
 		data['reward'] = normalized_advantage
@@ -260,21 +258,24 @@ class TRPOLearner(BaseA3CLearner):
 			s = self.emulator.get_initial_state()
 
 			data = {
-				'state':  list(),
-				'pi':     list(),
-				'action': list(),
-				'reward': list(),
+				'state':     list(),
+				'pi':        list(),
+				'action':    list(),
+				'reward':    list(),
+				'mc_return': list(),
 			}
 			episode_over = False
 			accumulated_rewards = list()
 			while not episode_over and len(accumulated_rewards) < self.max_rollout:
 				a, pi = self.choose_next_action(s)
 				new_s, reward, episode_over = self.emulator.next(a)
-				accumulated_rewards.append(self.rescale_reward(reward))
+				rescaled_reward = self.rescale_reward(reward)
+				accumulated_rewards.append(rescaled_reward)
 
 				data['state'].append(s)
 				data['pi'].append(pi)
 				data['action'].append(a)
+				data['reward'].append(rescaled_reward)
 
 				s = new_s
 
@@ -284,7 +285,7 @@ class TRPOLearner(BaseA3CLearner):
 				running_total = r + self.gamma*running_total
 				mc_returns.insert(0, running_total)
 
-			data['reward'].extend(mc_returns)
+			data['mc_return'].extend(mc_returns)
 			episode_reward = sum(accumulated_rewards)
 			# logger.debug('T{} / Episode Reward {}'.format(
 			# 	self.actor_id, episode_reward))
@@ -300,6 +301,7 @@ class TRPOLearner(BaseA3CLearner):
 				'action':    list(),
 				'reward':    list(),
 				'advantage': list(),
+				'mc_return': list(),
 			}
 			#launch worker tasks
 			for i in xrange(self.episodes_per_batch):
@@ -314,6 +316,7 @@ class TRPOLearner(BaseA3CLearner):
 
 				values = self.predict_values(worker_data)
 				advantages = self.compute_gae(worker_data['reward'], values.tolist(), 0)
+				# advantages = worker_data['mc_return'] - values
 				worker_data['advantage'] = advantages
 				for key, value in worker_data.items():
 					data[key].extend(value)
