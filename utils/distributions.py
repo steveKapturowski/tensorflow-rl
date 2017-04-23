@@ -16,7 +16,9 @@ class DiagNormal(object):
 		return self._params
 
 	def sample(self):
-		return self.mu + self.sigma * tf.random_normal([self.dim])
+		action = self.mu + self.sigma * tf.random_normal([self.dim])
+		# action = tf.Print(action, [self.mu[0,0], self.sigma[0,0], action[0,0]], 'mu/sigma/action: ')
+		return action
 
 	def log_likelihood(self, x):
 		return -tf.reduce_sum(

@@ -37,8 +37,7 @@ class Network(object):
                 self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
 
             if self.use_recurrent:
-                # self.hidden_state_size = 256
-                self.hidden_state_size = 128
+                self.hidden_state_size = 256
                 self.step_size = tf.placeholder(tf.float32, [None], name='step_size')
                 self.initial_lstm_state = tf.placeholder(
                     tf.float32, [None, 2*self.hidden_state_size], name='initital_state')
@@ -50,7 +49,8 @@ class Network(object):
     def _build_encoder(self):
         with tf.variable_scope(self.name):
             if self.arch == 'FC':
-                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 100, activation=self.activation)
+                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 60, activation=self.activation)
+                # self.w2, self.b2, self.o2 = layers.fc('fc2', self.o1, 60, activation=self.activation)
                 self.ox = self.o1
             elif self.arch == 'ATARI-TRPO':
                 self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 4, self.input_channels, 2, activation=self.activation)
