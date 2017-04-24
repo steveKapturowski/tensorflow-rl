@@ -26,6 +26,7 @@ class Network(object):
         self.activation = conf['args'].activation
         self.input_channels = 3 if conf['args'].use_rgb else conf['args'].history_length
         self.use_recurrent = 'lstm' in conf['args'].alg_type
+        self.fc_layer_sizes = conf['args'].fc_layer_sizes
         self._init_placeholders()
 
 
@@ -49,9 +50,10 @@ class Network(object):
     def _build_encoder(self):
         with tf.variable_scope(self.name):
             if self.arch == 'FC':
-                self.w1, self.b1, self.o1 = layers.fc('fc1', layers.flatten(self.input_ph), 60, activation=self.activation)
-                self.w2, self.b2, self.o2 = layers.fc('fc2', self.o1, 60, activation=self.activation)
-                self.ox = self.o2
+                layer_i = layers.flatten(self.input_ph)
+                for i, layer_size in enumerate(self.fc_layer_sizes):
+                    layer_i = layers.fc('fc{}'.format(i+1), layer_i, layer_size, activation=self.activation)[-1]
+                self.ox = layer_i
             elif self.arch == 'ATARI-TRPO':
                 self.w1, self.b1, self.o1 = layers.conv2d('conv1', self.input_ph, 16, 4, self.input_channels, 2, activation=self.activation)
                 self.w2, self.b2, self.o2 = layers.conv2d('conv2', self.o1, 16, 4, 16, 2, activation=self.activation)
