@@ -228,10 +228,12 @@ class ActorLearner(Process):
             log_dir = tempfile.mkdtemp()
             self.emulator.env = gym.wrappers.Monitor(self.emulator.env, log_dir)
 
-            func()
-
-            logger.info('writing T{} monitor log to {}'.format(self.actor_id, log_dir))
-            self.emulator.env.close()
+            try:
+                func()
+            except KeyboardInterrupt as e:
+                logger.info('writing T{} monitor log to {}'.format(self.actor_id, log_dir))
+                self.emulator.env.close()
+                raise e #reraise so main will terminate all procs
 
         return monitored_func
 

@@ -39,6 +39,7 @@ class TRPOLearner(BaseA3CLearner):
 		self.baseline_vars = args.baseline_vars
 		self.experience_queue = args.experience_queue
 		self.task_queue = args.task_queue
+		self.append_timestep = args.arch == 'FC'
 
 
 		policy_conf = {'name': 'policy_network_{}'.format(self.actor_id),
@@ -47,6 +48,7 @@ class TRPOLearner(BaseA3CLearner):
 					   'args': args}
 		value_conf = policy_conf.copy()
 		value_conf['name'] = 'value_network_{}'.format(self.actor_id)
+		value_conf['input_shape'] = args.vf_input_shape
 
 		self.device = '/gpu:0' if self.is_master() else '/cpu:0'
 		with tf.device(self.device):
@@ -190,15 +192,16 @@ class TRPOLearner(BaseA3CLearner):
 
 	def fit_baseline(self, data):
 		data_size = len(data['state'])
+		proc_state = self.preprocess_value_state(data)
 		grads = [np.zeros(g.get_shape().as_list(), dtype=np.float32) for g in self.value_network.get_gradients]
-		
+
 		#permute data in minibatches so we don't introduce bias
 		perm = np.random.permutation(data_size)
 		for start in range(0, data_size, self.batch_size):
 			end = start + np.minimum(self.batch_size, data_size-start)
 			batch_idx = perm[start:end]
 			feed_dict={
-				self.value_network.input_ph:         data['state'][batch_idx],
+				self.value_network.input_ph:         proc_state[batch_idx],
 				self.value_network.critic_target_ph: data['mc_return'][batch_idx]
 			}
 			output_i = self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
@@ -209,10 +212,20 @@ class TRPOLearner(BaseA3CLearner):
 		self._apply_gradients_to_shared_memory_vars(grads, self.baseline_vars)
 
 
-	def predict_values(self, data):		
+	def preprocess_value_state(self, data):
+		if self.append_timestep: #this is particularly helpful on MuJoCo environments
+			return np.hstack([data['state'], data['timestep'].reshape(-1, 1, 1)])
+		else:
+			return data['state']
+
+
+	def predict_values(self, data):
+		state = self.preprocess_value_state({
+			'state': np.array(data['state']),
+			'timestep': np.array(data['timestep'])})
 		return self.session.run(
 			self.value_network.output_layer_v,
-			feed_dict={self.value_network.input_ph: data['state']})[:, 0]
+			feed_dict={self.value_network.input_ph: state})[:, 0]
 
 
 	def update_grads(self, data):
@@ -263,6 +276,7 @@ class TRPOLearner(BaseA3CLearner):
 				'action':    list(),
 				'reward':    list(),
 				'mc_return': list(),
+				'timestep':  list(),
 			}
 			episode_over = False
 			accumulated_rewards = list()
@@ -285,6 +299,8 @@ class TRPOLearner(BaseA3CLearner):
 				running_total = r + self.gamma*running_total
 				mc_returns.insert(0, running_total)
 
+			timestep = np.arange(len(mc_returns), dtype=np.float32)/self.emulator.env.spec.timestep_limit
+			data['timestep'].extend(timestep)
 			data['mc_return'].extend(mc_returns)
 			episode_reward = sum(accumulated_rewards)
 			# logger.debug('T{} / Episode Reward {}'.format(
@@ -302,6 +318,7 @@ class TRPOLearner(BaseA3CLearner):
 				'reward':    list(),
 				'advantage': list(),
 				'mc_return': list(),
+				'timestep':  list(),
 			}
 			#launch worker tasks
 			for i in xrange(self.episodes_per_batch):

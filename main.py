@@ -89,13 +89,19 @@ def main(args):
 
     #TODO: need to refactor so TRPO+GAE doesn't need special treatment
     if args.alg_type in ['trpo', 'trpo-continuous']:
+        if args.arch == 'FC': #add timestep feature
+            vf_input_shape = [input_shape[0]+1]
+        else:
+            vf_input_shape = input_shape
+
         baseline_network = PolicyValueNetwork({
             'name': 'shared_value_network',
-            'input_shape': input_shape,
+            'input_shape': vf_input_shape,
             'num_act': num_actions,
             'args': args
         }, use_policy_head=False)
         args.baseline_vars = SharedVars(baseline_network.params)
+        args.vf_input_shape = vf_input_shape
         
     if args.alg_type in ['q', 'sarsa', 'dueling', 'dqn-cts']:
         args.target_vars = SharedVars(network.params)
@@ -139,7 +145,7 @@ def main(args):
     except KeyboardInterrupt:
         #Terminate with extreme prejudice
         for t in actor_learners:
-            t.terminate()     
+            t.terminate()
     
     logger.info('All training threads finished!')
 
