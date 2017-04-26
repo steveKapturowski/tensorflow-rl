@@ -91,8 +91,6 @@ class ActorLearner(Process):
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
-        size = self.learning_vars.size
-        self.flat_grads = np.empty(size, dtype=ctypes.c_float)
             
         if self.optimizer_mode == 'local':
             if self.optimizer_type == 'rmsprop':
@@ -228,12 +226,10 @@ class ActorLearner(Process):
             log_dir = tempfile.mkdtemp()
             self.emulator.env = gym.wrappers.Monitor(self.emulator.env, log_dir)
 
-            try:
-                func()
-            except KeyboardInterrupt as e:
-                logger.info('writing T{} monitor log to {}'.format(self.actor_id, log_dir))
-                self.emulator.env.close()
-                raise e #reraise so main will terminate all procs
+            func()
+
+            logger.info('writing T{} monitor log to {}'.format(self.actor_id, log_dir))
+            self.emulator.env.close()
 
         return monitored_func
 
@@ -290,6 +286,7 @@ class ActorLearner(Process):
     @only_on_train()
     def _apply_gradients_to_shared_memory_vars(self, grads, shared_vars):
             opt_st = self.opt_st
+            self.flat_grads = np.empty(shared_vars.size, dtype=ctypes.c_float)
 
             #Flatten grads
             offset = 0
