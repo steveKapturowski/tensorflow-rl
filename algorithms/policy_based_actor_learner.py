@@ -107,25 +107,7 @@ class A3CLearner(BaseA3CLearner):
 
 
     def choose_next_action(self, state):
-        # return self.local_network.get_action_and_value(self.session, state)
-
-        action, v, dist = self.local_network.get_action_and_value(self.session, state)
-        return action, v, dist
-        # return np.random.random(2)*2-1, v, dist
-
-        # network_output_v, network_output_pi = self.session.run(
-        #         [self.local_network.output_layer_v,
-        #          self.local_network.output_layer_pi], 
-        #         feed_dict={self.local_network.input_ph: [state]})
-            
-        # network_output_pi = network_output_pi.reshape(-1)
-        # network_output_v = np.asscalar(network_output_v)
-
-        # action_index = self.sample_policy_action(network_output_pi)
-        # new_action = np.zeros([self.num_actions])
-        # new_action[action_index] = 1
-
-        # return new_action, network_output_v, network_output_pi
+        return self.local_network.get_action_and_value(self.session, state)
 
 
     def train(self):
@@ -251,29 +233,6 @@ class A3CLSTMLearner(BaseA3CLearner):
         action, v, dist, self.lstm_state_out = self.local_network.get_action_and_value(
             self.session, state, lstm_state=self.lstm_state_out)
         return action, v, dist
-
-        # network_output_v, network_output_pi, self.lstm_state_out = self.session.run(
-        #     [
-        #         self.local_network.output_layer_v,
-        #         self.local_network.output_layer_pi,
-        #         self.local_network.lstm_state,
-        #     ],
-        #     feed_dict={
-        #         self.local_network.input_ph: [state],
-        #         self.local_network.step_size: [1],
-        #         self.local_network.initial_lstm_state: self.lstm_state_out,
-        #     })
-
-
-        # network_output_pi = network_output_pi.reshape(-1)
-        # network_output_v = np.asscalar(network_output_v)
-
-
-        # action_index = self.sample_policy_action(network_output_pi)
-        # new_action = np.zeros([self.num_actions])
-        # new_action[action_index] = 1
-
-        # return new_action, network_output_v, network_output_pi
 
 
     def train(self):

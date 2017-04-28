@@ -78,11 +78,12 @@ class AtariEnvironment(object):
     of size agent_history_length from which environment state
     is constructed.
     """
-    def __init__(self, game, visualize=False, use_rgb=False, resized_width=RESIZE_WIDTH,
+    def __init__(self, game, seed, visualize=False, use_rgb=False, resized_width=RESIZE_WIDTH,
                  resized_height=RESIZE_HEIGHT, agent_history_length=4, frame_skip=4,
                  max_episode_steps=None, single_life_episodes=False):
         self.game = game
         self.env = gym.make(game)
+        self.env.seed(seed)
         self.env.frameskip = frame_skip
         if max_episode_steps:
             self.env.spec.max_episode_steps = max_episode_steps

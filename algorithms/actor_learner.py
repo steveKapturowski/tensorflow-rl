@@ -64,7 +64,6 @@ logger = utils.logger.getLogger('actor_learner')
 class ActorLearner(Process):
     
     def __init__(self, args):
-        
         super(ActorLearner, self).__init__()
        
         self.summ_base_dir = args.summ_base_dir
@@ -90,6 +89,7 @@ class ActorLearner(Process):
         self.reward_clip_val = args.reward_clip_val
         self.q_update_interval = args.q_update_interval
         self.restore_checkpoint = args.restore_checkpoint
+        self.random_seed = args.random_seed
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
@@ -113,6 +113,7 @@ class ActorLearner(Process):
             from environments.atari_environment import AtariEnvironment
             self.emulator = AtariEnvironment(
                 args.game,
+                self.random_seed,
                 args.visualize,
                 use_rgb=args.use_rgb,
                 frame_skip=args.frame_skip,
@@ -127,7 +128,7 @@ class ActorLearner(Process):
                 args.game, 
                 args.visualize, 
                 self.actor_id,
-                args.random_seed,
+                self.random_seed,
                 args.single_life_episodes)
         else:
             raise Exception('Invalid environment `{}`'.format(args.env))
@@ -233,10 +234,14 @@ class ActorLearner(Process):
 
 
     def run(self):
+        #set random seeds so we can reproduce runs
+        np.random.seed(self.random_seed)
+        tf.set_random_seed(self.random_seed)
+
         num_cpus = multiprocessing.cpu_count()
-        supervisor = tf.train.Supervisor(
+        self.supervisor = tf.train.Supervisor(init_op=tf.global_variables_initializer(),
             logdir=self.summ_base_dir, saver=self.saver, summary_op=None)
-        session_context = supervisor.managed_session(config=tf.ConfigProto(
+        session_context = self.supervisor.managed_session(config=tf.ConfigProto(
             intra_op_parallelism_threads=num_cpus,
             inter_op_parallelism_threads=num_cpus,
             gpu_options=self.get_gpu_options(),
@@ -401,7 +406,7 @@ class ActorLearner(Process):
     def log_summary(self, *args):
         if self.is_master():
             feed_dict = {ph: val for ph, val in zip(self.summary_ph, args)}
-            res = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)
-            self.summary_writer.add_summary(res[-1], self.global_step.value())
+            summaries = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)[-1]
+            self.supervisor.summary_computed(self.session, summaries)
     
 

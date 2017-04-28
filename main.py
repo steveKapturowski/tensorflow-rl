@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-import random
-import sys
 import os
+import sys
 import time
 import yaml
 import argparse
@@ -121,6 +120,8 @@ def main(args):
     actor_learners = []
     task_queue = Queue()
     experience_queue = Queue()
+    seed = args.seed or np.random.randint(2**32)
+    tf.set_random_seed(seed)
     for i in xrange(args.num_actor_learners):
         if (args.visualize == 2) and (i == args.num_actor_learners - 1):
             args.args.visualize = 1
@@ -128,8 +129,7 @@ def main(args):
         args.actor_id = i
         args.device = '/gpu:{}'.format(i % num_gpus) if num_gpus else '/cpu:0'
         
-        rng = np.random.RandomState(int(time.time()))
-        args.random_seed = rng.randint(1000)
+        args.random_seed = seed + i
             
         #only used by TRPO
         args.task_queue = task_queue
@@ -148,6 +148,7 @@ def main(args):
             t.terminate()
     
     logger.info('All training threads finished!')
+    logger.info('Use seed={} to reproduce'.format(seed))
 
 
 def get_validated_params(args):
@@ -194,6 +195,7 @@ def get_config():
     parser.add_argument('--use_rgb', action='store_true', help='If set use rgb image channels instead of stacked luninance frames', dest='use_rgb')
     parser.add_argument('--no_share_weights', action='store_false', help='If set don\'t share parameters between policy and value function', dest='share_encoder_weights')
     parser.add_argument('--fc_layer_sizes', default=[60, 60], type=int, nargs='+', help='width of layers in fully connected architecture', dest='fc_layer_sizes')
+    parser.add_argument('--seed', default=None, type=int, help='Specify random seed. Each process will get its own unique seed computed as seed+actor_id. Due to race conditions only 1 worker process should be used to get deterministic results', dest='seed')
 
     #optimizer args
     parser.add_argument('--opt_type', default='rmsprop', help='Type of optimizer: rmsprop, momentum, adam, adamax', dest='opt_type')

@@ -110,6 +110,8 @@ class CEMLearner(BaseA3CLearner):
 				logger.info('Average Test Reward: {}'.format(np.array(episode_rewards).mean()))
 				return
 
+		print 'finished iteration'
+
 
 
 
