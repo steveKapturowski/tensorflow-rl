@@ -11,6 +11,7 @@ import numpy as np
 from utils import checkpoint_utils
 from utils.decorators import only_on_train
 from utils.hogupdatemv import apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
+from contextlib import contextmanager
 from multiprocessing import Process
 
 
@@ -73,6 +74,7 @@ class ActorLearner(Process):
         self.local_episode = 0
         self.last_saving_step = 0
 
+        self.saver = None
         self.actor_id = args.actor_id
         self.alg_type = args.alg_type
         self.use_monitor = args.use_monitor
@@ -142,7 +144,11 @@ class ActorLearner(Process):
         # Barrier to synchronize all actors after initialization is done
         self.barrier = args.barrier
         
+        #Initizlize Tensorboard summaries
         self.summary_ph, self.update_ops, self.summary_ops = self.setup_summaries()
+        self.summary_op = tf.summary.merge_all()
+        self.summary_writer = tf.summary.FileWriter(
+            '{}/{}'.format(self.summ_base_dir, self.actor_id), tf.get_default_graph()) 
         self.game = args.game
         
 
@@ -189,11 +195,6 @@ class ActorLearner(Process):
 
     def synchronize_workers(self):
         if self.is_master():
-            #Initizlize Tensorboard summaries
-            self.summary_op = tf.summary.merge_all()
-            self.summary_writer = tf.summary.FileWriter(
-                            "{}/{}".format(self.summ_base_dir, self.actor_id), self.session.graph) 
-
             # Initialize network parameters
             g_step = checkpoint_utils.restore_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps, self.restore_checkpoint)
             self.global_step.val.value = g_step
@@ -221,37 +222,33 @@ class ActorLearner(Process):
         return tf.GPUOptions(allow_growth=True)
 
 
-    def monitor(self, func):
-        def monitored_func():
-            log_dir = tempfile.mkdtemp()
-            self.emulator.env = gym.wrappers.Monitor(self.emulator.env, log_dir)
+    @contextmanager
+    def monitored_environment(self):
+        if self.use_monitor:
+            self.log_dir = tempfile.mkdtemp()
+            self.emulator.env = gym.wrappers.Monitor(self.emulator.env, self.log_dir)
 
-            func()
-
-            logger.info('writing T{} monitor log to {}'.format(self.actor_id, log_dir))
-            self.emulator.env.close()
-
-        return monitored_func
+        yield
+        self.emulator.env.close()
 
 
     def run(self):
         num_cpus = multiprocessing.cpu_count()
-        self.session = tf.Session(config=tf.ConfigProto(
+        supervisor = tf.train.Supervisor(
+            logdir=self.summ_base_dir, saver=self.saver, summary_op=None)
+        session_context = supervisor.managed_session(config=tf.ConfigProto(
             intra_op_parallelism_threads=num_cpus,
             inter_op_parallelism_threads=num_cpus,
             gpu_options=self.get_gpu_options(),
             allow_soft_placement=True))
 
-        self.synchronize_workers()
+        with self.monitored_environment(), session_context as self.session:
+            self.synchronize_workers()
 
-        if self.is_train:
-            run_func = self.train
-        else:
-            run_func = self.test
-
-        if self.use_monitor:
-            run_func = self.monitor(run_func)
-        run_func()
+            if self.is_train:
+                self.train()
+            else:
+                self.test()
 
 
     def save_vars(self):

@@ -260,7 +260,7 @@ class TRPOLearner(BaseA3CLearner):
 		return self.session.run(self.kl, feed_dict)
 
 
-	def _run_worker(self):		
+	def _run_worker(self):
 		while True:
 			signal = self.task_queue.get()
 			if signal == 'EXIT':
@@ -283,13 +283,13 @@ class TRPOLearner(BaseA3CLearner):
 			while not episode_over and len(accumulated_rewards) < self.max_rollout:
 				a, pi = self.choose_next_action(s)
 				new_s, reward, episode_over = self.emulator.next(a)
-				rescaled_reward = self.rescale_reward(reward)
-				accumulated_rewards.append(rescaled_reward)
+				
+				accumulated_rewards.append(reward)
 
 				data['state'].append(s)
 				data['pi'].append(pi)
 				data['action'].append(a)
-				data['reward'].append(rescaled_reward)
+				data['reward'].append(reward)
 
 				s = new_s
 
@@ -303,8 +303,8 @@ class TRPOLearner(BaseA3CLearner):
 			data['timestep'].extend(timestep)
 			data['mc_return'].extend(mc_returns)
 			episode_reward = sum(accumulated_rewards)
-			# logger.debug('T{} / Episode Reward {}'.format(
-			# 	self.actor_id, episode_reward))
+			logger.debug('T{} / Episode Reward {}'.format(
+				self.actor_id, episode_reward))
 
 			self.experience_queue.put((data, episode_reward))
 			

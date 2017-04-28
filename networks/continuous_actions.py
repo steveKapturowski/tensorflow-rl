@@ -34,14 +34,11 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
             + self.beta * self.output_layer_entropy
         )
         self.sample_action = self.dist.sample()
-        # self.sample_action = tf.Print(self.sample_action, [self.sample_action], 'Action: ')
 
         return self.actor_objective
 
     def _build_sigma(self, input_state):
         if self.use_state_dependent_std:
-            # self.w_sigma2, self.b_sigma2, self.sigma2 = layers.fc(
-            #     'std2', input_state, self.num_actions, activation='softplus')
             self.w_sigma2, self.b_sigma2, self.sigma_hat = layers.fc(
                 'std2', input_state, self.num_actions, activation='linear')
             self.sigma2 = tf.log(1+tf.exp(self.sigma_hat))

@@ -246,10 +246,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
 
 
     def generate_final_epsilon(self):
-        if self.is_master:
-            return self.final_epsilon
-        else:
-            return np.random.choice(.2*.5**np.arange(4))
+        return self.final_epsilon
 
 
     def _get_summary_vars(self):
