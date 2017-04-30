@@ -82,6 +82,9 @@ class DensityModelMixin(object):
         with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'wb') as f:
             f.write(raw_data)
 
+        for i in xrange(len(self.density_model_update_flags.updated)):
+            self.density_model_update_flags.updated[i] = 1
+
     def read_density_model(self):
         logger.info('T{} Synchronizing Density Model...'.format(self.actor_id))
         with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'rb') as f:
@@ -236,6 +239,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         self.cts_eta = args.cts_eta
         self.cts_beta = args.cts_beta
         self.batch_size = args.batch_update_size
+        self.density_model_update_flags = args.density_model_update_flags
         self.replay_memory = ReplayMemory(
             args.replay_size,
             self.local_network.get_input_shape(),
@@ -439,20 +443,23 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 episode_ave_max_q += max_q
                 
                 global_step, _ = self.global_step.increment()
+
                 if global_step % self.q_target_update_steps == 0:
-                    self.write_density_model()
                     self.update_target()
+                if global_step % (self.q_target_update_steps*20) == 0
+                    self.write_density_model()
                 # Sync local tensorflow target network params with shared target network params
                 if self.target_update_flags.updated[self.actor_id] == 1:
                     self.sync_net_with_shared_memory(self.target_network, self.target_vars)
                     self.target_update_flags.updated[self.actor_id] = 0
+                if self.density_model_update_flags.updated[self.actor_id] == 1:
                     self.read_density_model()
+                    self.density_model_update_flags.updated[self.actor_id] = 0
 
                 if self.local_step % self.q_update_interval == 0:
                     self.batch_update()
                 
                 self.local_network.global_step = global_step
-
 
                 if self.is_master() and (self.local_step % 100 == 0):
                     bonus_array = np.array(bonuses)

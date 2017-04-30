@@ -105,6 +105,8 @@ def main(args):
     if args.alg_type in ['q', 'sarsa', 'dueling', 'dqn-cts']:
         args.target_vars = SharedVars(network.params)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
+    if args.alg_type == 'dqn-cts':
+        args.density_model_update_flags = SharedFlags(args.num_actor_learners)
 
     args.barrier = Barrier(args.num_actor_learners)
     args.global_step = SharedCounter(0)
