@@ -43,10 +43,6 @@ class BaseA3CLearner(ActorLearner):
             td_i = self.td_lambda*self.gamma*td_i + rewards[j] + self.gamma*values[j+1] - values[j]
             adv_batch.insert(0, td_i)
 
-        # print 'adv_batch:', adv_batch[:30]
-        # print 'values:', values[:30]
-        # print 'rewards:', rewards[:30]
-
         return adv_batch
 
 
