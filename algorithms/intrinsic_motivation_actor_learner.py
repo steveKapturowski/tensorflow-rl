@@ -62,7 +62,8 @@ class PerPixelDensityModel(object):
 
 class DensityModelMixin(object):
     def _init_density_model(self, args):
-        self.density_model_update_steps = 10*args.q_target_update_steps
+        self.density_model_update_steps = 20*args.q_target_update_steps
+        self.density_model_update_flags = args.density_model_update_flags
 
         model_args = {
             'height': args.cts_rescale_dim,
@@ -239,7 +240,6 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         self.cts_eta = args.cts_eta
         self.cts_beta = args.cts_beta
         self.batch_size = args.batch_update_size
-        self.density_model_update_flags = args.density_model_update_flags
         self.replay_memory = ReplayMemory(
             args.replay_size,
             self.local_network.get_input_shape(),
@@ -446,7 +446,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
 
                 if global_step % self.q_target_update_steps == 0:
                     self.update_target()
-                if global_step % (self.q_target_update_steps*20) == 0
+                if global_step % self.density_model_update_steps == 0
                     self.write_density_model()
                 # Sync local tensorflow target network params with shared target network params
                 if self.target_update_flags.updated[self.actor_id] == 1:
