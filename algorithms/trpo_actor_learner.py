@@ -29,7 +29,7 @@ class TRPOLearner(BaseA3CLearner):
 		super(TRPOLearner, self).__init__(args)
 
 		self.batch_size = 512
-		self.max_cg_iters = 30
+		self.max_cg_iters = 20
 		self.num_epochs = args.num_epochs
 		self.cg_damping = args.cg_damping
 		self.cg_subsample = args.cg_subsample
