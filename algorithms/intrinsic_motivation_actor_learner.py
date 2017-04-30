@@ -446,7 +446,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
 
                 if global_step % self.q_target_update_steps == 0:
                     self.update_target()
-                if global_step % self.density_model_update_steps == 0
+                if global_step % self.density_model_update_steps == 0:
                     self.write_density_model()
                 # Sync local tensorflow target network params with shared target network params
                 if self.target_update_flags.updated[self.actor_id] == 1:
