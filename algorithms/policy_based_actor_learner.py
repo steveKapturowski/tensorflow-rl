@@ -34,15 +34,18 @@ class BaseA3CLearner(ActorLearner):
 
     def compute_gae(self, rewards, values, next_val):
         values = values + [next_val]
-
+        size = len(rewards)
         adv_batch = list()
-        for i in range(len(rewards)):
-            gae = 0.0
-            for j in range(i, len(rewards)):
-                TD_i = rewards[j] + self.gamma*values[j+1] - values[j]
-                gae += TD_i * (self.gamma*self.td_lambda)**(j - i)
+        td_i = 0.0
 
-            adv_batch.append(gae)
+        for i in range(size):
+            j = size - 1 - i
+            td_i = self.td_lambda*self.gamma*td_i + rewards[j] + self.gamma*values[j+1] - values[j]
+            adv_batch.insert(0, td_i)
+
+        # print 'adv_batch:', adv_batch[:30]
+        # print 'values:', values[:30]
+        # print 'rewards:', rewards[:30]
 
         return adv_batch
 

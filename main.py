@@ -121,6 +121,7 @@ def main(args):
     task_queue = Queue()
     experience_queue = Queue()
     seed = args.seed or np.random.randint(2**32)
+    np.random.seed(seed)
     tf.set_random_seed(seed)
     for i in xrange(args.num_actor_learners):
         if (args.visualize == 2) and (i == args.num_actor_learners - 1):

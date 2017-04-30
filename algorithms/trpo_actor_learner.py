@@ -29,7 +29,7 @@ class TRPOLearner(BaseA3CLearner):
 		super(TRPOLearner, self).__init__(args)
 
 		self.batch_size = 512
-		self.max_cg_iters = 20
+		self.max_cg_iters = 30
 		self.num_epochs = args.num_epochs
 		self.cg_damping = args.cg_damping
 		self.cg_subsample = args.cg_subsample
@@ -85,6 +85,7 @@ class TRPOLearner(BaseA3CLearner):
 		self.kl = tf.reduce_mean(self.policy_network.dist.kl_divergence(self.old_params))
 		self.kl_firstfixed = tf.reduce_mean(self.policy_network.dist.kl_divergence(
 			tf.stop_gradient(self.dist_params)))
+
 
 		kl_grads = tf.gradients(self.kl_firstfixed, self.policy_network.params)
 		flat_kl_grads = utils.ops.flatten_vars(kl_grads)
@@ -180,19 +181,21 @@ class TRPOLearner(BaseA3CLearner):
 		    improvement = fval - newfval
 		    logger.debug('Improvement {} / Mean KL {}'.format(improvement, kl))
 
-		    # expected_improve = expected_improve_rate * stepfrac
-		    # ratio = actual_improve / expected_improve
-		    # if ratio > accept_ratio and actual_improve > 0:
-		    if kl < self.max_kl and improvement > 0:
+		    expected_improve = expected_improve_rate * stepfrac
+		    ratio = improvement / expected_improve
+		    if ratio > accept_ratio and improvement > 0:
+		    # if kl < self.max_kl and improvement > 0:
 		        return xnew
 
 		logger.debug('No update')
 		return x
 
 
-	def fit_baseline(self, data):
+	def fit_baseline(self, data, mix_old=0):
 		data_size = len(data['state'])
 		proc_state = self.preprocess_value_state(data)
+		print 'diffs', (data['mc_return'] - data['values']).mean()
+		target = (1-mix_old)*data['mc_return'] + mix_old*data['values']
 		grads = [np.zeros(g.get_shape().as_list(), dtype=np.float32) for g in self.value_network.get_gradients]
 
 		#permute data in minibatches so we don't introduce bias
@@ -202,14 +205,15 @@ class TRPOLearner(BaseA3CLearner):
 			batch_idx = perm[start:end]
 			feed_dict={
 				self.value_network.input_ph:         proc_state[batch_idx],
-				self.value_network.critic_target_ph: data['mc_return'][batch_idx]
+				self.value_network.critic_target_ph: target[batch_idx]
 			}
 			output_i = self.session.run(self.value_network.get_gradients, feed_dict=feed_dict)
 			
 			for i, g in enumerate(output_i):
 				grads[i] += g * (end-start)/float(data_size)
 
-		self._apply_gradients_to_shared_memory_vars(grads, self.baseline_vars)
+			self._apply_gradients_to_shared_memory_vars(output_i, self.baseline_vars)
+			self.sync_net_with_shared_memory(self.value_network, self.baseline_vars)
 
 
 	def preprocess_value_state(self, data):
@@ -275,8 +279,6 @@ class TRPOLearner(BaseA3CLearner):
 				'pi':        list(),
 				'action':    list(),
 				'reward':    list(),
-				'mc_return': list(),
-				'timestep':  list(),
 			}
 			episode_over = False
 			accumulated_rewards = list()
@@ -300,8 +302,8 @@ class TRPOLearner(BaseA3CLearner):
 				mc_returns.insert(0, running_total)
 
 			timestep = np.arange(len(mc_returns), dtype=np.float32)/self.emulator.env.spec.timestep_limit
-			data['timestep'].extend(timestep)
-			data['mc_return'].extend(mc_returns)
+			data['timestep'] = timestep
+			data['mc_return'] = mc_returns
 			episode_reward = sum(accumulated_rewards)
 			logger.debug('T{} / Episode Reward {}'.format(
 				self.actor_id, episode_reward))
@@ -319,6 +321,7 @@ class TRPOLearner(BaseA3CLearner):
 				'advantage': list(),
 				'mc_return': list(),
 				'timestep':  list(),
+				'values':    list(),
 			}
 			#launch worker tasks
 			for i in xrange(self.episodes_per_batch):
@@ -334,6 +337,7 @@ class TRPOLearner(BaseA3CLearner):
 				values = self.predict_values(worker_data)
 				advantages = self.compute_gae(worker_data['reward'], values.tolist(), 0)
 				# advantages = worker_data['mc_return'] - values
+				worker_data['values'] = values
 				worker_data['advantage'] = advantages
 				for key, value in worker_data.items():
 					data[key].extend(value)
@@ -356,6 +360,5 @@ class TRPOLearner(BaseA3CLearner):
 				self.task_queue.put('EXIT')
 		else:
 			self._run_worker()
-
 
 
