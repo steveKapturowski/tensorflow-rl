@@ -183,8 +183,8 @@ class TRPOLearner(BaseA3CLearner):
 
 		    expected_improve = expected_improve_rate * stepfrac
 		    ratio = improvement / expected_improve
-		    if ratio > accept_ratio and improvement > 0:
-		    # if kl < self.max_kl and improvement > 0:
+		    # if ratio > accept_ratio and improvement > 0:
+		    if kl < self.max_kl and improvement > 0:
 		        return xnew
 
 		logger.debug('No update')
