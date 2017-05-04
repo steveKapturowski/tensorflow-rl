@@ -221,7 +221,7 @@ cdef class CTS:
         self._root = CTSNode(self)
 
 
-    cdef double update(self, int[:] context, int symbol):
+    cpdef double update(self, int[:] context, int symbol):
         self._time += 1.0
         self.log_alpha = log(1.0 / (self._time + 1.0))
         self.log_1_minus_alpha = log(self._time / (self._time + 1.0))
@@ -232,7 +232,7 @@ cdef class CTS:
 
         return log_prob
 
-    cdef double log_prob(self, int[:] context, int symbol):
+    cpdef double log_prob(self, int[:] context, int symbol):
         #context is assumed to have correct length
         return self._root.log_prob(context, symbol)
 
