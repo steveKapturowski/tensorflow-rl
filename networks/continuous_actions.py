@@ -14,7 +14,7 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
     '''
     def __init__(self, conf, **kwargs):
         self.action_space = conf['args'].action_space
-        self.use_state_dependent_std = True
+        self.use_state_dependent_std = False
         super(ContinuousPolicyValueNetwork, self).__init__(conf, **kwargs)
 
     def _build_policy_head(self, input_state):
@@ -46,7 +46,7 @@ class ContinuousPolicyValueNetwork(PolicyValueNetwork):
             return sigma, tf.concat([self.mu, sigma], 1)
         else:
             self.log_sigma = tf.get_variable('log_sigma', self.mu.get_shape().as_list()[1],
-                dtype=tf.float32, initializer=tf.random_uniform_initializer(-3, -1))
+                dtype=tf.float32, initializer=tf.random_uniform_initializer(-2, -1))
             sigma = tf.expand_dims(tf.exp(self.log_sigma), 0)
             tiled_sigma = tf.tile(sigma, [tf.shape(self.mu)[0], 1])
             return sigma, tf.concat([self.mu, tiled_sigma], 1)

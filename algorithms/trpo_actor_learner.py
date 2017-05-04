@@ -183,15 +183,15 @@ class TRPOLearner(BaseA3CLearner):
 
 		    expected_improve = expected_improve_rate * stepfrac
 		    ratio = improvement / expected_improve
-		    if ratio > accept_ratio and improvement > 0:
-		    # if kl < self.max_kl and improvement > 0:
+		    # if ratio > accept_ratio and improvement > 0:
+		    if kl < self.max_kl and improvement > 0:
 		        return xnew
 
 		logger.debug('No update')
 		return x
 
 
-	def fit_baseline(self, data, mix_old=0):
+	def fit_baseline(self, data, mix_old=.9):
 		data_size = len(data['state'])
 		proc_state = self.preprocess_value_state(data)
 		print 'diffs', (data['mc_return'] - data['values']).mean()

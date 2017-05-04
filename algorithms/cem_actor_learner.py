@@ -46,7 +46,7 @@ class CEMLearner(BaseA3CLearner):
 		return self.mu + np.random.randn(N, self.num_params)*self.sigma
 
 
-	def update_sample_distribution(self, population, rewards, keep_ratio=0.4, noise=0.01):
+	def update_sample_distribution(self, population, rewards, keep_ratio=0.25, noise=0.01):
 		num_to_keep = int(keep_ratio * len(population))
 		elite = np.array(rewards).argsort()[-num_to_keep:]
 
@@ -79,7 +79,7 @@ class CEMLearner(BaseA3CLearner):
 
 			population_mean_reward = np.array(episode_rewards).mean()
 			elite_mean_reward, elite_set = self.update_sample_distribution(
-				population, episode_rewards, noise=0.1/(1+epoch))
+				population, episode_rewards, noise=.1/(1+epoch))
 			logger.info('Epoch {} / Population Mean {} / Elite Mean {}'.format(
 				epoch+1, population_mean_reward, elite_mean_reward))
 
