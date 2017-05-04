@@ -1,4 +1,6 @@
+#cython: initializedcheck=False
 #cython: boundscheck=False
+#cython: nonecheck=False
 #cython: cdivision=True
 # CTS code adapted from https://github.com/mgbellemare/SkipCTS
 cimport cython
@@ -19,9 +21,7 @@ cdef double LOG_PRIOR_SPLIT_PROB = log(1.0 - PRIOR_STAY_PROB)
 # sample from the root estimator.
 cdef int MAX_SAMPLE_REJECTIONS = 25
 
-@cython.boundscheck(False)
 @cython.wraparound(False)
-@cython.nonecheck(False)
 cdef double get_prior(char* prior_name, int alphabet_size):
     if prior_name == <char*>'perks':
         return 1.0 / <double>alphabet_size
@@ -30,9 +30,7 @@ cdef double get_prior(char* prior_name, int alphabet_size):
     else: #use laplace prior
         return 1.0
 
-@cython.boundscheck(False)
 @cython.wraparound(False)
-@cython.nonecheck(False)
 cdef double log_add(double log_x, double log_y):
     """Given log x and log y, returns log(x + y)."""
     # Swap variables so log_y is larger.
@@ -47,7 +45,7 @@ class Error(Exception):
     """Base exception for the `cts` module."""
     pass
 
-
+@cython.wraparound(False)
 cdef class Estimator:
     """The estimator for a CTS node.
     This implements a Dirichlet-multinomial model with specified prior. This
@@ -67,7 +65,6 @@ cdef class Estimator:
         self.count_total = model.alphabet_size * model.symbol_prior
         self._model = model
 
-    @cython.cdivision(True)
     cdef double prob(self, int symbol):
         """Returns the probability assigned to this symbol."""
         return self.counts[symbol] / self.count_total
@@ -120,7 +117,7 @@ cdef class CTSNode:
         cdef CTSNode child
         cdef double lp_child
         cdef double lp_node
-        if len(context) > 0:
+        if context.shape[0] > 0:
             child = self.get_child(context[-1])
             lp_child = child.update(context[:-1], symbol)
             lp_node = self.mix_prediction(lp_estimator, lp_child)
@@ -135,7 +132,7 @@ cdef class CTSNode:
     cdef double log_prob(self, int[:] context, int symbol):
         cdef double lp_estimator = log(self.estimator.prob(symbol))
 
-        if len(context) > 0:
+        if context.shape[0] > 0:
             child = self.get_child(context[-1])
 
             lp_child = child.log_prob(context[:-1], symbol)
@@ -163,8 +160,8 @@ cdef class CTSNode:
         return numerator - denominator
 
     cdef void update_switching_weights(self, double lp_estimator, double lp_child):
-        cdef log_alpha = self._model.log_alpha
-        cdef log_1_minus_alpha = self._model.log_1_minus_alpha
+        cdef double log_alpha = self._model.log_alpha
+        cdef double log_1_minus_alpha = self._model.log_1_minus_alpha
 
         # Avoid numerical issues with alpha = 1. This reverts to straight up
         # weighting.
