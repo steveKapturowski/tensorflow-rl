@@ -45,6 +45,9 @@ class Error(Exception):
     """Base exception for the `cts` module."""
     pass
 
+
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
+from cpython cimport array
 @cython.wraparound(False)
 cdef class Estimator:
     """The estimator for a CTS node.
@@ -58,12 +61,19 @@ cdef class Estimator:
     """
     cdef double count_total
     cdef CTS _model
-    cdef double[:] counts
+    cdef double* counts
     
-    def __init__(self, CTS model):
-        self.counts = np.ones([model.alphabet_size], dtype=np.double)*model.symbol_prior
+    def __cinit__(self, CTS model):
+        self.counts = <double*>PyMem_Malloc(model.alphabet_size*sizeof(double))
+        cdef unsigned int i
+        for i in range(model.alphabet_size):
+            self.counts[i] = model.symbol_prior
+
         self.count_total = model.alphabet_size * model.symbol_prior
         self._model = model
+
+    def __dealloc__(self):
+        PyMem_Free(self.counts)
 
     cdef double prob(self, int symbol):
         """Returns the probability assigned to this symbol."""
@@ -78,10 +88,11 @@ cdef class Estimator:
         return log_prob
 
     def __getstate__(self):
-        return self.count_total, self._model, np.asarray(self.counts)
+        return self.count_total, self._model, [self.counts[i] for i in range(self._model.alphabet_size)]
 
     def __setstate__(self, state):
-        self.count_total, self._model, self.counts = state
+        self.count_total, self._model = state[:2]
+        self.counts = array.array('d', state[2]).data.as_doubles
             
     
 cdef class CTSNode:
@@ -193,29 +204,23 @@ cdef class CTSNode:
 
 cdef class CTS:    
     cdef double _time
-    cdef int context_length
-    cdef int alphabet_size
+    cdef unsigned int context_length
+    cdef unsigned int alphabet_size
     cdef double log_alpha
     cdef double log_1_minus_alpha
     cdef double symbol_prior
     cdef CTSNode _root
-    cdef set alphabet
         
     def __init__(self, int context_length, set alphabet=None, int max_alphabet_size=256,
                  char* symbol_prior=<char*>'perks'):
         # Total number of symbols processed.
         self._time = 0.0
         self.context_length = context_length
-        
-        if alphabet is None:
-            self.alphabet, self.alphabet_size = set(), max_alphabet_size
-        else:
-            self.alphabet, self.alphabet_size = alphabet, len(alphabet)
+        self.alphabet_size = max_alphabet_size
 
         # These are properly set when we call update().
         self.log_alpha, self.log_1_minus_alpha = 0.0, 0.0
         self.symbol_prior = get_prior(symbol_prior, self.alphabet_size) 
-
 
         # Create root. This must happen after setting alphabet & symbol prior.
         self._root = CTSNode(self)
@@ -238,11 +243,11 @@ cdef class CTS:
 
     def __getstate__(self):
         return (self._time, self.context_length, self.alphabet_size, self.log_alpha,
-                self.log_1_minus_alpha, self.symbol_prior, self._root, self.alphabet)
+                self.log_1_minus_alpha, self.symbol_prior, self._root)
 
     def __setstate__(self, state):
         self._time, self.context_length, self.alphabet_size, self.log_alpha, \
-            self.log_1_minus_alpha, self.symbol_prior, self._root, self.alphabet = state
+            self.log_1_minus_alpha, self.symbol_prior, self._root = state
 
 
 cdef class CTSDensityModel:
@@ -273,8 +278,8 @@ cdef class CTSDensityModel:
         cdef int[:] context = np.array([0, 0, 0, 0], np.int32)
         cdef double log_prob = 0.0
         cdef double log_recoding_prob = 0.0
-        cdef int i
-        cdef int j
+        cdef unsigned int i
+        cdef unsigned int j
         cdef np.ndarray[object, ndim=2] cts_factors = self.cts_factors
 
         for i in range(self.height):
