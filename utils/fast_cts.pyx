@@ -78,7 +78,7 @@ cdef class Estimator:
         return log_prob
 
     def __getstate__(self):
-        return self.count_total, self._model, self.counts
+        return self.count_total, self._model, np.asarray(self.counts)
 
     def __setstate__(self, state):
         self.count_total, self._model, self.counts = state
