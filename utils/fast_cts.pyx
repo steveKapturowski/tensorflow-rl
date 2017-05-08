@@ -1,13 +1,17 @@
 #cython: initializedcheck=False
 #cython: boundscheck=False
+#cython: wraparound=False
 #cython: nonecheck=False
 #cython: cdivision=True
 # CTS code adapted from https://github.com/mgbellemare/SkipCTS
+
 cimport cython
 import numpy as np
 cimport numpy as np
 
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from libc.math cimport log, exp
+from cpython cimport array
 
 from skimage.transform import resize
 
@@ -21,7 +25,7 @@ cdef double LOG_PRIOR_SPLIT_PROB = log(1.0 - PRIOR_STAY_PROB)
 # sample from the root estimator.
 cdef int MAX_SAMPLE_REJECTIONS = 25
 
-@cython.wraparound(False)
+
 cdef double get_prior(char* prior_name, int alphabet_size):
     if prior_name == <char*>'perks':
         return 1.0 / <double>alphabet_size
@@ -30,7 +34,7 @@ cdef double get_prior(char* prior_name, int alphabet_size):
     else: #use laplace prior
         return 1.0
 
-@cython.wraparound(False)
+
 cdef double log_add(double log_x, double log_y):
     """Given log x and log y, returns log(x + y)."""
     # Swap variables so log_y is larger.
@@ -41,231 +45,210 @@ cdef double log_add(double log_x, double log_y):
     return log(1 + exp(delta)) + log_x if delta <= 50.0 else log_y
 
 
-class Error(Exception):
-    """Base exception for the `cts` module."""
-    pass
+cdef struct EstimatorStruct:
+    double count_total
+    double* counts
 
+cdef EstimatorStruct* make_estimator(CTSStruct* model):
+    cdef EstimatorStruct* e = <EstimatorStruct*>PyMem_Malloc(sizeof(EstimatorStruct))
 
-from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from cpython cimport array
-@cython.wraparound(False)
-cdef class Estimator:
-    """The estimator for a CTS node.
-    This implements a Dirichlet-multinomial model with specified prior. This
-    class does not perform alphabet checking, and will return invalid
-    probabilities if it is ever fed more than `model.alphabet_size` distinct
-    symbols.
-    Args:
-        model: Reference to CTS model. We expected model.symbol_prior to be
-            a `float`.
-    """
-    cdef double count_total
-    cdef CTS _model
-    cdef double* counts
-    
-    def __cinit__(self, CTS model):
-        self.counts = <double*>PyMem_Malloc(model.alphabet_size*sizeof(double))
-        cdef unsigned int i
-        for i in range(model.alphabet_size):
-            self.counts[i] = model.symbol_prior
+    e[0].counts = <double*>PyMem_Malloc(model.alphabet_size*sizeof(double))
+    cdef unsigned int i
+    for i in range(model.alphabet_size):
+        e[0].counts[i] = model.symbol_prior
 
-        self.count_total = model.alphabet_size * model.symbol_prior
-        self._model = model
+    e[0].count_total = model.alphabet_size * model.symbol_prior
+    return e
 
-    def __dealloc__(self):
-        PyMem_Free(self.counts)
+cdef void free_estimator(EstimatorStruct* e):
+    PyMem_Free(e[0].counts)
+    PyMem_Free(e)
 
-    cdef double prob(self, int symbol):
-        """Returns the probability assigned to this symbol."""
-        return self.counts[symbol] / self.count_total
+cdef double estimator_prob(EstimatorStruct* e, int symbol):
+    cdef EstimatorStruct estimator = e[0]
+    return e[0].counts[symbol] / e[0].count_total
 
-    cdef double update(self, int symbol):
-        """Updates our count for the given symbol."""
-        cdef double prob = self.prob(symbol)
-        cdef double log_prob = log(prob)
-        self.counts[symbol] = self.counts[symbol] + 1.0
-        self.count_total += 1.0
-        return log_prob
+cdef double estimator_update(EstimatorStruct* e, int symbol):
+    cdef double prob = estimator_prob(e, symbol)
+    cdef double log_prob = log(prob)
+    e[0].counts[symbol] = e[0].counts[symbol] + 1.0
+    e[0].count_total += 1.0
+    return log_prob
 
-    def __getstate__(self):
-        return self.count_total, self._model, [self.counts[i] for i in range(self._model.alphabet_size)]
+def estimator_get_state(e):
+    return e.count_total, [e.counts[i] for i in range(e._model.alphabet_size)]
 
-    def __setstate__(self, state):
-        self.count_total, self._model = state[:2]
-        self.counts = array.array('d', state[2]).data.as_doubles
-            
-    
-cdef class CTSNode:
-    """A node in the CTS tree.
-    Each node contains a base Dirichlet estimator holding the statistics for
-    this particular context, and pointers to its children.
-    """
-    cdef double _log_stay_prob
-    cdef double _log_split_prob
-    cdef CTS _model
-    cdef Estimator estimator
-    cdef dict _children
-
-    def __init__(self, CTS model):
-        self._children = {}
-
-        self._log_stay_prob = LOG_PRIOR_STAY_PROB
-        self._log_split_prob = LOG_PRIOR_SPLIT_PROB
-
-        # Back pointer to the CTS model object.
-        self._model = model
-        self.estimator = Estimator(model)
-
-    cdef double update(self, int[:] context, int symbol):
-        """Updates this node and its children.
-        Recursively updates estimators for all suffixes of context. Each
-        estimator is updated with the given symbol. Also updates the mixing
-        weights.
-        """
-        lp_estimator = self.estimator.update(symbol)
-
-        # If not a leaf node, recurse, creating nodes as needed.
-        cdef CTSNode child
-        cdef double lp_child
-        cdef double lp_node
-        if context.shape[0] > 0:
-            child = self.get_child(context[-1])
-            lp_child = child.update(context[:-1], symbol)
-            lp_node = self.mix_prediction(lp_estimator, lp_child)
-
-            self.update_switching_weights(lp_estimator, lp_child)
-
-            return lp_node
-        else:
-            self._log_stay_prob = 0.0
-            return lp_estimator
-
-    cdef double log_prob(self, int[:] context, int symbol):
-        cdef double lp_estimator = log(self.estimator.prob(symbol))
-
-        if context.shape[0] > 0:
-            child = self.get_child(context[-1])
-
-            lp_child = child.log_prob(context[:-1], symbol)
-
-            return self.mix_prediction(lp_estimator, lp_child)
-        else:
-            return lp_estimator
-
-
-    cdef CTSNode get_child(self, int symbol, bint allocate=True):
-        cdef CTSNode node = self._children.get(symbol, None)
-
-        if node is None and allocate:
-            node = CTSNode(self._model)
-            self._children[symbol] = node
-
-        return node
-
-    cdef double mix_prediction(self, double lp_estimator, double lp_child):
-        cdef double numerator = log_add(lp_estimator + self._log_stay_prob,
-                                     lp_child + self._log_split_prob)
-        cdef double denominator = log_add(self._log_stay_prob,
-                                       self._log_split_prob)
-
-        return numerator - denominator
-
-    cdef void update_switching_weights(self, double lp_estimator, double lp_child):
-        cdef double log_alpha = self._model.log_alpha
-        cdef double log_1_minus_alpha = self._model.log_1_minus_alpha
-
-        # Avoid numerical issues with alpha = 1. This reverts to straight up
-        # weighting.
-        if log_1_minus_alpha == 0:
-            self._log_stay_prob += lp_estimator
-            self._log_split_prob += lp_child
-
-        else:
-            self._log_stay_prob = log_add(log_1_minus_alpha
-                                                   + lp_estimator
-                                                   + self._log_stay_prob,
-                                                   log_alpha
-                                                   + lp_child
-                                                   + self._log_split_prob)
-
-            self._log_split_prob = log_add(log_1_minus_alpha
-                                                    + lp_child
-                                                    + self._log_split_prob,
-                                                    log_alpha
-                                                    + lp_estimator
-                                                    + self._log_stay_prob)
-
-    def __getstate__(self):
-        return self._log_stay_prob, self._log_split_prob, self._model, self.estimator, self._children
-
-    def __setstate__(self, state):
-        self._log_stay_prob, self._log_split_prob, self._model, self.estimator, self._children = state
-            
-
-cdef class CTS:    
-    cdef double _time
-    cdef unsigned int context_length
-    cdef unsigned int alphabet_size
-    cdef double log_alpha
-    cdef double log_1_minus_alpha
-    cdef double symbol_prior
-    cdef CTSNode _root
+def estimator_set_state(e, state):
+    e.count_total = state[0]
+    e.counts = array.array('d', state[1])
         
-    def __init__(self, int context_length, set alphabet=None, int max_alphabet_size=256,
-                 char* symbol_prior=<char*>'perks'):
-        # Total number of symbols processed.
-        self._time = 0.0
-        self.context_length = context_length
-        self.alphabet_size = max_alphabet_size
+            
+cdef struct CTSNodeStruct:
+    double _log_stay_prob
+    double _log_split_prob
+    CTSStruct* _model
+    EstimatorStruct* estimator
+    CTSNodeStruct* _children
 
-        # These are properly set when we call update().
-        self.log_alpha, self.log_1_minus_alpha = 0.0, 0.0
-        self.symbol_prior = get_prior(symbol_prior, self.alphabet_size) 
+cdef CTSNodeStruct* make_cts_node(CTSStruct* model):
+    cdef CTSNodeStruct* node = <CTSNodeStruct*>PyMem_Malloc(sizeof(CTSNodeStruct))
+    node[0]._children = NULL
+    node[0].estimator = make_estimator(model)
+    node[0]._model = model
+    
+    node[0]._log_stay_prob = LOG_PRIOR_STAY_PROB
+    node[0]._log_split_prob = LOG_PRIOR_SPLIT_PROB
 
-        # Create root. This must happen after setting alphabet & symbol prior.
-        self._root = CTSNode(self)
+    return node
+
+cdef double node_update(CTSNodeStruct* node, int[:] context, int symbol):
+    lp_estimator = estimator_update(node[0].estimator, symbol)
+
+    # If not a leaf node, recurse, creating nodes as needed.
+    cdef CTSNodeStruct* child
+    cdef double lp_child
+    cdef double lp_node
+    cdef int i
+    if context.shape[0] > 0:
+        child = node_get_child(node, context[context.shape[0]-1])
+        lp_child = node_update(child, context[:context.shape[0]-1], symbol)
+        lp_node = node_mix_prediction(node, lp_estimator, lp_child)
+
+        node_update_switching_weights(node, lp_estimator, lp_child)
+
+        return lp_node
+    else:
+        node[0]._log_stay_prob = 0.0
+        return lp_estimator
+
+cdef double node_log_prob(CTSNodeStruct* node, int[:] context, int symbol):
+    cdef double lp_estimator = log(estimator_prob(node[0].estimator, symbol))
+    cdef CTSNodeStruct* child
+    
+    if context.shape[0] > 0:
+        child = node_get_child(node, context[context.shape[0]-1])
+        lp_child = node_log_prob(child, context[:context.shape[0]-1], symbol)
+
+        return node_mix_prediction(node, lp_estimator, lp_child)
+    else:
+        return lp_estimator
+
+cdef CTSNodeStruct* node_get_child(CTSNodeStruct* node, int symbol):
+    if node[0]._children == NULL:
+        node[0]._children = <CTSNodeStruct*>PyMem_Malloc(node._model[0].alphabet_size*sizeof(CTSNodeStruct))
+        for i in range(node._model[0].alphabet_size):
+            node[0]._children[i] = make_cts_node(node._model)[0]
+
+    return &node[0]._children[symbol]
 
 
+cdef double node_mix_prediction(CTSNodeStruct* node, double lp_estimator, double lp_child):
+    cdef double numerator = log_add(lp_estimator + node[0]._log_stay_prob,
+                                 lp_child + node[0]._log_split_prob)
+    cdef double denominator = log_add(node[0]._log_stay_prob,
+                                   node[0]._log_split_prob)
+
+    return numerator - denominator
+
+cdef void node_update_switching_weights(CTSNodeStruct* node, double lp_estimator, double lp_child):
+    cdef double log_alpha = node[0]._model[0].log_alpha
+    cdef double log_1_minus_alpha = node[0]._model[0].log_1_minus_alpha
+
+    # Avoid numerical issues with alpha = 1. This reverts to straight up
+    # weighting.
+    if log_1_minus_alpha == 0:
+        node[0]._log_stay_prob += lp_estimator
+        node[0]._log_split_prob += lp_child
+
+    else:
+        node[0]._log_stay_prob = log_add(log_1_minus_alpha
+                                               + lp_estimator
+                                               + node[0]._log_stay_prob,
+                                               log_alpha
+                                               + lp_child
+                                               + node[0]._log_split_prob)
+
+        node[0]._log_split_prob = log_add(log_1_minus_alpha
+                                                + lp_child
+                                                + node[0]._log_split_prob,
+                                                log_alpha
+                                                + lp_estimator
+                                                + node[0]._log_stay_prob)
+
+
+cdef struct CTSStruct:    
+    double _time
+    int context_length
+    int alphabet_size
+    double log_alpha
+    double log_1_minus_alpha
+    double symbol_prior
+    CTSNodeStruct* _root
+
+cdef CTSStruct* make_cts(int context_length, int max_alphabet_size=256,
+             char* symbol_prior=<char*>'perks'):
+    cdef CTSStruct* cts = <CTSStruct*>PyMem_Malloc(sizeof(CTSStruct))
+    # Total number of symbols processed.
+    cts[0]._time = 0.0
+    cts[0].context_length = context_length
+        
+    cts[0].alphabet_size = max_alphabet_size
+
+
+    # These are properly set when we call update().
+    cts[0].log_alpha, cts[0].log_1_minus_alpha = 0.0, 0.0
+    cts[0].symbol_prior = get_prior(symbol_prior, cts[0].alphabet_size) 
+
+    # Create root. This must happen after setting alphabet & symbol prior.
+    cts[0]._root = make_cts_node(cts)
+    return cts
+
+cdef double cts_update(CTSStruct* cts, int[:] context, int symbol):
+    cts[0]._time += 1.0
+    cts[0].log_alpha = log(1.0 / (cts[0]._time + 1.0))
+    cts[0].log_1_minus_alpha = log(cts[0]._time / (cts[0]._time + 1.0))
+
+    cdef double log_prob = node_update(cts[0]._root, context, symbol)
+
+    return log_prob
+
+cdef double cts_log_prob(CTSStruct* cts, int[:] context, int symbol):
+    #context is assumed to have correct length
+    return node_log_prob(cts[0]._root, context, symbol)
+
+
+cdef class CTS:
+    cdef CTSStruct* inner
+    
+    def __init__(self, context_length, alphabet_size):
+        self.inner = make_cts(context_length, alphabet_size)
+        
     cpdef double update(self, int[:] context, int symbol):
-        self._time += 1.0
-        self.log_alpha = log(1.0 / (self._time + 1.0))
-        self.log_1_minus_alpha = log(self._time / (self._time + 1.0))
-
-        self.alphabet.add(symbol)
-
-        cdef double log_prob = self._root.update(context, symbol)
-
-        return log_prob
-
+        return cts_update(self.inner, context, symbol)
+        
     cpdef double log_prob(self, int[:] context, int symbol):
-        #context is assumed to have correct length
-        return self._root.log_prob(context, symbol)
-
-    def __getstate__(self):
-        return (self._time, self.context_length, self.alphabet_size, self.log_alpha,
-                self.log_1_minus_alpha, self.symbol_prior, self._root)
-
-    def __setstate__(self, state):
-        self._time, self.context_length, self.alphabet_size, self.log_alpha, \
-            self.log_1_minus_alpha, self.symbol_prior, self._root = state
-
+        return cts_log_prob(self.inner, context, symbol)
+        
 
 cdef class CTSDensityModel:
     cdef int num_bins
     cdef int height
     cdef int width
     cdef float beta
-    cdef np.ndarray cts_factors
+    cdef CTSStruct** cts_factors
 
     def __init__(self, int height=42, int width=42, int num_bins=8, float beta=0.05):
         self.height = height
         self.width = width
         self.beta = beta
         self.num_bins = num_bins
-        self.cts_factors = np.array([
-            [CTS(4, max_alphabet_size=num_bins) for _ in range(width)]
-            for _ in range(height)
-        ])
+        
+        self.cts_factors = <CTSStruct**>PyMem_Malloc(sizeof(CTSStruct*)*height)
+        cdef int i, j
+        for i in range(self.height):
+            self.cts_factors[i] = <CTSStruct*>PyMem_Malloc(sizeof(CTSStruct)*width)
+            for j in range(self.width):
+                self.cts_factors[i][j] = make_cts(4, max_alphabet_size=num_bins)[0]
                 
     def update(self, obs):
         obs = resize(obs, (self.height, self.width), preserve_range=True)
@@ -278,19 +261,18 @@ cdef class CTSDensityModel:
         cdef int[:] context = np.array([0, 0, 0, 0], np.int32)
         cdef double log_prob = 0.0
         cdef double log_recoding_prob = 0.0
-        cdef unsigned int i
-        cdef unsigned int j
-        cdef np.ndarray[object, ndim=2] cts_factors = self.cts_factors
+        cdef int i
+        cdef int j
 
         for i in range(self.height):
             for j in range(self.width):
                 context[0] = obs[i, j-1] if j > 0 else 0
                 context[1] = obs[i-1, j] if i > 0 else 0
                 context[2] = obs[i-1, j-1] if i > 0 and j > 0 else 0
-                context[3] = obs[i-1, j+1] if i > 0 and j < cts_factors.shape[1]-1 else 0
+                context[3] = obs[i-1, j+1] if i > 0 and j < self.width-1 else 0
 
-                log_prob += cts_factors[i, j].update(context, obs[i, j])
-                log_recoding_prob += cts_factors[i, j].log_prob(context, obs[i, j])
+                log_prob += cts_update(&self.cts_factors[i][j], context, obs[i, j])
+                log_recoding_prob += cts_log_prob(&self.cts_factors[i][j], context, obs[i, j])
 
         return log_prob, log_recoding_prob
 
@@ -301,99 +283,6 @@ cdef class CTSDensityModel:
         pseudocount = (1 - recoding_prob) / np.maximum(prob_ratio - 1, 1e-10)
         return self.beta / np.sqrt(pseudocount + .01)
 
-    def __getstate__(self):
-        return self.num_bins, self.height, self.width, self.beta, self.cts_factors
-
-    def __setstate__(self, state):
-        self.num_bins, self.height, self.width, self.beta, self.cts_factors = state
-
-
-# cdef extern from "SkipCTS/src/common.hpp":
-#     cdef struct history_t:
-#         pass
-
-
-# cdef extern from "SkipCTS/src/cts.hpp":
-#     cdef cppclass SwitchingTree:
-#         #create a context tree of specified maximum depth and size
-#         SwitchingTree(history_t, size_t, int)
-#         #the logarithm of the probability of all processed experience
-#         double logBlockProbability() const
-#         #the probability of seeing a particular symbol next
-#         double prob(bit_t)
-#         #process a new piece of sensory experience
-#         void update(bit_t)
-#         #the depth of the context tree
-#         size_t depth() const
-#         #number of nodes in the context tree
-#         size_t size() const
-
-
-# cdef class PySwitchingTree:
-#     cdef SwitchingTree *thisptr
-#     def __cinit__(self, , int num_bins):
-#         self.thisptr = new SwitchingTree(history, num_bins, -1)
-#     def __dealloc__(self):
-#         del self.thisptr
-#     def prob(self, obs):
-#         return self.thisptr.prob(obs)
-#     def update(self, obs):
-#         return self.thisptr.update(obs)
-#     def depth(self):
-#         return self.thisptr.depth()
-#     def size(self):
-#         return self.thisptr.size()
-
-
-# cdef class CTSDensityModel:
-#     cdef int num_bins
-#     cdef int height
-#     cdef int width
-#     cdef float beta
-#     cdef np.ndarray cts_factors
-
-#     def __init__(self, int height=42, int width=42, int num_bins=8, float beta=0.05):
-#         self.height = height
-#         self.width = width
-#         self.beta = beta
-#         self.num_bins = num_bins
-#         self.cts_factors = np.array([
-#             [PySwitchingTree(4, num_bins) for _ in range(width)]
-#             for _ in range(height)
-#         ])
-                
-#     def update(self, obs):
-#         obs = resize(obs, (self.height, self.width), preserve_range=True)
-#         obs = np.floor((obs*self.num_bins)).astype(np.int32)
-        
-#         log_prob, log_recoding_prob = self._update(obs)
-#         return self.exploration_bonus(log_prob, log_recoding_prob)
-    
-#     cpdef (double, double) _update(self, int[:, :] obs):
-#         cdef int[:] context = np.array([0, 0, 0, 0], np.int32)
-#         cdef double log_prob = 0.0
-#         cdef double log_recoding_prob = 0.0
-#         cdef int i
-#         cdef int j
-#         for i in range(self.height):
-#             for j in range(self.width):
-#                 context[0] = obs[i, j-1] if j > 0 else 0
-#                 context[1] = obs[i-1, j] if i > 0 else 0
-#                 context[2] = obs[i-1, j-1] if i > 0 and j > 0 else 0
-#                 context[3] = obs[i-1, j+1] if i > 0 and j < self.cts_factors.shape[1]-1 else 0
-
-#                 log_prob += self.cts_factors[i, j].update(context, obs[i, j])
-#                 log_recoding_prob += self.cts_factors[i, j].log_prob(context, obs[i, j])
-
-#         return log_prob, log_recoding_prob
-
-#     def exploration_bonus(self, log_prob, log_recoding_prob):
-#         recoding_prob = np.exp(log_recoding_prob)
-#         prob_ratio = np.exp(log_recoding_prob - log_prob)
-
-#         pseudocount = (1 - recoding_prob) / np.maximum(prob_ratio - 1, 1e-10)
-#         return self.beta / np.sqrt(pseudocount + .01)
-
 #     def __getstate__(self):
 #         return self.num_bins, self.height, self.width, self.beta, self.cts_factors
 
@@ -401,5 +290,5 @@ cdef class CTSDensityModel:
 #         self.num_bins, self.height, self.width, self.beta, self.cts_factors = state
 
 
-__all__ = ['CTSDensityModel']
+__all__ = ["CTS", "CTSDensityModel"]
 
