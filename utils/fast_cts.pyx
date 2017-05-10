@@ -1,4 +1,4 @@
-#cython: initializedcheck=False, boundscheck=False, wraparound=False, nonecheck=False, cdivision=True
+#cython initializedcheck=False, boundscheck=False, wraparound=False, nonecheck=False, cdivision=True
 # CTS code adapted from https://github.com/mgbellemare/SkipCTS
 
 cimport cython
@@ -42,7 +42,7 @@ cdef double log_add(double log_x, double log_y):
 
 
 cdef struct EstimatorStruct:
-    int alphabet_size
+    unsigned int alphabet_size
     double count_total
     double* counts
 
@@ -79,7 +79,9 @@ cdef estimator_get_state(EstimatorStruct* ptr):
 
 cdef estimator_set_state(EstimatorStruct* ptr, state):
     ptr[0].alphabet_size, ptr[0].count_total = state[:2]
-    ptr[0].counts = array.array('d', state[2]).data.as_doubles
+    cdef unsigned int i
+    for i in range(ptr[0].alphabet_size):
+        ptr[0].counts[i] = state[2][i]
         
             
 cdef struct CTSNodeStruct:
@@ -111,7 +113,6 @@ cdef double node_update(CTSNodeStruct* node, int[:] context, int symbol):
     cdef CTSNodeStruct* child
     cdef double lp_child
     cdef double lp_node
-    cdef int i
     if context.shape[0] > 0:
         child = node_get_child(node, context[context.shape[0]-1])
         lp_child = node_update(child, context[:context.shape[0]-1], symbol)
@@ -194,8 +195,8 @@ cdef node_set_state(CTSNodeStruct* ptr, state):
 
 cdef struct CTSStruct:    
     double _time
-    int context_length
-    int alphabet_size
+    unsigned int context_length
+    unsigned int alphabet_size
     double log_alpha
     double log_1_minus_alpha
     double symbol_prior
@@ -257,9 +258,9 @@ cdef class CTS:
         
 
 cdef class CTSDensityModel:
-    cdef int num_bins
-    cdef int height
-    cdef int width
+    cdef unsigned int num_bins
+    cdef unsigned int height
+    cdef unsigned int width
     cdef float beta
     cdef CTSStruct** cts_factors
 
@@ -291,8 +292,8 @@ cdef class CTSDensityModel:
         cdef int[:] context = np.array([0, 0, 0, 0], np.int32)
         cdef double log_prob = 0.0
         cdef double log_recoding_prob = 0.0
-        cdef int i
-        cdef int j
+        cdef unsigned int i
+        cdef unsigned int j
 
         for i in range(self.height):
             for j in range(self.width):
@@ -313,12 +314,12 @@ cdef class CTSDensityModel:
         pseudocount = (1 - recoding_prob) / np.maximum(prob_ratio - 1, 1e-10)
         return self.beta / np.sqrt(pseudocount + .01)
 
-    def __getstate__(self):
+    def get_state(self):
         return self.num_bins, self.height, self.width, self.beta, [[
             cts_get_state(&self.cts_factors[i][j]) for j in range(self.width)
             ] for i in range(self.height)]
 
-    def __setstate__(self, state):
+    def set_state(self, state):
         self.num_bins, self.height, self.width, self.beta, cts_state = state
         for i in range(self.height):
             for j in range(self.width):

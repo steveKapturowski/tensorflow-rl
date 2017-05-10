@@ -22,6 +22,7 @@ logger = utils.logger.getLogger('intrinsic_motivation_actor_learner')
 class PerPixelDensityModel(object):
     '''
     Calculates image probability according to per-pixel counts: P(X) = ∏ p(x_ij)
+    Mostly here for debugging purposes as CTSDensityModel is much more expressive
     '''
     def __init__(self, height=42, width=42, num_bins=8, beta=0.05):
         self.counts = np.zeros((width, height, num_bins))
@@ -79,7 +80,7 @@ class DensityModelMixin(object):
 
     def write_density_model(self):
         logger.info('T{} Writing Pickled Density Model to File...'.format(self.actor_id))
-        raw_data = cPickle.dumps(self.density_model, protocol=2)
+        raw_data = cPickle.dumps(self.density_model.get_state(), protocol=2)
         with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'wb') as f:
             f.write(raw_data)
 
@@ -91,7 +92,7 @@ class DensityModelMixin(object):
         with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'rb') as f:
             raw_data = f.read()
 
-        self.density_model = cPickle.loads(raw_data)
+        self.density_model.set_state(cPickle.loads(raw_data))
 
 
 @Experimental
