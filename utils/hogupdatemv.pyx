@@ -1,15 +1,10 @@
+#cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True
 #from cython.parallel import prange
 import cython
 cimport cython
-from libc.math cimport fabs
-#from libc.stdlib cimport memcpy
+from libc.math cimport fabs, sqrt
 
-cdef extern from "math.h" nogil:
-    double sqrt(double m)
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.nonecheck(False)
 cdef void c_copy(float[::1] dest, float[::1] src, unsigned int src_size) nogil:
     dest[:] = src
     #memcpy(&dest, &src, src_size * sizeof(float))
@@ -18,10 +13,6 @@ def copy(d, s):
     c_copy(d, s, s.size)
 
 
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.nonecheck(False)
 cdef void c_apply_grads_mom_rmsprop(float[::1] m, 
                                float[::1] g, 
                                float[::1] p, 
@@ -45,10 +36,7 @@ cdef void c_apply_grads_mom_rmsprop(float[::1] m,
 def apply_grads_mom_rmsprop(_m, g, v, v_size, _type, lr, alpha, e):
     c_apply_grads_mom_rmsprop(_m, g, v, v_size, _type, lr, alpha, e)
 
-    
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.nonecheck(False)
+
 cdef void c_apply_grads_adam(float[::1] m, 
                         float[::1] v, 
                         float[::1] g, 
@@ -69,9 +57,7 @@ cdef void c_apply_grads_adam(float[::1] m,
 def apply_grads_adam(m, v, g, p, p_size, lr, b1, b2, e):
     c_apply_grads_adam(m, v, g, p, p_size, lr, b1, b2, e)
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.nonecheck(False)
+
 cdef void c_apply_grads_adamax(float[::1] m,
                         float[::1] u,
                         float[::1] g,
@@ -95,7 +81,6 @@ cdef void c_apply_grads_adamax(float[::1] m,
             u[i] = term2
 
         p[i] -= (lr / (1 - beta_1**t)) * m[i] / u[i]
-
         
 def apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, t):
     c_apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, t)

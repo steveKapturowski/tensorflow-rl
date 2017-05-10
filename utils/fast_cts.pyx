@@ -1,8 +1,4 @@
-#cython: initializedcheck=False
-#cython: boundscheck=False
-#cython: wraparound=False
-#cython: nonecheck=False
-#cython: cdivision=True
+#cython: initializedcheck=False, boundscheck=False, wraparound=False, nonecheck=False, cdivision=True
 # CTS code adapted from https://github.com/mgbellemare/SkipCTS
 
 cimport cython
@@ -53,13 +49,13 @@ cdef struct EstimatorStruct:
 cdef EstimatorStruct* make_estimator(CTSStruct* model):
     cdef EstimatorStruct* e = <EstimatorStruct*>PyMem_Malloc(sizeof(EstimatorStruct))
 
-    e[0].counts = <double*>PyMem_Malloc(model.alphabet_size*sizeof(double))
+    e[0].counts = <double*>PyMem_Malloc(model[0].alphabet_size*sizeof(double))
     cdef unsigned int i
-    for i in range(model.alphabet_size):
-        e[0].counts[i] = model.symbol_prior
+    for i in range(model[0].alphabet_size):
+        e[0].counts[i] = model[0].symbol_prior
 
-    e[0].count_total = model.alphabet_size * model.symbol_prior
-    e[0].alphabet_size = model.alphabet_size
+    e[0].count_total = model[0].alphabet_size * model[0].symbol_prior
+    e[0].alphabet_size = model[0].alphabet_size
     return e
 
 cdef void free_estimator(EstimatorStruct* e):
@@ -183,14 +179,17 @@ cdef void node_update_switching_weights(CTSNodeStruct* node, double lp_estimator
                                                 + node[0]._log_stay_prob)
 
 cdef node_get_state(CTSNodeStruct* ptr):
-    return ptr[0]._log_stay_prob, ptr[0]._log_split_prob, estimator_get_state(ptr[0].estimator), [
-        node_get_state(&ptr[0]._children[i]) for i in range(ptr[0]._model[0].alphabet_size)]
+    child_states = None
+    if ptr[0]._children != NULL:
+        child_states = [node_get_state(&ptr[0]._children[i]) for i in range(ptr[0]._model[0].alphabet_size)]
+    return ptr[0]._log_stay_prob, ptr[0]._log_split_prob, estimator_get_state(ptr[0].estimator), child_states
 
 cdef node_set_state(CTSNodeStruct* ptr, state):
     ptr[0]._log_stay_prob, ptr[0]._log_split_prob, estimator_state, child_states = state
     estimator_set_state(ptr[0].estimator, estimator_state)
-    for i in range(ptr[0]._model[0].alphabet_size):
-        node_set_state(&ptr[0]._children[i], child_states[i])
+    if child_states is not None:
+        for i in range(ptr[0]._model[0].alphabet_size):
+            node_set_state(&ptr[0]._children[i], child_states[i])
 
 
 cdef struct CTSStruct:    
@@ -315,10 +314,9 @@ cdef class CTSDensityModel:
         return self.beta / np.sqrt(pseudocount + .01)
 
     def __getstate__(self):
-        return self.num_bins, self.height, self.width, self.beta, [
-            cts_get_state(&self.cts_factors[i][j])
-            for j in range(self.width)
-            for i in range(self.height)]
+        return self.num_bins, self.height, self.width, self.beta, [[
+            cts_get_state(&self.cts_factors[i][j]) for j in range(self.width)
+            ] for i in range(self.height)]
 
     def __setstate__(self, state):
         self.num_bins, self.height, self.width, self.beta, cts_state = state
