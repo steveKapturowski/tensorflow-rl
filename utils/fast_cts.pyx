@@ -101,6 +101,10 @@ cdef CTSNodeStruct* make_cts_node(CTSStruct* model):
 
     return node
 
+cdef void free_cts_node(CTSNodeStruct* node):
+    free_estimator(node[0].estimator)
+    PyMem_Free(node[0]._children)
+
 cdef double node_update(CTSNodeStruct* node, int[:] context, int symbol):
     lp_estimator = estimator_update(node[0].estimator, symbol)
 
@@ -190,10 +194,8 @@ cdef CTSStruct* make_cts(int context_length, int max_alphabet_size=256,
     cdef CTSStruct* cts = <CTSStruct*>PyMem_Malloc(sizeof(CTSStruct))
     # Total number of symbols processed.
     cts[0]._time = 0.0
-    cts[0].context_length = context_length
-        
+    cts[0].context_length = context_length        
     cts[0].alphabet_size = max_alphabet_size
-
 
     # These are properly set when we call update().
     cts[0].log_alpha, cts[0].log_1_minus_alpha = 0.0, 0.0
@@ -202,6 +204,9 @@ cdef CTSStruct* make_cts(int context_length, int max_alphabet_size=256,
     # Create root. This must happen after setting alphabet & symbol prior.
     cts[0]._root = make_cts_node(cts)
     return cts
+
+cdef void free_cts(CTSStruct* cts):
+    free_cts_node(cts[0]._root)
 
 cdef double cts_update(CTSStruct* cts, int[:] context, int symbol):
     cts[0]._time += 1.0
@@ -250,6 +255,10 @@ cdef class CTSDensityModel:
             for j in range(self.width):
                 self.cts_factors[i][j] = make_cts(4, max_alphabet_size=num_bins)[0]
                 
+    def __dealloc__(self):
+        pass
+
+
     def update(self, obs):
         obs = resize(obs, (self.height, self.width), preserve_range=True)
         obs = np.floor((obs*self.num_bins)).astype(np.int32)
