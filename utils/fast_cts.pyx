@@ -46,6 +46,7 @@ cdef double log_add(double log_x, double log_y):
 
 
 cdef struct EstimatorStruct:
+    int alphabet_size
     double count_total
     double* counts
 
@@ -58,6 +59,7 @@ cdef EstimatorStruct* make_estimator(CTSStruct* model):
         e[0].counts[i] = model.symbol_prior
 
     e[0].count_total = model.alphabet_size * model.symbol_prior
+    e[0].alphabet_size = model.alphabet_size
     return e
 
 cdef void free_estimator(EstimatorStruct* e):
@@ -75,12 +77,13 @@ cdef double estimator_update(EstimatorStruct* e, int symbol):
     e[0].count_total += 1.0
     return log_prob
 
-def estimator_get_state(e):
-    return e.count_total, [e.counts[i] for i in range(e._model.alphabet_size)]
+cdef estimator_get_state(EstimatorStruct* ptr):
+    return ptr[0].alphabet_size, ptr[0].count_total, [
+        ptr[0].counts[i] for i in range(ptr[0].alphabet_size)]
 
-def estimator_set_state(e, state):
-    e.count_total = state[0]
-    e.counts = array.array('d', state[1])
+cdef estimator_set_state(EstimatorStruct* ptr, state):
+    ptr[0].alphabet_size, ptr[0].count_total = state[:2]
+    ptr[0].counts = array.array('d', state[2]).data.as_doubles
         
             
 cdef struct CTSNodeStruct:
@@ -179,6 +182,16 @@ cdef void node_update_switching_weights(CTSNodeStruct* node, double lp_estimator
                                                 + lp_estimator
                                                 + node[0]._log_stay_prob)
 
+cdef node_get_state(CTSNodeStruct* ptr):
+    return ptr[0]._log_stay_prob, ptr[0]._log_split_prob, estimator_get_state(ptr[0].estimator), [
+        node_get_state(&ptr[0]._children[i]) for i in range(ptr[0]._model[0].alphabet_size)]
+
+cdef node_set_state(CTSNodeStruct* ptr, state):
+    ptr[0]._log_stay_prob, ptr[0]._log_split_prob, estimator_state, child_states = state
+    estimator_set_state(ptr[0].estimator, estimator_state)
+    for i in range(ptr[0]._model[0].alphabet_size):
+        node_set_state(&ptr[0]._children[i], child_states[i])
+
 
 cdef struct CTSStruct:    
     double _time
@@ -220,6 +233,15 @@ cdef double cts_update(CTSStruct* cts, int[:] context, int symbol):
 cdef double cts_log_prob(CTSStruct* cts, int[:] context, int symbol):
     #context is assumed to have correct length
     return node_log_prob(cts[0]._root, context, symbol)
+
+cdef cts_get_state(CTSStruct* ptr):
+    return ptr[0]._time, ptr[0].context_length, ptr[0].alphabet_size, ptr[0].log_alpha, \
+        ptr[0].log_1_minus_alpha, ptr[0].symbol_prior, node_get_state(ptr[0]._root)
+
+cdef cts_set_state(CTSStruct* ptr, state):
+    ptr[0]._time, ptr[0].context_length, ptr[0].alphabet_size, ptr[0].log_alpha, \
+        ptr[0].log_1_minus_alpha, ptr[0].symbol_prior, root_state = state
+    node_set_state(ptr[0]._root, root_state)
 
 
 cdef class CTS:
@@ -292,11 +314,17 @@ cdef class CTSDensityModel:
         pseudocount = (1 - recoding_prob) / np.maximum(prob_ratio - 1, 1e-10)
         return self.beta / np.sqrt(pseudocount + .01)
 
-#     def __getstate__(self):
-#         return self.num_bins, self.height, self.width, self.beta, self.cts_factors
+    def __getstate__(self):
+        return self.num_bins, self.height, self.width, self.beta, [
+            cts_get_state(&self.cts_factors[i][j])
+            for j in range(self.width)
+            for i in range(self.height)]
 
-#     def __setstate__(self, state):
-#         self.num_bins, self.height, self.width, self.beta, self.cts_factors = state
+    def __setstate__(self, state):
+        self.num_bins, self.height, self.width, self.beta, cts_state = state
+        for i in range(self.height):
+            for j in range(self.width):
+                cts_set_state(&self.cts_factors[i][j], cts_state[i][j])
 
 
 __all__ = ["CTS", "CTSDensityModel"]
