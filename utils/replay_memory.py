@@ -27,14 +27,20 @@ class ReplayMemory(object):
 	# 	return np.vstack(s[:-1]), np.vstack(s[1:])
 
 	def sample_batch(self, batch_size):
-		batch = np.random.choice(len(self)-1, np.minimum(len(self), batch_size))
-		
+		batch = np.zeros((batch_size,), dtype=np.int32)
+		idx = 0
+		while idx < batch_size:
+			maybe_batch = np.random.choice(len(self)-1, np.minimum(len(self), batch_size-idx))	
+			valid_idx = np.where(1 - self.is_terminal[maybe_batch])[0]
+			batch[idx:len(valid_idx)] = maybe_batch[valid_idx]
+			idx += len(valid_idx)
+
 		# s_i, s_f = self._get_state(batch)
 		s_i = self.screens[batch]
 		s_f = self.screens[batch+1]
 		a = self.actions[batch]
 		r = self.rewards[batch]
-		is_terminal = self.is_terminal[batch]
+		is_terminal = self.is_terminal[batch+1]
 
 		return s_i, a, r, s_f, is_terminal
 
