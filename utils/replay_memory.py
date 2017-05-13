@@ -32,7 +32,7 @@ class ReplayMemory(object):
 		while idx < batch_size:
 			maybe_batch = np.random.choice(len(self)-1, np.minimum(len(self), batch_size-idx))	
 			valid_idx = np.where(1 - self.is_terminal[maybe_batch])[0]
-			batch[idx:len(valid_idx)] = maybe_batch[valid_idx]
+			batch[idx:idx+len(valid_idx)] = maybe_batch[valid_idx]
 			idx += len(valid_idx)
 
 		# s_i, s_f = self._get_state(batch)
