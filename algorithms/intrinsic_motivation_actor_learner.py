@@ -270,6 +270,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         return q_vars + [bonus_q05, bonus_q50, bonus_q95, augmented_reward]
 
 
+    #TODO: refactor to make this cleaner
     def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
                       ep_t, episode_ave_max_q, episode_over, bonuses, total_augmented_reward):
 
@@ -462,7 +463,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 
                 self.local_network.global_step = global_step
 
-                if self.is_master() and (self.local_step % 100 == 0):
+                if self.is_master() and (self.local_step % 500 == 0):
                     bonus_array = np.array(bonuses)
                     steps = self.global_step.value() - global_steps_at_last_record
                     global_steps_at_last_record = self.global_step.value()

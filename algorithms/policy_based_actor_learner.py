@@ -46,6 +46,7 @@ class BaseA3CLearner(ActorLearner):
         return adv_batch
 
 
+    #TODO: refactor to make this cleaner
     def prepare_state(self, state, mean_entropy, mean_value, episode_start_step, total_episode_reward, 
                       steps_at_last_reward, sel_actions, episode_over):
         # prevent the agent from getting stuck
