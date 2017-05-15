@@ -369,13 +369,14 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
 
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-        feed_dict={
-            self.local_network.input_ph: s_f,
-            self.target_network.input_ph: s_f,
-            self.is_terminal: is_terminal,
-            self.one_step_reward: r_i,
-        }
-        y_target = self.session.run(self.y_target, feed_dict=feed_dict)
+        # feed_dict={
+        #     self.local_network.input_ph: s_f,
+        #     self.target_network.input_ph: s_f,
+        #     self.is_terminal: is_terminal,
+        #     self.one_step_reward: r_i,
+        # }
+        # y_target = self.session.run(self.y_target, feed_dict=feed_dict)
+        y_target = r_i
 
         feed_dict={
             self.local_network.input_ph: s_i,
@@ -462,7 +463,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 
                 self.local_network.global_step = global_step
 
-                if self.is_master() and (self.local_step % 100 == 0):
+                if self.is_master() and (self.local_step % 500 == 0):
                     bonus_array = np.array(bonuses)
                     steps = self.global_step.value() - global_steps_at_last_record
                     global_steps_at_last_record = self.global_step.value()
@@ -474,13 +475,15 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
 
             else:
                 #compute monte carlo return
-                mc_returns = list()
+                mc_returns = np.zeros((len(rewards),), np.float32)
                 running_total = 0.0
-                for r in reversed(rewards):
+                for i, r in enumerate(reversed(rewards)):
                     running_total = r + self.gamma*running_total
-                    mc_returns.insert(0, running_total)
+                    mc_returns[len(rewards)-i-1] = running_total
 
-                mixed_returns = self.cts_eta*np.array(rewards) + (1-self.cts_eta)*np.array(mc_returns)
+                mixed_returns = self.cts_eta*(
+                    np.array(rewards)+self.gamma*np.array(max_q_values[1:]+[0])
+                ) + (1-self.cts_eta)*mc_returns
 
                 #update replay memory
                 states.append(new_s)

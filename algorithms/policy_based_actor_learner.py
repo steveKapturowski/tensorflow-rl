@@ -196,7 +196,6 @@ class A3CLearner(BaseA3CLearner):
             grads, entropy = self.session.run(
                 [self.local_network.get_gradients, self.local_network.entropy],
                 feed_dict=feed_dict)
-
             self.apply_gradients_to_shared_memory_vars(grads)     
 
             delta_old = local_step_start - episode_start_step
@@ -325,17 +324,17 @@ class A3CLSTMLearner(BaseA3CLearner):
                 sel_actions.append(sel_action)
                 
             # reverse everything so that the LSTM inputs are time-ordered
-            y_batch.reverse()
-            a_batch.reverse()
             s_batch.reverse()
+            a_batch.reverse()
+            y_batch.reverse()
             adv_batch.reverse()
             sel_actions.reverse()
 
             # Compute gradients on the local policy/V network and apply them to shared memory  
             feed_dict={
-                self.local_network.input_ph: s_batch, 
-                self.local_network.critic_target_ph: y_batch,
+                self.local_network.input_ph: s_batch,
                 self.local_network.selected_action_ph: a_batch,
+                self.local_network.critic_target_ph: y_batch,
                 self.local_network.adv_actor_ph: adv_batch,
                 self.local_network.step_size : [len(s_batch)],
                 self.local_network.initial_lstm_state: local_lstm_state,
