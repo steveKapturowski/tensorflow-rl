@@ -189,6 +189,11 @@ cdef node_set_state(CTSNodeStruct* ptr, state):
     ptr[0]._log_stay_prob, ptr[0]._log_split_prob, estimator_state, child_states = state
     estimator_set_state(ptr[0].estimator, estimator_state)
     if child_states is not None:
+        if ptr[0]._children == NULL:
+            ptr[0]._children = <CTSNodeStruct*>PyMem_Malloc(ptr[0]._model[0].alphabet_size*sizeof(CTSNodeStruct))
+            for i in range(ptr[0]._model[0].alphabet_size):
+                ptr[0]._children[i] = make_cts_node(ptr[0]._model)[0]
+
         for i in range(ptr[0]._model[0].alphabet_size):
             node_set_state(&ptr[0]._children[i], child_states[i])
 
