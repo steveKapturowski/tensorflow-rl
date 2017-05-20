@@ -19,6 +19,10 @@ from value_based_actor_learner import ValueBasedLearner
 logger = utils.logger.getLogger('intrinsic_motivation_actor_learner')
 
 
+class PixelCNNDensityModel(object):
+    pass
+
+
 class PerPixelDensityModel(object):
     '''
     Calculates image probability according to per-pixel counts: P(X) = ∏ p(x_ij)
@@ -169,18 +173,6 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 s = new_s
                 self.local_step += 1
 
-                #TODO: cleanup overloading hackery
-                # _, sync_model = self.global_step.increment(self.density_model_update_steps)
-                # if sync_model:
-                #     self.write_density_model()
-                #     for i in xrange(len(self.density_model_update_flags.updated)):
-                #         self.density_model_update_flags.updated[i] = 1
-
-                # if self.density_model_update_flags.updated[self.actor_id] == 1
-                #     self.read_density_model()
-                #     self.density_model_update_flags.updated[self.actor_id] = 0
-
-
             # Calculate the value offered by critic in the new state.
             if episode_over:
                 R = 0
@@ -198,7 +190,7 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 y_batch.append(R)
                 a_batch.append(actions[i])
                 s_batch.append(states[i])
-                # adv_batch.append(R - values[i])
+                adv_batch.append(R - values[i])
                 
                 sel_actions.append(np.argmax(actions[i]))
 
@@ -475,13 +467,13 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
 
             else:
                 #compute monte carlo return
-                mc_returns = list()
+                mc_returns = np.zeros((len(rewards),), dtype=np.float32)
                 running_total = 0.0
-                for r in reversed(rewards):
+                for i, r in enumerate(reversed(rewards)):
                     running_total = r + self.gamma*running_total
-                    mc_returns.insert(0, running_total)
+                    mc_returns[len(rewards)-i-1] = running_total
 
-                mixed_returns = self.cts_eta*np.array(rewards) + (1-self.cts_eta)*np.array(mc_returns)
+                mixed_returns = self.cts_eta*np.array(rewards) + (1-self.cts_eta)*mc_returns
 
                 #update replay memory
                 states.append(new_s)
