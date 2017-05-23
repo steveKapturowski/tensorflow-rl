@@ -387,9 +387,9 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
 
         s = self.emulator.get_initial_state()
         
-        s_batch = []
-        a_batch = []
-        y_batch = []
+        s_batch = list()
+        a_batch = list()
+        y_batch = list()
         bonuses = deque(maxlen=1000)
         episode_over = False
         
@@ -397,10 +397,10 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         global_steps_at_last_record = self.global_step.value()
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
-            rewards =      []
-            states =       []
-            actions =      []
-            max_q_values = []
+            rewards =      list()
+            states =       list()
+            actions =      list()
+            max_q_values = list()
             local_step_start = self.local_step
             total_episode_reward = 0
             total_augmented_reward = 0

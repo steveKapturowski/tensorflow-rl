@@ -108,10 +108,10 @@ class BaseA3CLearner(ActorLearner):
             episode_start_step = self.local_step
             
             while not episode_over:
-                rewards   = list()
-                states    = list()
-                actions   = list()
-                values    = list()
+                rewards = list()
+                states  = list()
+                actions = list()
+                values  = list()
                 local_step_start = self.local_step
                 self.set_local_lstm_state()
 

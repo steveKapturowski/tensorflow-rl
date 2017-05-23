@@ -65,7 +65,9 @@ def get_actions(game_or_env):
 
 def get_input_shape(game):
     env = gym.make(game)
-    if len(env.observation_space.shape) == 1:
+    if isinstance(env.observation_space, Discrete):
+        return [env.observation_space.n]
+    elif len(env.observation_space.shape) == 1:
         return list(env.observation_space.shape)
     else:
         return [RESIZE_WIDTH, RESIZE_HEIGHT]
@@ -130,7 +132,11 @@ class AtariEnvironment(object):
         return s_t
 
     def get_preprocessed_frame(self, observation):
-        if len(observation.shape) > 1:
+        if isinstance(self.env.observation_space, Discrete):
+            expanded_obs = np.zeros(self.env.observation_space.n, dtype=np.float32)
+            expanded_obs[observation] = 1
+            return expanded_obs
+        elif len(observation.shape) > 1:
             if not self.use_rgb:
                 observation = rgb2gray(observation)
             return resize(observation, (self.resized_width, self.resized_height))
@@ -162,9 +168,8 @@ class AtariEnvironment(object):
             action_index = np.argmax(action)
             action = self.gym_actions[action_index]
 
-        # print '\nI am taking this action now:', action
-
         frame, reward, terminal, info = self.env.step(action)
+
         frame = self.get_preprocessed_frame(frame)
         state = self.get_state(frame)
 
