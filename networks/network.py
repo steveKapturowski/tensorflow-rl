@@ -76,7 +76,6 @@ class Network(object):
 
             if self.use_recurrent:
                 with tf.variable_scope(self.name+'/lstm_layer') as vs:
-                    # self.lstm_cell = CustomBasicLSTMCell(self.hidden_state_size, forget_bias=1.0)
                     self.lstm_cell = tf.contrib.rnn.BasicLSTMCell(self.hidden_state_size, forget_bias=1.0, state_is_tuple=False)
                     
                     batch_size = tf.shape(self.step_size)[0]
