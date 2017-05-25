@@ -83,13 +83,13 @@ class CEMLearner(BaseA3CLearner):
 			logger.info('Epoch {} / Population Mean {} / Elite Mean {}'.format(
 				epoch+1, population_mean_reward, elite_mean_reward))
 
-			if elite_mean_reward > self.emulator.env.spec.reward_threshold:
+			if self.emulator.env.spec.reward_threshold and elite_mean_reward > self.emulator.env.spec.reward_threshold:
 				consecutive_successes += 1
 			else:
 				consecutive_successes = 0
 
-			#if the elite set is good enough we'll stop updating the parameters
-			if consecutive_successes > 8:
+			#if the elite set is consistently good enough we'll stop updating the parameters
+			if consecutive_successes > 10:
 				logger.info('switching to testing mode...')
 				episode_rewards = list()
 
