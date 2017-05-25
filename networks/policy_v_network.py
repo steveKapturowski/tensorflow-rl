@@ -28,6 +28,8 @@ class PolicyValueNetwork(Network):
                         encoded_state = self._build_encoder()
 
                 self.loss += 0.5 * self._build_value_head(encoded_state)
+            if self.use_recurrent:
+                self.loss *= 5/self.step_size
             self._build_gradient_ops(self.loss)
 
     def _build_policy_head(self, input_state):

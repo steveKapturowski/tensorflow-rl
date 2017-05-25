@@ -7,13 +7,23 @@ class FeudalNetwork(Network):
 	def __init__(self, conf):
 		super(PolicyValueNetwork, self).__init__(conf)
 
+		self.hidden_state_size = 256
+		self.step_size = tf.placeholder(tf.float32, [None], name='step_size')
+
 		with tf.variable_scope('manager'):
 			self.build_manager()
 		with tf.variable_scope('worker'):
 			self.build_worker()
 
 	def build_manager(self, input_state):
-		self.manager_initial_lstm_state, self.manager_lstm_state, self.manager_out = self._build_lstm()
+		self.manager_initial_lstm_state = tf.placeholder(
+			tf.float32, [None, 2*self.hidden_state_size], name='initital_state')
+		self.dlstm = DilatedLSTM(
+			input_state,
+			self.manager_initial_lstm_state,
+			self.hidden_state_size,
+			self.step_size)
+
 
 
 	def build_worker(self, input_state):
@@ -21,10 +31,9 @@ class FeudalNetwork(Network):
 
 
 	def _build_lstm(self, input_state):
-		hidden_state_size = 256
 		initial_lstm_state = tf.placeholder(
-			tf.float32, [None, 2*hidden_state_size], name='initital_state')
-		lstm_cell = BasicLSTMCell(hidden_state_size, forget_bias=1.0, state_is_tuple=True)
+			tf.float32, [None, 2*self.hidden_state_size], name='initital_state')
+		lstm_cell = BasicLSTMCell(self.hidden_state_size, forget_bias=1.0, state_is_tuple=True)
 		
 		batch_size = tf.shape(self.step_size)[0]
 		ox_reshaped = tf.reshape(input_state,
@@ -37,13 +46,16 @@ class FeudalNetwork(Network):
 			sequence_length=self.step_size,
 			time_major=False)
 
-		out = tf.reshape(lstm_outputs, [-1,hidden_state_size], name='reshaped_lstm_outputs')
+		out = tf.reshape(lstm_outputs, [-1,self.hidden_state_size], name='reshaped_lstm_outputs')
 		return initial_lstm_state, lstm_state, out
 
 
 class DilatedLSTM(object):
-	def __init__(self, inputs, max_steps, num_cores=10, pool_size=10, args*, **kwargs):
-		self.shared_cell = BasicLSTMCell(*args, **kwargs)
+	def __init__(self, inputs, initial_state, hidden_state_size
+		,max_steps, num_cores=10, pool_size=10):
+
+		self.shared_cell = BasicLSTMCell(hidden_state_size)
+		self.initial_state = initial_state
 		self.max_steps = max_steps
 		self.num_cores = num_cores
 		self.pool_size = pool_size
@@ -67,10 +79,14 @@ class DilatedLSTM(object):
 			body,
 			loop_vars=[i0,
 					   self.inputs,
-					   self.get_zero_state()])
+					   self.initial_state])
 
-
-		# tf.max_pool(outputs)
+		lstm_outputs = tf.reshape(tf.concat(full_state, 1), [-1,256])
+		self.outpus = tf.avg_pool(
+			tf.expand(lstm_outputs, -1),
+			[1, self.pool_size, 1, 1],
+			strides=[1, 1, 1, 1],
+			padding='SAME')
 
 
 	def get_zero_state(self):
