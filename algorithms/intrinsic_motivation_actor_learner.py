@@ -227,7 +227,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
     Still in the process of verifying implementation
     '''
     def __init__(self, args):
-        self.final_epsilon = args.final_epsilon
+        self.args = args
         super(PseudoCountQLearner, self).__init__(args)
 
         self.cts_eta = args.cts_eta
@@ -242,8 +242,8 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         self._double_dqn_op()
 
 
-    def generate_final_epsilon(self):
-        return self.final_epsilon
+    # def generate_final_epsilon(self):
+    #     return self.args.final_epsilon
 
 
     def _get_summary_vars(self):
