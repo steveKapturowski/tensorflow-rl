@@ -2,6 +2,7 @@
 import tensorflow as tf
 import numpy as np
 import ctypes
+import utils
 import time
 import sys
 
@@ -9,7 +10,9 @@ from utils.hogupdatemv import copy
 from networks.q_network import QNetwork
 from networks.dueling_network import DuelingNetwork
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
-#import cProfile
+
+
+logger = utils.logger.getLogger('value_based_actor_learner')
 
 
 class ValueBasedLearner(ActorLearner):

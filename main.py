@@ -108,6 +108,7 @@ def main(args):
     if args.alg_type == 'dqn-cts':
         args.density_model_update_flags = SharedFlags(args.num_actor_learners)
 
+    tf.reset_default_graph()
     args.barrier = Barrier(args.num_actor_learners)
     args.global_step = SharedCounter(0)
     args.num_actions = num_actions

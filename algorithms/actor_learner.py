@@ -239,7 +239,8 @@ class ActorLearner(Process):
         tf.set_random_seed(self.random_seed)
 
         num_cpus = multiprocessing.cpu_count()
-        self.supervisor = tf.train.Supervisor(init_op=tf.global_variables_initializer(),
+        self.supervisor = tf.train.Supervisor(
+            is_chief=self.is_master(), init_op=tf.global_variables_initializer(),
             logdir=self.summ_base_dir, saver=self.saver, summary_op=None)
         session_context = self.supervisor.managed_session(config=tf.ConfigProto(
             intra_op_parallelism_threads=num_cpus,
