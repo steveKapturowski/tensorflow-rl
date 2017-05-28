@@ -53,6 +53,8 @@ class ReplayMemory(object):
 		self.rewards[self.position] = r
 		self.is_terminal[self.position] = is_terminal
 
+		if self.position + 1 == self.maxlen:	
+			self.full = True
 		self.position = (self.position + 1) % self.maxlen
 
 
