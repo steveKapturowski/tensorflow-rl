@@ -64,6 +64,14 @@ class PerPixelDensityModel(object):
         pseudocount = (1 - recoding_prob) / np.maximum(prob_ratio - 1, 1e-10)
         return self.beta / np.sqrt(pseudocount + .01)
 
+    def get_state(self):
+        return self.num_bins, self.height, self.width, self.beta, self.counts
+
+    def set_state(self, state):
+        self.num_bins, self.height, self.width, self.beta, self.counts = state
+
+
+
 
 class DensityModelMixin(object):
     def _init_density_model(self, args):
@@ -220,7 +228,6 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 s, mean_entropy, mean_value, episode_start_step, total_episode_reward, self.local_step, sel_actions, episode_over)
 
 
-@Experimental
 class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
     '''
     Attempt at replicating the DQN+CTS model from the paper 'Unifying Count-Based Exploration and Intrinsic Motivation' (https://arxiv.org/abs/1606.01868)
