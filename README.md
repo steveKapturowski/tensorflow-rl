@@ -3,10 +3,10 @@
 [![Join the chat at https://gitter.im/tensorflow-rl/Lobby](https://badges.gitter.im/tensorflow-rl/Lobby.svg)](https://gitter.im/tensorflow-rl/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Tensorflow based implementations of [A3C](https://arxiv.org/abs/1602.01783),
-[PGQ](https://arxiv.org/abs/1611.01626), 
+[PGQ](https://arxiv.org/abs/1611.01626),
 [TRPO](https://arxiv.org/abs/1502.05477),
-[DQN+CTS](https://arxiv.org/abs/1606.01868), and
-[CEM](http://www.aaai.org/Papers/ICML/2003/ICML03-068.pdf)
+[DQN+CTS](https://arxiv.org/abs/1606.01868),
+and [CEM](http://www.aaai.org/Papers/ICML/2003/ICML03-068.pdf) 
 originally based on https://github.com/traai/async-deep-rl. I extensively refactored most of the code and beyond the new algorithms added several additional options including the a3c-lstm architecture, a fully-connected architecture to allow training on non-image-based gym environments, and support for continuous action spaces.
 
 The code also includes some experimental ideas I'm toying with and I'm planning on adding the following implementations
@@ -14,8 +14,11 @@ in the near future:
 - [High-Dimensional Continuous Control Using Generalized Advantage Estimation](https://arxiv.org/abs/1506.02438)
 - [Q-Prop: Sample-Efficient Policy Gradient with An Off-Policy Critic](https://arxiv.org/abs/1611.02247)
 - [Reinforcement Learning with Unsupervised Auxiliary Tasks](https://arxiv.org/abs/1611.05397)
+- [FeUdal Networks for Hierarchical Reinforcement Learning*](https://arxiv.org/abs/1703.01161)
 - [Prioritized Experience Replay](https://arxiv.org/abs/1511.05952)
-- [Neural Episodic Control](https://arxiv.org/abs/1703.01988)
+- [Neural Episodic Control*](https://arxiv.org/abs/1703.01988)
+
+\**currently in progress*
 
 I've tested the implementations based on the A3C paper pretty extensively and some of my agent evaluations can be
 found at https://gym.openai.com/users/steveKapturowski. They *should* work but I can't guarantee I won't accidentally
