@@ -242,8 +242,8 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         self._double_dqn_op()
 
 
-    # def generate_final_epsilon(self):
-    #     return self.args.final_epsilon
+    def generate_final_epsilon(self):
+        return self.args.final_epsilon
 
 
     def _get_summary_vars(self):
@@ -473,7 +473,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                     running_total = r + self.gamma*running_total
                     mc_returns[len(rewards)-i-1] = running_total
 
-                mixed_returns = self.cts_eta*np.array(rewards) + (1-self.cts_eta)*mc_returns
+                mixed_returns = self.cts_eta*np.asarray(rewards) + (1-self.cts_eta)*mc_returns
 
                 #update replay memory
                 states.append(new_s)
