@@ -20,7 +20,8 @@ class LRUCache(object):
 
 
 class DND(object):
-    def __init__(self, capacity=100000, key_size=128, cache_size=32):
+    def __init__(self, capacity=100000, key_size=128, cache_size=32, alpha=0.1):
+    	self.alpha = alpha
         self.capacity = capacity
         self.lru_cache = LRUCache(capacity)
         self.dup_cache = deque(maxlen=cache_size)
@@ -51,7 +52,7 @@ class DND(object):
         for i, e in enumerate(self.dup_cache):
             if np.allclose(key, e):
                 idx = self.size - len(self.dup_cache) + i
-                self.values[idx] += self.alpha * value
+                self.values[idx] += self.alpha * (value - self.values[idx])
 
                 return True
 
