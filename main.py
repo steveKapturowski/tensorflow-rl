@@ -184,7 +184,7 @@ def get_config():
     parser.add_argument('--arch', default='NIPS', help='Which network architecture to use: NIPS, NATURE, ATARI-TRPO, or FC (fully connected)', dest='arch')
     parser.add_argument('--env', default='GYM', help='Type of environment: ALE or GYM', dest='env')
     parser.add_argument('--rom_path', help='Directory where the game roms are located (needed for ALE environment)', dest='rom_path')
-    parser.add_argument('-n', '--num_actor_learners', default=16, type=int, help='number of actors (processes)', dest='num_actor_learners')
+    parser.add_argument('-n', '--num_actor_learners', default=8, type=int, help='number of actors (processes)', dest='num_actor_learners')
     parser.add_argument('-v', '--visualize', default=0, type=int, help='0: no visualization of emulator; 1: all emulators, for all actors, are visualized; 2: only 1 emulator (for one of the actors) is visualized', dest='visualize')
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor', dest='gamma')
     parser.add_argument('--frame_skip', default=[4], type=int, nargs='+', help='number of frames to repeat action', dest='frame_skip')

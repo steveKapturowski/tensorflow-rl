@@ -153,6 +153,14 @@ class ActorLearner(Process):
         self.game = args.game
         
 
+    def _build_graph(self):
+        parameter_servers = ['localhost:2048']
+        workers = ['localhost:{}'.format(4096+i) for i in range(self.num_actor_learners)]
+        cluster_spec = {'ps': parameter_servers, 'worker': workers}
+        with tf.device(tf.train.replica_device_setter(cluster=cluster_spec)):
+            pass
+
+
     def reset_hidden_state(self):
         '''
         Override in subclass if needed
