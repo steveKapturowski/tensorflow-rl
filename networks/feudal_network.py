@@ -89,7 +89,7 @@ class DilatedLSTM(object):
 			padding='SAME')
 
 
-	def get_zero_state(self):
+	def zero_state(self):
 		return [self.shared_cell.zero_state(
 					tf.shape(self.max_steps)[0],
 					tf.float32) for _ in range(self.stride)]

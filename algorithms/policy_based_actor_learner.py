@@ -194,6 +194,8 @@ class A3CLSTMLearner(BaseA3CLearner):
 
     def reset_hidden_state(self):
         self.lstm_state_out = np.zeros([1, 2*self.local_network.hidden_state_size])
+        # self.lstm_state_out = tf.contrib.rnn.LSTMStateTuple(np.zeros([1, 256]),
+        #                                                     np.zeros([1, 256]))
 
 
     def set_local_lstm_state(self):

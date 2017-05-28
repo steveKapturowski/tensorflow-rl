@@ -76,24 +76,25 @@ class Network(object):
 
             if self.use_recurrent:
                 with tf.variable_scope(self.name+'/lstm_layer') as vs:
-                    self.lstm_cell = tf.contrib.rnn.BasicLSTMCell(self.hidden_state_size, state_is_tuple=False, forget_bias=1.0)
+                    self.lstm_cell = tf.contrib.rnn.BasicLSTMCell(self.hidden_state_size, state_is_tuple=True, forget_bias=1.0)
                     
                     batch_size = tf.shape(self.step_size)[0]
                     self.ox_reshaped = tf.reshape(self.ox,
                         [batch_size, -1, self.ox.get_shape().as_list()[-1]])
 
-                    # self.ox_reshaped = tf.Print(self.ox_reshaped, [tf.shape(self.ox_reshaped)], 'self.ox_reshaped ')
+                    state_tuple = tf.contrib.rnn.LSTMStateTuple(
+                        *tf.split(self.initial_lstm_state, 2, 1))
 
                     self.lstm_outputs, self.lstm_state = tf.nn.dynamic_rnn(
                         self.lstm_cell,
                         self.ox_reshaped,
-                        initial_state=self.initial_lstm_state,
+                        initial_state=state_tuple,
                         sequence_length=self.step_size,
                         time_major=False,
                         scope=vs)
 
+                    self.lstm_state = tf.concat(self.lstm_state, 1)
                     self.ox = tf.reshape(self.lstm_outputs, [-1,self.hidden_state_size], name='reshaped_lstm_outputs')
-                    # self.ox = tf.Print(self.ox, [tf.shape(self.ox)], 'self.ox ')
 
                     # Get all LSTM trainable params
                     self.lstm_trainable_variables = [v for v in 
