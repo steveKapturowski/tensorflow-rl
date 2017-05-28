@@ -81,7 +81,6 @@ class Network(object):
                     batch_size = tf.shape(self.step_size)[0]
                     self.ox_reshaped = tf.reshape(self.ox,
                         [batch_size, -1, self.ox.get_shape().as_list()[-1]])
-
                     state_tuple = tf.contrib.rnn.LSTMStateTuple(
                         *tf.split(self.initial_lstm_state, 2, 1))
 

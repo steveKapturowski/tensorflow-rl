@@ -18,11 +18,16 @@ def apply_activation(out, name, activation):
 
     return out
 
-def conv2d(name, _input, filters, size, channels, stride, activation='relu', padding='VALID'):
-    w = conv_weight_variable([size,size,channels,filters], name+'_weights')
-    b = conv_bias_variable([filters], size, size, channels, name+'_biases')
-    conv = tf.nn.conv2d(_input, w, strides=[1, stride, stride, 1],
-            padding=padding, name=name+'_convs') + b
+def conv2d(name, _input, filters, size, channels, stride, activation='relu', padding='VALID', data_format='NHWC'):
+    if data_format == 'NHWC':
+        strides = [1, stride, stride, 1]
+    else:
+        strides = [1, 1, stride, stride]
+
+    w = conv_weight_variable([size, size, channels, filters], name+'_weights')
+    b = conv_bias_variable([filters], name+'_biases')
+    conv = tf.nn.conv2d(_input, w, strides=strides,
+            padding=padding, data_format=data_format, name=name+'_convs') + b
 
     out = apply_activation(conv, name, activation)
     return w, b, out
@@ -31,7 +36,7 @@ def conv_weight_variable(shape, name):
     return tf.get_variable(name, shape, dtype=tf.float32,
         initializer=tf.contrib.layers.xavier_initializer())
 
-def conv_bias_variable(shape, w, h, input_channels, name):
+def conv_bias_variable(shape, name):
     return tf.get_variable(name, shape, dtype=tf.float32,
         initializer=tf.zeros_initializer())
 
