@@ -14,9 +14,9 @@ in the near future:
 - [High-Dimensional Continuous Control Using Generalized Advantage Estimation](https://arxiv.org/abs/1506.02438)
 - [Q-Prop: Sample-Efficient Policy Gradient with An Off-Policy Critic](https://arxiv.org/abs/1611.02247)
 - [Reinforcement Learning with Unsupervised Auxiliary Tasks](https://arxiv.org/abs/1611.05397)
-- [FeUdal Networks for Hierarchical Reinforcement Learning*](https://arxiv.org/abs/1703.01161)
+- [FeUdal Networks for Hierarchical Reinforcement Learning](https://arxiv.org/abs/1703.01161)\*
 - [Prioritized Experience Replay](https://arxiv.org/abs/1511.05952)
-- [Neural Episodic Control*](https://arxiv.org/abs/1703.01988)
+- [Neural Episodic Control](https://arxiv.org/abs/1703.01988)\*
 
 \**currently in progress*
 
