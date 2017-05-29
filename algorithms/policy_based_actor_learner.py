@@ -19,7 +19,7 @@ class BaseA3CLearner(ActorLearner):
 
         self.td_lambda = args.td_lambda
         self.action_space = args.action_space
-        self.learning_vars = args.learning_vars
+        # self.learning_vars = args.learning_vars
         self.beta = args.entropy_regularisation_strength
         self.q_target_update_steps = args.q_target_update_steps
 
@@ -94,12 +94,13 @@ class BaseA3CLearner(ActorLearner):
     def train(self):
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
-            self.global_step.value()))
+            self.global_step.eval(self.session)))
         
-        while (self.global_step.value() < self.max_global_steps):
+        while not self.supervisor.should_stop():
+        # while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
-            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            self.save_vars()
+            # self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+            # self.save_vars()
 
             s = self.emulator.get_initial_state()
             self.reset_hidden_state()
@@ -134,18 +135,19 @@ class BaseA3CLearner(ActorLearner):
                 
                     s = new_s
                     self.local_step += 1
-                    self.global_step.increment()
+                    self.session.run(self.increment_step)
                 
                 targets, advantages = self.compute_targets(rewards, values, new_s, episode_over)
                 entropy = self.apply_update(states, actions, targets, advantages)
 
+            global_step = self.global_step.eval(self.session)
             elapsed_time = time.time() - self.start_time
-            steps_per_sec = self.global_step.value() / elapsed_time
+            steps_per_sec = global_step / elapsed_time
             perf = "{:.0f}".format(steps_per_sec)
             logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
                 self.actor_id,
                 self.local_episode,
-                self.global_step.value()/1000,
+                global_step/1000.,
                 total_episode_reward,
                 perf))
 

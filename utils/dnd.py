@@ -26,7 +26,6 @@ class DND(object):
         self.lru_cache = LRUCache(capacity)
         self.dup_cache = deque(maxlen=cache_size)
         self.index = AnnoyIndex(key_size, metric='euclidean')
-        self.update_batch = np.zeros((1000, key_size))
         self.keys = np.zeros((capacity, key_size), dtype=np.float32)
         self.values = np.zeros((capacity,), dtype=np.float32)
         self.insert_idx = 0
@@ -42,7 +41,6 @@ class DND(object):
             self.insert_idx = self.lru_cache.update(self.insert_idx)
 
         self.insertions += 1
-        self.update_batch[self.insertions % 1000] = key
         #rebuilding the index is expensive so we don't want to do it too often
         if self.insertions % 1000 == 0:
             self.rebuild_index()

@@ -141,7 +141,7 @@ class Network(object):
 
 
     def _build_gradient_ops(self, loss):
-        self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
+        self.params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.name)
         self.flat_vars = utils.ops.flatten_vars(self.params)
 
         grads = tf.gradients(loss, self.params)
