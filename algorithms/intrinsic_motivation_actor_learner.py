@@ -76,7 +76,7 @@ class PerPixelDensityModel(object):
 class DensityModelMixin(object):
     def _init_density_model(self, args):
         self.density_model_update_steps = 20*args.q_target_update_steps
-        self.density_model_update_flags = args.density_model_update_flags
+        # self.density_model_update_flags = args.density_model_update_flags
 
         model_args = {
             'height': args.cts_rescale_dim,
@@ -96,8 +96,8 @@ class DensityModelMixin(object):
         with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'wb') as f:
             f.write(raw_data)
 
-        for i in xrange(len(self.density_model_update_flags.updated)):
-            self.density_model_update_flags.updated[i] = 1
+        # for i in xrange(len(self.density_model_update_flags.updated)):
+        #     self.density_model_update_flags.updated[i] = 1
 
     def read_density_model(self):
         logger.info('T{} Synchronizing Density Model...'.format(self.actor_id))
@@ -280,7 +280,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
 
         # Start a new game on reaching terminal state
         if episode_over:
-            T = self.global_step.value()
+            T = self.global_step.eval(self.session)
             t = self.local_step
             e_prog = float(t)/self.epsilon_annealing_steps
             episode_ave_max_q = episode_ave_max_q/float(ep_t)
@@ -292,9 +292,9 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 self.scores.pop()
 
             logger.info('T{0} / STEP {1} / REWARD {2} / {3} / {4}'.format(
-                self.actor_id, T, total_episode_reward, s1, s2))
+                self.task_index, T, total_episode_reward, s1, s2))
             logger.info('ID: {0} -- RUNNING AVG: {1:.0f} ± {2:.0f} -- BEST: {3:.0f}'.format(
-                self.actor_id,
+                self.task_index,
                 np.array(self.scores).mean(),
                 2*np.array(self.scores).std(),
                 max(self.scores),
@@ -404,8 +404,9 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         episode_over = False
         
         t0 = time.time()
-        global_steps_at_last_record = self.global_step.value()
-        while (self.global_step.value() < self.max_global_steps):
+        global_steps_at_last_record = self.global_step.eval(self.session)
+        while not self.supervisor.should_stop():
+        # while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
             rewards =      list()
             states =       list()
@@ -418,8 +419,8 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
             ep_t = 0
 
             while not episode_over:
-                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-                self.save_vars()
+                # self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+                # self.save_vars()
 
                 # Choose next action and execute it
                 a, q_values = self.choose_next_action(s)
@@ -446,29 +447,30 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 self.local_step += 1
                 episode_ave_max_q += max_q
                 
-                global_step, _ = self.global_step.increment()
+                _, global_step = self.session.run([self.increment_step, self.global_step])
+                # global_step, _ = self.global_step.increment()
 
                 if global_step % self.q_target_update_steps == 0:
                     self.update_target()
                 if global_step % self.density_model_update_steps == 0:
                     self.write_density_model()
                 # Sync local tensorflow target network params with shared target network params
-                if self.target_update_flags.updated[self.actor_id] == 1:
-                    self.sync_net_with_shared_memory(self.target_network, self.target_vars)
-                    self.target_update_flags.updated[self.actor_id] = 0
-                if self.density_model_update_flags.updated[self.actor_id] == 1:
-                    self.read_density_model()
-                    self.density_model_update_flags.updated[self.actor_id] = 0
+                # if self.target_update_flags.updated[self.actor_id] == 1:
+                #     self.sync_net_with_shared_memory(self.target_network, self.target_vars)
+                #     self.target_update_flags.updated[self.actor_id] = 0
+                # if self.density_model_update_flags.updated[self.actor_id] == 1:
+                #     self.read_density_model()
+                #     self.density_model_update_flags.updated[self.actor_id] = 0
 
                 if self.local_step % self.q_update_interval == 0:
                     self.batch_update()
                 
-                self.local_network.global_step = global_step
+                # self.local_network.global_step = global_step
 
                 if self.is_master() and (self.local_step % 500 == 0):
                     bonus_array = np.array(bonuses)
-                    steps = self.global_step.value() - global_steps_at_last_record
-                    global_steps_at_last_record = self.global_step.value()
+                    steps = global_step - global_steps_at_last_record
+                    global_steps_at_last_record = global_step
 
                     logger.debug('Mean Bonus={:.4f} / Max Bonus={:.4f} / STEPS/s={}'.format(
                         bonus_array.mean(), bonus_array.max(), steps/float(time.time()-t0)))

@@ -93,7 +93,7 @@ class BaseA3CLearner(ActorLearner):
 
     def train(self):
         """ Main actor learner loop for advantage actor critic learning. """
-        logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
+        logger.debug("Actor {} resuming at Step {}".format(self.task_index, 
             self.global_step.eval(self.session)))
         
         while not self.supervisor.should_stop():
@@ -145,7 +145,7 @@ class BaseA3CLearner(ActorLearner):
             steps_per_sec = global_step / elapsed_time
             perf = "{:.0f}".format(steps_per_sec)
             logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
-                self.actor_id,
+                self.task_index,
                 self.local_episode,
                 global_step/1000.,
                 total_episode_reward,

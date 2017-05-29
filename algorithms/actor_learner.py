@@ -228,13 +228,13 @@ class ActorLearner(object):
 
         num_cpus = multiprocessing.cpu_count()
 
-        learning_rate = 0.001
+        learning_rate = self.initial_lr
         optimizer = tf.train.RMSPropOptimizer(
             learning_rate,
-            decay=0.9,
+            decay=0.99,
             momentum=self.momentum,
             epsilon=1e-10,
-            use_locking=False,
+            use_locking=True,
             centered=False,
             name='RMSProp')
         self.get_gradients = optimizer.compute_gradients(

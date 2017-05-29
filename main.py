@@ -123,7 +123,7 @@ def main(args):
     np.random.seed(seed)
     tf.set_random_seed(seed)
 
-    args.actor_id = args.task_index
+    args.actor_id = 0
     args.device = '/gpu:{}'.format(i % num_gpus) if num_gpus else '/cpu:0'
     args.random_seed = seed + args.task_index
     args.input_shape = input_shape
@@ -144,8 +144,8 @@ def main(args):
     elif args.job_name == 'worker':
 
         with tf.device(tf.train.replica_device_setter(
-            worker_device='/job:localhost/task:{}'.format(args.task_index),
-            ps_device='/job:localhost/task:0',
+            worker_device='/job:worker/task:{}'.format(args.task_index),
+            # ps_device='/job:localhost/task:0',
             cluster=cluster)):
 
             learner = Learner(args)

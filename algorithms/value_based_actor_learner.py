@@ -22,8 +22,8 @@ class ValueBasedLearner(ActorLearner):
         super(ValueBasedLearner, self).__init__(args)
         
         # Shared mem vars
-        self.target_vars = args.target_vars
-        self.target_update_flags = args.target_update_flags
+        # self.target_vars = args.target_vars
+        # self.target_update_flags = args.target_update_flags
         self.q_target_update_steps = args.q_target_update_steps
 
         self.scores = list()
@@ -42,6 +42,12 @@ class ValueBasedLearner(ActorLearner):
             var_list = self.local_network.params + self.target_network.params            
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
+
+        # build assign ops for target network
+        self.update_target_network = tf.group(
+            *[tf.assign(t, v) for t, v in zip(
+                self.target_network.params,
+                self.local_network.params)])
 
         # Exploration epsilons 
         self.initial_epsilon = 1.0
@@ -110,12 +116,13 @@ class ValueBasedLearner(ActorLearner):
 
 
     def update_target(self):
-        copy(np.frombuffer(self.target_vars.vars, ctypes.c_float),
-              np.frombuffer(self.learning_vars.vars, ctypes.c_float))
+        self.session.run(self.update_target_network)
+        # copy(np.frombuffer(self.target_vars.vars, ctypes.c_float),
+        #       np.frombuffer(self.learning_vars.vars, ctypes.c_float))
         
-        # Set shared flags
-        for i in xrange(len(self.target_update_flags.updated)):
-            self.target_update_flags.updated[i] = 1
+        # # Set shared flags
+        # for i in xrange(len(self.target_update_flags.updated)):
+        #     self.target_update_flags.updated[i] = 1
 
 
     def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
