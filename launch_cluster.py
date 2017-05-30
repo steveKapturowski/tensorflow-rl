@@ -8,7 +8,7 @@ import os
 
 def launch_proc(proc_type, num_workers, task_index, args):
 	env = os.environ.copy()
-	if proc_type = 'ps':
+	if proc_type == 'ps':
 		env['CUDA_VISIBLE_DEVICES'] = ''
 
 	cmd = ['python', 'main.py'] + args \
