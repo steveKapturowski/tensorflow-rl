@@ -22,11 +22,8 @@ in the near future:
 
 # Notes
 - You can find a number of my evaluations for the A3C, TRPO, and DQN+CTS algorithms at https://gym.openai.com/users/steveKapturowski. As I'm working on lots of refactoring at the moment it's possible I could break things. Please open an issue if you discover any bugs.
-
 - I'm in the process of swapping out most of the multiprocessing code in favour of distributed tensorflow which should simplify a lot of the training code and allow to distribute actor-learner processes across multiple machines.
-
 - I tried to match my PGQ implementation as closely as possible to what they describe in the paper but I've noticed the average episode reward can exhibit a pathological oscillatory behavior or suddenly collapse during training. If someone spots a flaw in my implementation I'd be extremely grateful to get your feedback.
-
 - There's also an implementation of the A3C+ model from [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/abs/1606.01868) but I've been focusing on improvements to the DQN variant so this hasn't gotten much love
 
 # Running the code
