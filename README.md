@@ -20,14 +20,14 @@ in the near future:
 
 \**currently in progress*
 
-I've tested the implementations based on the A3C paper pretty extensively and some of my agent evaluations can be
-found at https://gym.openai.com/users/steveKapturowski. They *should* work but I can't guarantee I won't accidentally
-break something as I'm planning on doing a lot more refactoring.
+# Notes
+- I've tested the implementations based on the A3C paper pretty extensively and some of my agent evaluations can be found at https://gym.openai.com/users/steveKapturowski. They *should* work but I can't guarantee I won't accidentally break something as I'm planning on doing a lot more refactoring.
 
-I tried to match my PGQ implementation as closely as possible to what they describe in the paper but I've noticed the
-average episode reward can exhibit a pathological oscillatory behavior or suddenly collapse during training. If someone spots a flaw in my implementation I'd be extremely grateful to get your feedback.
+- I tried to match my PGQ implementation as closely as possible to what they describe in the paper but I've noticed the average episode reward can exhibit a pathological oscillatory behavior or suddenly collapse during training. If someone spots a flaw in my implementation I'd be extremely grateful to get your feedback.
 
-There's also an implementation of the A3C+ model from [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/abs/1606.01868) but I'm still running some experiments to verify that I can get similar results to the paper.
+- There's also an implementation of the A3C+ model from [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/abs/1606.01868) but I'm still running some experiments to verify that I can get similar results to the paper.
+
+- I'm working on swapping out most of the multiprocessing code in favour of distributed tensorflow which should simplify a lot of the training code and allow to distribute actor-learner processes across multiple machines.
 
 # Running the code
 First you'll need to install the cython extensions needed for the hog updates and CTS density model:
