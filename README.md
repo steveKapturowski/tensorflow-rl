@@ -47,7 +47,7 @@ DQN+CTS after 50M agent steps
 
 A3C run on Pong-v0 with default parameters and frameskip sampled uniformly over 3-4
 
-<img src="/images/pong-a3c-reward.png" alt="alt text" width="50%" height="50%">
+<img src="/images/pong-a3c-reward.png" alt="alt text" width="75%" height="75%">
 
 # Requirements
 - python 2.7
