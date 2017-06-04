@@ -41,6 +41,9 @@ To evaluate a trained agent simply add the --test flag:
 ```bash
 python main.py Pong-v0 --alg_type a3c -n 1 --test --restore_checkpoint
 ```
+DQN+CTS after 50M agent steps
+
+![Montezuma's Revenge](/images/montezumas-revenge-3600.gif)
 
 A3C run on Pong-v0 with default parameters and frameskip sampled uniformly over 3-4
 
