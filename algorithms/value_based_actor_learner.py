@@ -53,8 +53,8 @@ class ValueBasedLearner(ActorLearner):
 
 
     def generate_final_epsilon(self):
-        epsilon = {'limits': [0.1, 0.01, 0.5], 'probs': [0.4, 0.3, 0.3]}
-        return np.random.choice(epsilon['limits'], p=epsilon['probs']) 
+        values = [.01, .05, .1, .2]
+        return values[self.actor_id % 4]
 
 
     def reduce_thread_epsilon(self):
