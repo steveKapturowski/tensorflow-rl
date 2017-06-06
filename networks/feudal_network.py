@@ -37,7 +37,7 @@ class FeudalNetwork(Network):
 		
 		batch_size = tf.shape(self.step_size)[0]
 		ox_reshaped = tf.reshape(input_state,
-			batch_size, -1, input_state.get_shape().as_list()[-1]])
+			[batch_size, -1, input_state.get_shape().as_list()[-1]])
 
 		lstm_outputs, lstm_state = tf.nn.dynamic_rnn(
 			lstm_cell,
