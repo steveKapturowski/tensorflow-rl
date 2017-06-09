@@ -234,7 +234,7 @@ class ActorLearner(object):
             momentum=self.momentum,
             epsilon=1e-10,
             use_locking=False,
-            centered=False,
+            centered=True,
             name='RMSProp')
         self.get_gradients = optimizer.compute_gradients(
             self.local_network.loss, self.local_network.params)
