@@ -11,9 +11,7 @@ import numpy as np
 from utils import checkpoint_utils
 from utils.decorators import only_on_train
 from environments.atari_environment import AtariEnvironment
-from utils.hogupdatemv import apply_grads_mom_rmsprop, apply_grads_adam, apply_grads_adamax
 from contextlib import contextmanager
-# from multiprocessing import Process
 
 
 CHECKPOINT_INTERVAL = 100000
@@ -235,13 +233,13 @@ class ActorLearner(object):
             decay=0.99,
             momentum=self.momentum,
             epsilon=1e-10,
-            use_locking=True,
+            use_locking=False,
             centered=False,
             name='RMSProp')
         self.get_gradients = optimizer.compute_gradients(
             self.local_network.loss, self.local_network.params)
-        self.local_network.get_gradients = optimizer.apply_gradients(self.get_gradients)
         self.global_step = tf.Variable(0, trainable=False)
+        self.local_network.get_gradients = optimizer.apply_gradients(self.get_gradients, global_step=self.global_step)
         self.increment_step = tf.assign_add(self.global_step, 1)
 
         self.supervisor = tf.train.Supervisor(

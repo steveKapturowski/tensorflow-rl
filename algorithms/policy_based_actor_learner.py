@@ -135,7 +135,7 @@ class BaseA3CLearner(ActorLearner):
                 
                     s = new_s
                     self.local_step += 1
-                    self.session.run(self.increment_step)
+                    # self.session.run(self.increment_step)
                 
                 targets, advantages = self.compute_targets(rewards, values, new_s, episode_over)
                 entropy = self.apply_update(states, actions, targets, advantages)
