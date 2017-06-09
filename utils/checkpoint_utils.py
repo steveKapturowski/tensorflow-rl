@@ -4,9 +4,10 @@ import os
 
 
 def restore_vars(saver, sess, game, alg_type, max_local_steps, restore_checkpoint):
-    """ Restore saved net, global step, and epsilons OR 
-    create checkpoint directory for later storage. """
-
+    """
+    Restore saved net, global step, and epsilons OR 
+    create checkpoint directory for later storage.
+    """
     alg = alg_type + "{}/".format("_" + str(max_local_steps) + "_steps" if alg_type == 'q' else "") 
     checkpoint_dir = 'checkpoints/' + game + '/' + alg
     

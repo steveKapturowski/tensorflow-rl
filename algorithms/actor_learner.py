@@ -162,9 +162,9 @@ class ActorLearner(Process):
 
 
     def reset_hidden_state(self):
-        '''
+        """
         Override in subclass if needed
-        '''
+        """
         pass
 
 
@@ -173,10 +173,11 @@ class ActorLearner(Process):
 
 
     def test(self, num_episodes=100):
-        '''
+        """
         Run test monitor for `num_episodes`
-        '''
-        self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+        """
+        target_params = self.session.run(self.target_network.params)
+        self.assign_vars(self.local_network, target_params)
 
         rewards = list()
         for episode in range(num_episodes):
@@ -277,8 +278,9 @@ class ActorLearner(Process):
         # Merge all param matrices into a single 1-D array
         params = np.hstack([p.reshape(-1) for p in params])
         np.frombuffer(self.learning_vars.vars, ctypes.c_float)[:] = params
-        if hasattr(self, 'target_vars'):
-            np.frombuffer(self.target_vars.vars, ctypes.c_float)[:] = params
+        # if hasattr(self, 'target_vars'):
+            # target_params = self.session.run(self.target_network.params)
+            # np.frombuffer(self.target_vars.vars, ctypes.c_float)[:] = params
         #memoryview(self.learning_vars.vars)[:] = params
         #memoryview(self.target_vars.vars)[:] = memoryview(self.learning_vars.vars)
                 
@@ -363,7 +365,10 @@ class ActorLearner(Process):
         for i, var in enumerate(dest_net.params):
             shape = var.get_shape().as_list()
             size = np.prod(shape)
-            feed_dict[dest_net.params_ph[i]] = \
+            if type(params) == list:
+                feed_dict[dest_net.params_ph[i]] = params[i]
+            else:
+                feed_dict[dest_net.params_ph[i]] = \
                     params[offset:offset+size].reshape(shape)
             offset += size
         
