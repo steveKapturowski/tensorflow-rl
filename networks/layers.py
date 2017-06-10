@@ -34,7 +34,9 @@ def conv2d(name, _input, filters, size, channels, stride, activation='relu', pad
 
 def conv_weight_variable(shape, name):
     # initializer=tf.contrib.layers.xavier_initializer()
-    initializer = tf.truncated_normal_initializer(0, 0.02)
+    # initializer = tf.truncated_normal_initializer(0, 0.02)
+    d = 1.0 / np.sqrt(np.prod(shape[:-1]))
+    initializer = tf.random_uniform_initializer(-d, d)
     return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def conv_bias_variable(shape, name):
@@ -52,7 +54,9 @@ def fc(name, _input, output_dim, activation='relu'):
 
 def fc_weight_variable(shape, name):
     # initializer = tf.contrib.layers.xavier_initializer()
-    initializer = tf.random_normal_initializer(stddev=0.02)
+    # initializer = tf.random_normal_initializer(stddev=0.02)
+    d = 1.0 / np.sqrt(shape[0])
+    initializer = tf.random_uniform_initializer(-d, d)
     return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def fc_bias_variable(shape, input_channels, name):
