@@ -93,20 +93,16 @@ class BaseA3CLearner(ActorLearner):
 
     def train(self):
         """ Main actor learner loop for advantage actor critic learning. """
-        logger.debug("Actor {} resuming at Step {}".format(self.task_index, 
-            self.global_step.eval(self.session)))
+        last_global_step = self.global_step.eval(self.session)
+        logger.debug("Actor {} resuming at Step {}".format(self.task_index, last_global_step))
         
         while not self.supervisor.should_stop():
-        # while (self.global_step.value() < self.max_global_steps):
-            # Sync local learning net with shared mem
-            # self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            # self.save_vars()
-
             s = self.emulator.get_initial_state()
             self.reset_hidden_state()
             self.local_episode += 1
             episode_over = False
             total_episode_reward = 0.0
+            episode_start_time = time.time()
             episode_start_step = self.local_step
             
             while not episode_over:
@@ -120,7 +116,7 @@ class BaseA3CLearner(ActorLearner):
                 while self.local_step - local_step_start < self.max_local_steps and not episode_over:
                     # Choose next action and execute it
                     a, readout_v_t, readout_pi_t = self.choose_next_action(s)
-                    if self.is_master() and (self.local_step % 100 == 0):
+                    if self.is_master() and (self.local_step % 200 == 0):
                         logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                     new_s, reward, episode_over = self.emulator.next(a)
@@ -135,23 +131,23 @@ class BaseA3CLearner(ActorLearner):
                 
                     s = new_s
                     self.local_step += 1
-                    # self.session.run(self.increment_step)
                 
                 targets, advantages = self.compute_targets(rewards, values, new_s, episode_over)
                 entropy = self.apply_update(states, actions, targets, advantages)
 
             global_step = self.global_step.eval(self.session)
-            elapsed_time = time.time() - self.start_time
-            steps_per_sec = global_step / elapsed_time
+            elapsed_time = time.time() - episode_start_time
+            steps_per_sec = (global_step - last_global_step) * self.max_local_steps / elapsed_time
             perf = "{:.0f}".format(steps_per_sec)
-            logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
+            logger.info("T{} / EPISODE {} / STEP {:.3f}M / REWARD {} / {} STEPS/s".format(
                 self.task_index,
                 self.local_episode,
-                global_step/1000.,
+                global_step/1e6,
                 total_episode_reward,
                 perf))
 
             self.log_summary(total_episode_reward, np.array(values).mean(), entropy)
+            last_global_step = global_step
 
 
 class A3CLearner(BaseA3CLearner):

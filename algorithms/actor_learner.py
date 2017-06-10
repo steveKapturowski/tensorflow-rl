@@ -224,26 +224,38 @@ class ActorLearner(object):
         #set random seeds so we can reproduce runs
         np.random.seed(self.random_seed)
         tf.set_random_seed(self.random_seed)
-
         num_cpus = multiprocessing.cpu_count()
 
-        learning_rate = self.initial_lr
-        optimizer = tf.train.RMSPropOptimizer(
-            learning_rate,
-            decay=0.99,
-            momentum=self.momentum,
-            epsilon=1e-10,
-            use_locking=False,
-            centered=True,
-            name='RMSProp')
-        self.get_gradients = optimizer.compute_gradients(
-            self.local_network.loss, self.local_network.params)
-        self.global_step = tf.Variable(0, trainable=False)
-        self.local_network.get_gradients = optimizer.apply_gradients(self.get_gradients, global_step=self.global_step)
-        self.increment_step = tf.assign_add(self.global_step, 1)
+        with tf.variable_scope('optimizer'):
+            learning_rate = self.initial_lr
+            optimizer = tf.train.RMSPropOptimizer(
+                learning_rate,
+                decay=0.99,
+                momentum=self.momentum,
+                epsilon=1e-10,
+                use_locking=False,
+                centered=True,
+                name='RMSProp')
+            optimizer = tf.train.SyncReplicasOptimizer(
+                optimizer,
+                replicas_to_aggregate=self.num_actor_learners,
+                total_num_replicas=self.num_actor_learners)
 
+            self.get_gradients = optimizer.compute_gradients(
+                self.local_network.loss, self.local_network.params)
+            self.global_step = tf.Variable(0, trainable=False)
+            self.local_network.get_gradients = optimizer.apply_gradients(self.get_gradients, global_step=self.global_step)
+
+
+        local_init_op = optimizer.chief_init_op if self.is_master() else optimizer.local_step_init_op
+        chief_queue_runner = optimizer.get_chief_queue_runner()
+        sync_init_op = optimizer.get_init_tokens_op()
+
+        # sync_replicas_hook = optimizer.make_session_run_hook(self.is_master())
         self.supervisor = tf.train.Supervisor(
             init_op=tf.global_variables_initializer(),
+            local_init_op=local_init_op,
+            ready_for_local_init_op=optimizer.ready_for_local_init_op,
             global_step=self.global_step,
             is_chief=self.is_master(),
             logdir=self.summ_base_dir,
@@ -258,6 +270,10 @@ class ActorLearner(object):
             allow_soft_placement=True))
 
         with self.monitored_environment(), session_context as self.session:
+            if self.is_master():
+                self.session.run(sync_init_op)
+                self.supervisor.start_queue_runners(self.session, [chief_queue_runner])
+
             self.session.graph.finalize()
             self.start_time = time.time()
 

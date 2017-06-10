@@ -280,7 +280,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
 
         # Start a new game on reaching terminal state
         if episode_over:
-            T = self.global_step.eval(self.session)
+            T = self.global_step.eval(self.session) * self.max_local_steps
             t = self.local_step
             e_prog = float(t)/self.epsilon_annealing_steps
             episode_ave_max_q = episode_ave_max_q/float(ep_t)
