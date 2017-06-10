@@ -33,12 +33,13 @@ def conv2d(name, _input, filters, size, channels, stride, activation='relu', pad
     return w, b, out
 
 def conv_weight_variable(shape, name):
-    return tf.get_variable(name, shape, dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer())
+    # initializer=tf.contrib.layers.xavier_initializer()
+    initializer = tf.truncated_normal_initializer(0, 0.02)
+    return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def conv_bias_variable(shape, name):
-    return tf.get_variable(name, shape, dtype=tf.float32,
-        initializer=tf.zeros_initializer())
+    initializer = tf.zeros_initializer()
+    return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def fc(name, _input, output_dim, activation='relu'):
     input_dim = _input.get_shape().as_list()[1]
@@ -50,12 +51,13 @@ def fc(name, _input, output_dim, activation='relu'):
     return w, b, out
 
 def fc_weight_variable(shape, name):
-    return tf.get_variable(name, shape, dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer())
+    # initializer = tf.contrib.layers.xavier_initializer()
+    initializer = tf.random_normal_initializer(stddev=0.02)
+    return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def fc_bias_variable(shape, input_channels, name):
-    return tf.get_variable(name, shape, dtype=tf.float32,
-        initializer=tf.zeros_initializer())
+    initializer = tf.zeros_initializer()
+    return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def softmax(name, _input, output_dim):
     input_dim = _input.get_shape().as_list()[1]
