@@ -227,7 +227,12 @@ class ActorLearner(object):
         num_cpus = multiprocessing.cpu_count()
 
         with tf.variable_scope('optimizer'):
-            learning_rate = self.initial_lr
+            self.global_step = tf.Variable(0, trainable=False)
+            learning_rate = tf.train.polynomial_decay(
+                self.initial_lr,
+                self.global_step,
+                self.max_global_steps,
+                end_learning_rate=0.0)
             optimizer = tf.train.RMSPropOptimizer(
                 learning_rate,
                 decay=0.99,
@@ -243,7 +248,6 @@ class ActorLearner(object):
 
             self.get_gradients = optimizer.compute_gradients(
                 self.local_network.loss, self.local_network.params)
-            self.global_step = tf.Variable(0, trainable=False)
             self.local_network.get_gradients = optimizer.apply_gradients(self.get_gradients, global_step=self.global_step)
 
 
