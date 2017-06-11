@@ -32,20 +32,6 @@ class BaseA3CLearner(ActorLearner):
         return action_index
 
 
-    def compute_gae(self, rewards, values, next_val):
-        values = values + [next_val]
-        size = len(rewards)
-        adv_batch = list()
-        td_i = 0.0
-
-        for i in range(size):
-            j = size - 1 - i
-            td_i = self.td_lambda*self.gamma*td_i + rewards[j] + self.gamma*values[j+1] - values[j]
-            adv_batch.insert(0, td_i)
-
-        return adv_batch
-
-
     def bootstrap_value(self, state, episode_over):
         if episode_over:
             R = 0
@@ -59,13 +45,35 @@ class BaseA3CLearner(ActorLearner):
 
     def compute_targets(self, rewards, values, state, episode_over):   
         R = self.bootstrap_value(state, episode_over)
+        size = len(rewards)
         adv_batch = list()
         y_batch = list()
-        for i in reversed(xrange(len(rewards))):
-            idx = len(rewards)-i-1
+
+        for i in xrange(size):
+            idx = size-i-1
             R = rewards[idx] + self.gamma * R
             y_batch.append(R)
             adv_batch.append(R - values[idx])
+
+        y_batch.reverse()
+        adv_batch.reverse()
+        return y_batch, adv_batch
+
+
+    def compute_gae(self, rewards, values, state, episode_over):
+        R = self.bootstrap_value(state, episode_over)
+        values = values + [R]
+        size = len(rewards)
+        adv_batch = list()
+        y_batch = list()
+        td_i = 0.0
+
+        for i in xrange(size):
+            idx = size-i-1
+            td_i = self.td_lambda*self.gamma*td_i + rewards[idx] + self.gamma*values[idx+1] - values[idx]
+            R = rewards[idx] + self.gamma * R
+            y_batch.append(R)
+            adv_batch.append(td_i)
 
         y_batch.reverse()
         adv_batch.reverse()
@@ -132,6 +140,7 @@ class BaseA3CLearner(ActorLearner):
                     s = new_s
                     self.local_step += 1
                 
+                # targets, advantages = self.compute_gae(rewards, values, new_s, episode_over)
                 targets, advantages = self.compute_targets(rewards, values, new_s, episode_over)
                 entropy = self.apply_update(states, actions, targets, advantages)
 
