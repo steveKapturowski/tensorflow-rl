@@ -140,8 +140,8 @@ class BaseA3CLearner(ActorLearner):
                     s = new_s
                     self.local_step += 1
                 
-                # targets, advantages = self.compute_gae(rewards, values, new_s, episode_over)
-                targets, advantages = self.compute_targets(rewards, values, new_s, episode_over)
+                targets, advantages = self.compute_gae(rewards, values, new_s, episode_over)
+                # targets, advantages = self.compute_targets(rewards, values, new_s, episode_over)
                 entropy = self.apply_update(states, actions, targets, advantages)
 
             global_step = self.global_step.eval(self.session)
