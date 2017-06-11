@@ -34,9 +34,16 @@ class VizDoomEnv(object):
     return resize(screen, (self.height, self.width))
 
   def next(self, action):
-    prev_health, prev_ammo, prev_kill = self.game.get_state().game_variables
+    prev_ammo, prev_health, prev_kill = self.game.get_state().game_variables
     reward = self.game.make_action(action, self.frame_repeat)
     terminal = self.game.is_episode_finished()
     if not terminal:
-      curr_health, curr_ammo, curr_kill = 
+      state = self.game.get_state()
+      screen_buffer = state.screen_buffer
+      curr_ammo, curr_health, curr_kill = state.game_variables
+      reward = reward + (curr_ammo - prev_ammo) + (curr_health - prev_health) + 20*(curr_kill - prev_kill)
+    else:
+      screen_buffer = None
+
+    return screen_buffer, reward, terminal
     

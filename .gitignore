@@ -65,3 +65,5 @@ target/
 #vscode
 .vscode/
 
+#doom_scenarios
+doom_scenarios
