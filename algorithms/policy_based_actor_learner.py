@@ -59,10 +59,12 @@ class BaseA3CLearner(ActorLearner):
 
     def compute_targets(self, rewards, values, state, episode_over):   
         R = self.bootstrap_value(state, episode_over)
+        size = len(rewards)
         adv_batch = list()
         y_batch = list()
-        for i in reversed(xrange(len(rewards))):
-            idx = len(rewards)-i-1
+
+        for i in xrange(size):
+            idx = size-i-1
             R = rewards[idx] + self.gamma * R
             y_batch.append(R)
             adv_batch.append(R - values[idx])
