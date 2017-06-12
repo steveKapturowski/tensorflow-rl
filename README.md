@@ -51,7 +51,7 @@ A3C run on Pong-v0 with default parameters and frameskip sampled uniformly over 
 
 # Requirements
 - python 2.7
-- tensorflow 1.0
+- tensorflow 1.1
 - scikit-image
 - Cython
 - pyaml
