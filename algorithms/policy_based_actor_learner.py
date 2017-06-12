@@ -39,10 +39,11 @@ class BaseA3CLearner(ActorLearner):
         td_i = 0.0
 
         for i in range(size):
-            j = size - 1 - i
+            j = size-i-1
             td_i = self.td_lambda*self.gamma*td_i + rewards[j] + self.gamma*values[j+1] - values[j]
-            adv_batch.insert(0, td_i)
+            adv_batch.append(td_i)
 
+        adv_batch.reverse()
         return adv_batch
 
 
@@ -133,7 +134,7 @@ class BaseA3CLearner(ActorLearner):
                     states.append(s)
                     actions.append(a)
                     values.append(readout_v_t)
-                
+
                     s = new_s
                     self.local_step += 1
                     self.global_step.increment()
