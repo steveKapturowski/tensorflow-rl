@@ -1,4 +1,4 @@
-model_checkpoint_path: "model-200218"
-all_model_checkpoint_paths: "model-100126"
-all_model_checkpoint_paths: "/tmp/summary_logs/defend_the_center/06.12/14.39/model.ckpt"
+model_checkpoint_path: "model-300365"
 all_model_checkpoint_paths: "model-200218"
+all_model_checkpoint_paths: "/tmp/summary_logs/defend_the_center/06.12/14.39/model.ckpt"
+all_model_checkpoint_paths: "model-300365"
