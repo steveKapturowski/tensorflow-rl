@@ -242,7 +242,7 @@ class ActorLearner(Process):
         if self.use_monitor and not self.is_doom:
             self.log_dir = tempfile.mkdtemp()
             self.emulator.env = gym.wrappers.Monitor(self.emulator.env, self.log_dir)
-        else:
+        elif self.is_doom:
             self.emulator.env.set_window_visible(self.use_monitor)
 
         yield

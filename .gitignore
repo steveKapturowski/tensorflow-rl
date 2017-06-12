@@ -69,3 +69,6 @@ target/
 doom_scenarios
 _vizdoom.ini
 checkpoints
+
+.nfs*
+rl.log*
