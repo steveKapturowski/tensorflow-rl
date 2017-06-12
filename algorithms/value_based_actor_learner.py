@@ -6,6 +6,7 @@ import utils
 import time
 import sys
 
+from utils.decorators import only_on_train
 from utils.hogupdatemv import copy
 from networks.q_network import QNetwork
 from networks.dueling_network import DuelingNetwork
@@ -45,8 +46,8 @@ class ValueBasedLearner(ActorLearner):
 
         # Exploration epsilons 
         self.initial_epsilon = 1.0
-        self.epsilon = 1.0 if self.is_train else 0.1
         self.final_epsilon = self.generate_final_epsilon()
+        self.epsilon = self.final_epsilon if self.is_train else args.final_epsilon
         self.epsilon_annealing_steps = args.epsilon_annealing_steps
         self.exploration_strategy = args.exploration_strategy
         self.bolzmann_temperature = args.bolzmann_temperature
@@ -57,6 +58,7 @@ class ValueBasedLearner(ActorLearner):
         return values[self.actor_id % 4]
 
 
+    @only_on_train
     def reduce_thread_epsilon(self):
         """ Linear annealing """
         if self.epsilon > self.final_epsilon:
