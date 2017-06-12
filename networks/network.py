@@ -35,7 +35,7 @@ class Network(object):
             if self.arch == 'FC':
                 self.input_ph = tf.placeholder('float32', [self.batch_size]+self.input_shape+[self.input_channels], name='input')
             else: #assume image input
-                self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
+                self.input_ph = tf.placeholder('float32',[self.batch_size]+self.input_shape+[self.input_channels], name='input')
 
             if self.use_recurrent:
                 self.hidden_state_size = 256

@@ -65,5 +65,6 @@ target/
 #vscode
 .vscode/
 
-#doom_scenarios
+#doom
 doom_scenarios
+_vizdoom.ini

@@ -61,6 +61,11 @@ def main(args):
         from environments import atari_environment
         num_actions, action_space, _ = atari_environment.get_actions(args.game)
         input_shape = atari_environment.get_input_shape(args.game)
+    elif args.env == 'DOOM':
+        from environments.vizdoom_env import VizDoomEnv
+        env = VizDoomEnv(args.doom_cfg, args.game)
+        num_actions, action_space = env.get_actions()
+        input_shape = env.get_input_shape()
     else:
         num_actions = get_num_actions(args.rom_path, args.game)
     
@@ -159,7 +164,7 @@ def get_validated_params(args):
     #validate param
     if args.env=='ALE' and args.rom_path is None:
         raise argparse.ArgumentTypeError('Need to specify the directory where the game roms are located, via --rom_path')         
-    if args.reward_clip_val <= 0:
+    if args.reward_clip_val < 0:
         raise argparse.ArgumentTypeError('value of --reward_clip_val option must be non-negative')
     if args.alg_type not in ALGORITHMS:
         raise argparse.ArgumentTypeError('alg_type `{}` not implemented'.format(args.alg_type))
@@ -182,8 +187,9 @@ def get_config():
     parser.add_argument('game', help='Name of game')
     parser.add_argument('--alg_type', default="a3c", help='Type of algorithm: q (for Q-learning), sarsa, a3c (for actor-critic)', dest='alg_type')
     parser.add_argument('--arch', default='NIPS', help='Which network architecture to use: NIPS, NATURE, ATARI-TRPO, or FC (fully connected)', dest='arch')
-    parser.add_argument('--env', default='GYM', help='Type of environment: ALE or GYM', dest='env')
+    parser.add_argument('--env', default='GYM', help='Type of environment: ALE, GYM or DOOM', dest='env')
     parser.add_argument('--rom_path', help='Directory where the game roms are located (needed for ALE environment)', dest='rom_path')
+    parser.add_argument('--doom_cfg', help='Path of config files needed for VizDoom environment', dest='doom_cfg')
     parser.add_argument('-n', '--num_actor_learners', default=8, type=int, help='number of actors (processes)', dest='num_actor_learners')
     parser.add_argument('-v', '--visualize', default=0, type=int, help='0: no visualization of emulator; 1: all emulators, for all actors, are visualized; 2: only 1 emulator (for one of the actors) is visualized', dest='visualize')
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor', dest='gamma')
