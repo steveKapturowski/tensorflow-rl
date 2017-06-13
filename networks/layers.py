@@ -9,14 +9,23 @@ def flatten(_input):
 
 def apply_activation(out, name, activation):
     if activation == 'relu':
-        out = tf.nn.relu(out, name=name+'_relu')
+        return tf.nn.relu(out, name=name+'_relu')
     elif activation == 'softplus':
-        out = tf.nn.softplus(out, name=name+'_softplus')
+        return tf.nn.softplus(out, name=name+'_softplus')
     elif activation == 'tanh':
-        out = tf.nn.tanh(out, name=name+'_tanh')
-    #else assume linear
+        return tf.nn.tanh(out, name=name+'_tanh')
+    elif activation == 'selu':
+        return selu(out, name=name+'_selu')
+    elif activation == 'linear':
+        return out
+    else:
+        raise Exception('Invalid activation type \'{}\''.format(activation))
 
-    return out
+def selu(x, name):
+    alpha = 1.6732632423543772848170429916717
+    scale = 1.0507009873554804934193349852946
+    return tf.multiply(
+        scale, tf.where(x>0.0, x, alpha*tf.exp(x)-alpha), name=name)
 
 def conv2d(name, _input, filters, size, channels, stride, activation='relu', padding='VALID', data_format='NHWC'):
     if data_format == 'NHWC':
@@ -33,12 +42,15 @@ def conv2d(name, _input, filters, size, channels, stride, activation='relu', pad
     return w, b, out
 
 def conv_weight_variable(shape, name):
-    return tf.get_variable(name, shape, dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer())
+    # initializer=tf.contrib.layers.xavier_initializer()
+    # initializer = tf.truncated_normal_initializer(0, 0.02)
+    d = 1.0 / np.sqrt(np.prod(shape[:-1]))
+    initializer = tf.random_uniform_initializer(-d, d)
+    return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def conv_bias_variable(shape, name):
-    return tf.get_variable(name, shape, dtype=tf.float32,
-        initializer=tf.zeros_initializer())
+    initializer = tf.zeros_initializer()
+    return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def fc(name, _input, output_dim, activation='relu'):
     input_dim = _input.get_shape().as_list()[1]
@@ -50,12 +62,15 @@ def fc(name, _input, output_dim, activation='relu'):
     return w, b, out
 
 def fc_weight_variable(shape, name):
-    return tf.get_variable(name, shape, dtype=tf.float32,
-        initializer=tf.contrib.layers.xavier_initializer())
+    # initializer = tf.contrib.layers.xavier_initializer()
+    # initializer = tf.random_normal_initializer(stddev=0.02)
+    d = 1.0 / np.sqrt(shape[0])
+    initializer = tf.random_uniform_initializer(-d, d)
+    return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def fc_bias_variable(shape, input_channels, name):
-    return tf.get_variable(name, shape, dtype=tf.float32,
-        initializer=tf.zeros_initializer())
+    initializer = tf.zeros_initializer()
+    return tf.get_variable(name, shape, dtype=tf.float32, initializer=initializer)
 
 def softmax(name, _input, output_dim):
     input_dim = _input.get_shape().as_list()[1]
@@ -74,5 +89,3 @@ def softmax_and_log_softmax(name, _input, output_dim):
     log_out = tf.nn.log_softmax(xformed, name=name+'_log_policy')
 
     return w, b, out, log_out
-
-
