@@ -336,7 +336,7 @@ class ActorLearner(Process):
                 lr = self.decay_lr()
                 if (self.optimizer_mode == "local"):
                     m = opt_st
-                else: #shared 
+                else: #shared
                     m = np.frombuffer(opt_st.vars, ctypes.c_float)
                 
                 p = np.frombuffer(shared_vars.vars, ctypes.c_float)
