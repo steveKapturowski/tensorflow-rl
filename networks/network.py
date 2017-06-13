@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
 import numpy as np
-import layers
+from networks import layers
 import utils.ops
-from custom_lstm import CustomBasicLSTMCell
+from networks.custom_lstm import CustomBasicLSTMCell
 
 
 class Network(object):
@@ -35,7 +35,7 @@ class Network(object):
             if self.arch == 'FC':
                 self.input_ph = tf.placeholder('float32', [self.batch_size]+self.input_shape+[self.input_channels], name='input')
             else: #assume image input
-                self.input_ph = tf.placeholder('float32',[self.batch_size, 84, 84, self.input_channels], name='input')
+                self.input_ph = tf.placeholder('float32',[self.batch_size]+self.input_shape+[self.input_channels], name='input')
 
             if self.use_recurrent:
                 self.hidden_state_size = 256
@@ -135,7 +135,7 @@ class Network(object):
             
         # Ops to sync net with shared memory vars
         self.sync_with_shared_memory = []
-        for i in xrange(len(self.params)):
+        for i in range(len(self.params)):
             self.sync_with_shared_memory.append(
                 self.params[i].assign(self.params_ph[i]))
 

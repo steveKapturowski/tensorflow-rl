@@ -21,7 +21,7 @@ class ReplayMemory(object):
 
 	# def _get_states(batch):
 	# 	s = list()
-	# 	for i in xrange(-3, 2):
+	# 	for i in range(-3, 2):
 	# 		s.append(self.screens[batch+i])
 			
 	# 	return np.vstack(s[:-1]), np.vstack(s[1:])

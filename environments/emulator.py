@@ -94,7 +94,7 @@ class Emulator:
             wait = random.randint(0, MAX_START_WAIT)
         else:
             wait = 0
-        for _ in xrange(wait):
+        for _ in range(wait):
             self.ale.act(self.legal_actions[0])
 
     def process_frame_pool(self):
@@ -124,7 +124,7 @@ class Emulator:
     def action_repeat(self, a):
         """ Repeat action and grab screen into frame pool """
         reward = 0
-        for i in xrange(ACTION_REPEAT):
+        for i in range(ACTION_REPEAT):
             reward += self.ale.act(self.legal_actions[a])
             new_screen_image_rgb = self.get_screen_image()
         return reward, new_screen_image_rgb
@@ -138,7 +138,7 @@ class Emulator:
     def get_initial_state(self):
         """ Get the initial state """
         self.new_game()
-        for step in xrange(NR_IMAGES):
+        for step in range(NR_IMAGES):
             reward, new_screen_image_rgb = self.action_repeat(0)
             self.screen_images_processed[:, :, step] = self.process_frame_pool()
             self.show_screen(new_screen_image_rgb)
@@ -182,7 +182,7 @@ if __name__ == "__main__":
     emulator.get_initial_state()
     n_actions = len(emulator.legal_actions)
     one_hot_action = np.zeros(n_actions)
-    for _ in xrange(RANDOM_PLAY_STEPS):
+    for _ in range(RANDOM_PLAY_STEPS):
         one_hot_action[random.randint(0, n_actions - 1)] = 1
         _, _, over = emulator.next(one_hot_action, False)
         if over:

@@ -139,7 +139,7 @@ class AtariEnvironment(object):
         elif len(observation.shape) > 1:
             if not self.use_rgb:
                 observation = rgb2gray(observation)
-            return resize(observation, (self.resized_width, self.resized_height))
+            return resize(observation, (self.resized_width, self.resized_height), mode='constant')
         else:
             return observation
 

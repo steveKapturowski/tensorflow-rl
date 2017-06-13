@@ -5,11 +5,11 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 from utils.hogupdatemv import copy
-from actor_learner import ONE_LIFE_GAMES
+from algorithms.actor_learner import ONE_LIFE_GAMES
 from utils.decorators import Experimental
 from utils.replay_memory import ReplayMemory
 from networks.policy_v_network import PolicyValueNetwork
-from policy_based_actor_learner import BaseA3CLearner
+from algorithms.policy_based_actor_learner import BaseA3CLearner
 
 
 logger = utils.logger.getLogger('pgq_actor_learner')
@@ -179,7 +179,7 @@ class PGQLearner(BasePGQLearner):
                             
              
             sel_actions = []
-            for i in reversed(xrange(len(states))):
+            for i in reversed(range(len(states))):
                 R = rewards[i] + self.gamma * R
 
                 y_batch.append(R)

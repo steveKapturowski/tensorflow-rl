@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-import layers
+from networks import layers
 import tensorflow as tf
-from q_network import QNetwork
+from networks.q_network import QNetwork
 
 
 class DuelingNetwork(QNetwork):

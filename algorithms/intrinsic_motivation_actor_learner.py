@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 import time
-import cPickle
+import pickle
 import numpy as np
 import utils.logger
 import tensorflow as tf
@@ -8,12 +8,12 @@ import tensorflow as tf
 from skimage.transform import resize
 from collections import deque
 from utils import checkpoint_utils
-from actor_learner import ONE_LIFE_GAMES
+from algorithms.actor_learner import ONE_LIFE_GAMES
 from utils.decorators import Experimental
 from utils.fast_cts import CTSDensityModel
 from utils.replay_memory import ReplayMemory
-from policy_based_actor_learner import A3CLearner
-from value_based_actor_learner import ValueBasedLearner
+from algorithms.policy_based_actor_learner import A3CLearner
+from algorithms.value_based_actor_learner import ValueBasedLearner
 
 
 logger = utils.logger.getLogger('intrinsic_motivation_actor_learner')
@@ -92,11 +92,11 @@ class DensityModelMixin(object):
 
     def write_density_model(self):
         logger.info('T{} Writing Pickled Density Model to File...'.format(self.actor_id))
-        raw_data = cPickle.dumps(self.density_model.get_state(), protocol=2)
+        raw_data = pickle.dumps(self.density_model.get_state(), protocol=2)
         with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'wb') as f:
             f.write(raw_data)
 
-        for i in xrange(len(self.density_model_update_flags.updated)):
+        for i in range(len(self.density_model_update_flags.updated)):
             self.density_model_update_flags.updated[i] = 1
 
     def read_density_model(self):
@@ -104,7 +104,7 @@ class DensityModelMixin(object):
         with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'rb') as f:
             raw_data = f.read()
 
-        self.density_model.set_state(cPickle.loads(raw_data))
+        self.density_model.set_state(pickle.loads(raw_data))
 
 
 @Experimental
@@ -192,7 +192,7 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
             adv_batch = self.compute_gae(rewards, values, R)
 
             sel_actions = []
-            for i in reversed(xrange(len(states))):
+            for i in reversed(range(len(states))):
                 R = rewards[i] + self.gamma * R
 
                 y_batch.append(R)

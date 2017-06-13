@@ -6,7 +6,7 @@ import tensorflow as tf
 from gym.spaces import Discrete
 from utils import checkpoint_utils
 from utils.decorators import only_on_train
-from actor_learner import ActorLearner, ONE_LIFE_GAMES
+from algorithms.actor_learner import ActorLearner, ONE_LIFE_GAMES
 from networks.policy_v_network import PolicyValueNetwork
 
 
@@ -64,7 +64,7 @@ class BaseA3CLearner(ActorLearner):
         adv_batch = list()
         y_batch = list()
 
-        for i in xrange(size):
+        for i in range(size):
             idx = size-i-1
             R = rewards[idx] + self.gamma * R
             y_batch.append(R)

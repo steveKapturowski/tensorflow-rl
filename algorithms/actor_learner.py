@@ -90,6 +90,7 @@ class ActorLearner(Process):
         self.q_update_interval = args.q_update_interval
         self.restore_checkpoint = args.restore_checkpoint
         self.random_seed = args.random_seed
+        self.is_doom = False
         
         # Shared mem vars
         self.learning_vars = args.learning_vars
@@ -130,6 +131,10 @@ class ActorLearner(Process):
                 self.actor_id,
                 self.random_seed,
                 args.single_life_episodes)
+        elif args.env == 'DOOM':
+            from environments.vizdoom_env import VizDoomEnv
+            self.emulator = VizDoomEnv(args.doom_cfg, args.game)
+            self.is_doom = True
         else:
             raise Exception('Invalid environment `{}`'.format(args.env))
             
@@ -176,8 +181,9 @@ class ActorLearner(Process):
         """
         Run test monitor for `num_episodes`
         """
-        target_params = self.session.run(self.target_network.params)
-        self.assign_vars(self.local_network, target_params)
+        if hasattr(self, 'target_network'):
+            target_params = self.session.run(self.target_network.params)
+            self.assign_vars(self.local_network, target_params)
 
         rewards = list()
         for episode in range(num_episodes):
@@ -234,9 +240,11 @@ class ActorLearner(Process):
 
     @contextmanager
     def monitored_environment(self):
-        if self.use_monitor:
+        if self.use_monitor and not self.is_doom:
             self.log_dir = tempfile.mkdtemp()
             self.emulator.env = gym.wrappers.Monitor(self.emulator.env, self.log_dir)
+        elif self.is_doom:
+            self.emulator.env.set_window_visible(self.use_monitor)
 
         yield
         self.emulator.env.close()
@@ -353,9 +361,12 @@ class ActorLearner(Process):
             if np.abs(reward) > self.thread_max_reward:
                 self.thread_max_reward = np.abs(reward)
             return reward/self.thread_max_reward
-        else:
+        elif self.reward_clip_val > 0.0:
             """ Clip immediate reward """
             return np.sign(reward) * np.minimum(self.reward_clip_val, np.abs(reward))
+        else:
+            """no rescale or clip"""
+            return reward
             
 
     def assign_vars(self, dest_net, params):
@@ -381,7 +392,7 @@ class ActorLearner(Process):
         offset = 0
         params = np.frombuffer(shared_mem_vars.vars, 
                                   ctypes.c_float)
-        for i in xrange(len(dest_net.params)):
+        for i in range(len(dest_net.params)):
             shape = shared_mem_vars.var_shapes[i]
             size = np.prod(shape)
             feed_dict[dest_net.params_ph[i]] = \

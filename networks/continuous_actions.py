@@ -1,10 +1,10 @@
 # -*- encoding: utf-8 -*-
-import layers
+from networks import layers
 import numpy as np
 import tensorflow as tf
-from q_network import QNetwork
+from networks.q_network import QNetwork
 from utils.distributions import DiagNormal
-from policy_v_network import PolicyValueNetwork
+from networks.policy_v_network import PolicyValueNetwork
 
 
 class ContinuousPolicyValueNetwork(PolicyValueNetwork):

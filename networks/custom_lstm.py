@@ -33,7 +33,7 @@ class CustomBasicLSTMCell(RNNCell):
 
 	def __call__(self, inputs, state, scope=None):
 		'''Long short-term memory cell (LSTM).'''
-		print 'Inputs / Cell State:', inputs.get_shape(), state.get_shape()
+		print('Inputs / Cell State:', inputs.get_shape(), state.get_shape())
 		with tf.variable_scope(scope or type(self).__name__):  # "BasicLSTMCell"
 			# Parameters of gates are concatenated into one multiply for efficiency.
 			c, h = tf.split(axis=1, num_or_size_splits=2, value=state)
