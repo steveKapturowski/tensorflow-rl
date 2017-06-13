@@ -70,7 +70,7 @@ def main(args):
         num_actions = get_num_actions(args.rom_path, args.game)
     
     args.action_space = action_space
-    args.summ_base_dir = '/tmp/summary_logs/{}/{}'.format(args.game, time.strftime('%m.%d/%H.%M'))
+    args.summ_base_dir = 'checkpoints/{}/{}'.format(args.game, time.strftime('%m.%d/%H.%M'))
     logger.info('logging summaries to {}'.format(args.summ_base_dir))
 
     Learner, Network = ALGORITHMS[args.alg_type]
@@ -131,7 +131,7 @@ def main(args):
     seed = args.seed or np.random.randint(2**32)
     np.random.seed(seed)
     tf.set_random_seed(seed)
-    for i in xrange(args.num_actor_learners):
+    for i in range(args.num_actor_learners):
         if (args.visualize == 2) and (i == args.num_actor_learners - 1):
             args.args.visualize = 1
 

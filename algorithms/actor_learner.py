@@ -392,7 +392,7 @@ class ActorLearner(Process):
         offset = 0
         params = np.frombuffer(shared_mem_vars.vars, 
                                   ctypes.c_float)
-        for i in xrange(len(dest_net.params)):
+        for i in range(len(dest_net.params)):
             shape = shared_mem_vars.var_shapes[i]
             size = np.prod(shape)
             feed_dict[dest_net.params_ph[i]] = \

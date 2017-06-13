@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
 import numpy as np
-import layers
+from networks import layers
 import utils.ops
-from custom_lstm import CustomBasicLSTMCell
+from networks.custom_lstm import CustomBasicLSTMCell
 
 
 class Network(object):
@@ -135,7 +135,7 @@ class Network(object):
             
         # Ops to sync net with shared memory vars
         self.sync_with_shared_memory = []
-        for i in xrange(len(self.params)):
+        for i in range(len(self.params)):
             self.sync_with_shared_memory.append(
                 self.params[i].assign(self.params_ph[i]))
 

@@ -5,7 +5,7 @@ import utils.logger
 import tensorflow as tf
 
 from utils.forked_debugger import ForkedPdb as Pdb
-from actor_learner import ActorLearner, ONE_LIFE_GAMES
+from algorithms.actor_learner import ActorLearner, ONE_LIFE_GAMES
 from networks.policy_v_network import SequencePolicyVNetwork, PolicyRepeatNetwork
 from algorithms.policy_based_actor_learner import BaseA3CLearner
 
@@ -150,7 +150,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                             
              
             sel_actions = []
-            for i in reversed(xrange(len(states))):
+            for i in reversed(range(len(states))):
                 R = rewards[i] + self.gamma * R
 
                 y_batch.append(R)
@@ -170,8 +170,8 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
             go_input[:,:,self.num_actions] = 1
             padded_input_sequences = np.hstack([go_input, padded_output_sequences[:,:-1,:]])
 
-            print 'Sequence lengths:', seq_lengths
-            print 'Actions:', [np.argmax(a) for a in a_batch[0]]
+            print('Sequence lengths:', seq_lengths)
+            print('Actions:', [np.argmax(a) for a in a_batch[0]])
 
             allowed_actions = np.ones((len(s_batch), max(seq_len_batch), self.num_actions+1))
             allowed_actions[:, 0, -1] = 0 #empty sequence is not a valid action
@@ -197,7 +197,7 @@ class ActionSequenceA3CLearner(BaseA3CLearner):
                 ],
                 feed_dict=feed_dict)
 
-            print 'Entropy:', entropy #, 'Adv:', advantage #, 'Value:', value
+            print('Entropy:', entropy) #, 'Adv:', advantage #, 'Value:', value
             self.apply_gradients_to_shared_memory_vars(grads)     
             
             s_batch = []
@@ -354,7 +354,7 @@ class ARA3CLearner(BaseA3CLearner):
                             
              
             sel_actions = []
-            for i in reversed(xrange(len(states))):
+            for i in reversed(range(len(states))):
                 R = rewards[i] + self.gamma * R
 
                 y_batch.append(R)

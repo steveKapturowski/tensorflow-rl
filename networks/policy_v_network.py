@@ -1,11 +1,11 @@
 # -*- encoding: utf-8 -*-
-import layers
+from networks import layers
 import numpy as np
 import tensorflow as tf
-from network import Network
+from networks.network import Network
 from utils.distributions import Discrete
-from custom_lstm import CustomBasicLSTMCell
-from sequence_decoder import decoder, loop_gumbel_softmax
+from networks.custom_lstm import CustomBasicLSTMCell
+from networks.sequence_decoder import decoder, loop_gumbel_softmax
 
 
 class PolicyValueNetwork(Network):
@@ -208,7 +208,7 @@ class SequencePolicyVNetwork(PolicyValueNetwork):
                 if v.name.startswith(vs.name)
             ]
 
-        print 'Decoder out: s,l,a=', self.decoder_state.get_shape(), self.logits.get_shape(), self.actions.get_shape()
+        print('Decoder out: s,l,a=', self.decoder_state.get_shape(), self.logits.get_shape(), self.actions.get_shape())
 
 
         #mask softmax by allowed actions
@@ -224,7 +224,7 @@ class SequencePolicyVNetwork(PolicyValueNetwork):
         self.output_layer_entropy = - tf.reduce_sum(tf.stop_gradient(1 + log_sequence_probs) * log_sequence_probs)
         self.entropy = - tf.reduce_sum(log_sequence_probs)
 
-        print 'sp, lsp:', sequence_probs.get_shape(), log_sequence_probs.get_shape()
+        print('sp, lsp:', sequence_probs.get_shape(), log_sequence_probs.get_shape())
 
 
         self.actor_advantage_term = tf.reduce_sum(log_sequence_probs[:self.max_local_steps] * self.adv_actor_ph)

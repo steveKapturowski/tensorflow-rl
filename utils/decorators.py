@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import logger
+from utils import logger
 
 
 logger = logger.getLogger('intrinsic_motivation_actor_learner')

@@ -17,7 +17,7 @@ def restore_vars(saver, sess, game, alg_type, max_local_steps, restore_checkpoin
     if path is None or not restore_checkpoint:
         return 0
     else:
-        print 'Restoring checkpoint `{}`'.format(path)
+        print('Restoring checkpoint `{}`'.format(path))
         saver.restore(sess, path)
         global_step = int(path[path.rfind("-") + 1:])
         return global_step 

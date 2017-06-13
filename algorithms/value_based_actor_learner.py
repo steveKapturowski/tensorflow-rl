@@ -10,7 +10,7 @@ from utils.decorators import only_on_train
 from utils.hogupdatemv import copy
 from networks.q_network import QNetwork
 from networks.dueling_network import DuelingNetwork
-from actor_learner import ActorLearner, ONE_LIFE_GAMES
+from algorithms.actor_learner import ActorLearner, ONE_LIFE_GAMES
 
 
 logger = utils.logger.getLogger('value_based_actor_learner')
@@ -116,7 +116,7 @@ class ValueBasedLearner(ActorLearner):
               np.frombuffer(self.learning_vars.vars, ctypes.c_float))
         
         # Set shared flags
-        for i in xrange(len(self.target_update_flags.updated)):
+        for i in range(len(self.target_update_flags.updated)):
             self.target_update_flags.updated[i] = 1
 
 
@@ -252,7 +252,7 @@ class NStepQLearner(ValueBasedLearner):
                         [new_s]})
                 R = np.max(q_target_values_next_state)
                    
-            for i in reversed(xrange(len(states))):
+            for i in reversed(range(len(states))):
                 R = rewards[i] + self.gamma * R
                 
                 y_batch.append(R)

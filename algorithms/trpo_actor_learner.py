@@ -7,7 +7,7 @@ import utils.logger
 import tensorflow as tf
 
 from utils.distributions import DiagNormal
-from policy_based_actor_learner import BaseA3CLearner
+from algorithms.policy_based_actor_learner import BaseA3CLearner
 from networks.policy_v_network import PolicyValueNetwork
 
 
@@ -194,7 +194,7 @@ class TRPOLearner(BaseA3CLearner):
 	def fit_baseline(self, data, mix_old=.9):
 		data_size = len(data['state'])
 		proc_state = self.preprocess_value_state(data)
-		print 'diffs', (data['mc_return'] - data['values']).mean()
+		print('diffs', (data['mc_return'] - data['values']).mean())
 		target = (1-mix_old)*data['mc_return'] + mix_old*data['values']
 		grads = [np.zeros(g.get_shape().as_list(), dtype=np.float32) for g in self.value_network.get_gradients]
 
@@ -234,13 +234,13 @@ class TRPOLearner(BaseA3CLearner):
 
 	def update_grads(self, data):
 		#we need to compute the policy gradient in minibatches to avoid GPU OOM errors on Atari
-		print 'fitting baseline...'
+		print('fitting baseline...')
 		self.fit_baseline(data)
 
 		normalized_advantage = (data['advantage'] - data['advantage'].mean())/(data['advantage'].std() + 1e-8)
 		data['reward'] = normalized_advantage
 
-		print 'running policy gradient...'
+		print('running policy gradient...')
 		pg = self.run_minibatches(data, self.pg)[0]
 
 		data_size = len(data['state'])
@@ -253,11 +253,11 @@ class TRPOLearner(BaseA3CLearner):
 			self.pg_placeholder:                    pg
 		}
 
-		print 'running conjugate gradient descent...'
+		print('running conjugate gradient descent...')
 		theta_prev, fullstep, neggdotstepdir = self.session.run(
 			[self.theta, self.fullstep, self.neggdotstepdir], feed_dict=feed_dict)
 
-		print 'running linesearch...'
+		print('running linesearch...')
 		new_theta = self.linesearch(data, theta_prev, fullstep, neggdotstepdir)
 		self.assign_vars(self.policy_network, new_theta)
 
@@ -324,13 +324,13 @@ class TRPOLearner(BaseA3CLearner):
 				'values':    list(),
 			}
 			#launch worker tasks
-			for i in xrange(self.episodes_per_batch):
+			for i in range(self.episodes_per_batch):
 				self.task_queue.put(i)
 
 			#collect worker experience
 			episode_rewards = list()
 			t0 = time.time()
-			for _ in xrange(self.episodes_per_batch):
+			for _ in range(self.episodes_per_batch):
 				worker_data, reward = self.experience_queue.get()
 				episode_rewards.append(reward)
 
@@ -356,7 +356,7 @@ class TRPOLearner(BaseA3CLearner):
 	def train(self):
 		if self.is_master():
 			self._run_master()
-			for _ in xrange(self.num_actor_learners):
+			for _ in range(self.num_actor_learners):
 				self.task_queue.put('EXIT')
 		else:
 			self._run_worker()

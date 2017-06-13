@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+from functools import reduce
 
 
 def flatten(_input):

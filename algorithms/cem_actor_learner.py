@@ -3,7 +3,7 @@ import numpy as np
 import utils.logger
 import tensorflow as tf
 from networks.policy_v_network import PolicyNetwork
-from policy_based_actor_learner import BaseA3CLearner
+from algorithms.policy_based_actor_learner import BaseA3CLearner
 
 
 logger = utils.logger.getLogger('cross_entropy_actor_learner')
@@ -59,7 +59,7 @@ class CEMLearner(BaseA3CLearner):
 	def train(self):
 		consecutive_successes = 0
 
-		for epoch in xrange(self.num_epochs):
+		for epoch in range(self.num_epochs):
 			episode_rewards = list()
 			population = self.sample_theta(self.num_samples)
 
@@ -93,7 +93,7 @@ class CEMLearner(BaseA3CLearner):
 				logger.info('switching to testing mode...')
 				episode_rewards = list()
 
-				for _ in xrange(200):
+				for _ in range(200):
 					i = np.random.choice(elite_set.shape[0])
 					self.assign_vars(self.local_network, elite_set[i])
 					s = self.emulator.get_initial_state()
@@ -110,7 +110,7 @@ class CEMLearner(BaseA3CLearner):
 				logger.info('Average Test Reward: {}'.format(np.array(episode_rewards).mean()))
 				return
 
-		print 'finished iteration'
+		print('finished iteration')
 
 
 
