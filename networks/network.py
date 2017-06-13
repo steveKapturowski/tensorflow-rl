@@ -24,6 +24,7 @@ class Network(object):
         self.clip_norm_type = conf['args'].clip_norm_type
         self.input_shape = conf['input_shape']
         self.activation = conf['args'].activation
+        self.max_local_steps = conf['args'].max_local_steps
         self.input_channels = 3 if conf['args'].use_rgb else conf['args'].history_length
         self.use_recurrent = 'lstm' in conf['args'].alg_type
         self.fc_layer_sizes = conf['args'].fc_layer_sizes
@@ -73,10 +74,10 @@ class Network(object):
             else:
                 raise Exception('Invalid architecture `{}`'.format(self.arch))
 
-
             if self.use_recurrent:
                 with tf.variable_scope(self.name+'/lstm_layer') as vs:
-                    self.lstm_cell = tf.contrib.rnn.BasicLSTMCell(self.hidden_state_size, state_is_tuple=True, forget_bias=1.0)
+                    self.lstm_cell = tf.contrib.rnn.BasicLSTMCell(
+                        self.hidden_state_size, state_is_tuple=True, forget_bias=1.0)
                     
                     batch_size = tf.shape(self.step_size)[0]
                     self.ox_reshaped = tf.reshape(self.ox,
