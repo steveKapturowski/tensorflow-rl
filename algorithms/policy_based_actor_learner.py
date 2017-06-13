@@ -39,10 +39,11 @@ class BaseA3CLearner(ActorLearner):
         td_i = 0.0
 
         for i in range(size):
-            j = size - 1 - i
+            j = size-i-1
             td_i = self.td_lambda*self.gamma*td_i + rewards[j] + self.gamma*values[j+1] - values[j]
-            adv_batch.insert(0, td_i)
+            adv_batch.append(td_i)
 
+        adv_batch.reverse()
         return adv_batch
 
 
@@ -59,10 +60,12 @@ class BaseA3CLearner(ActorLearner):
 
     def compute_targets(self, rewards, values, state, episode_over):   
         R = self.bootstrap_value(state, episode_over)
+        size = len(rewards)
         adv_batch = list()
         y_batch = list()
-        for i in reversed(xrange(len(rewards))):
-            idx = len(rewards)-i-1
+
+        for i in xrange(size):
+            idx = size-i-1
             R = rewards[idx] + self.gamma * R
             y_batch.append(R)
             adv_batch.append(R - values[idx])
@@ -131,12 +134,13 @@ class BaseA3CLearner(ActorLearner):
                     states.append(s)
                     actions.append(a)
                     values.append(readout_v_t)
-                
+
                     s = new_s
                     self.local_step += 1
                     self.global_step.increment()
                 
-                targets, advantages = self.compute_targets(rewards, values, new_s, episode_over)
+                advantages = self.compute_gae(rewards, values, self.bootstrap_value(new_s, episode_over))
+                targets, _ = self.compute_targets(rewards, values, new_s, episode_over)
                 entropy = self.apply_update(states, actions, targets, advantages)
 
             elapsed_time = time.time() - self.start_time
