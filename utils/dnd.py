@@ -11,17 +11,19 @@ class LRUCache(object):
     def update(self, idx):
         if idx in self.keys:
             del self.keys[idx]
-        self.keys[idx] = True
-
-        if len(self.keys) > self.capacity-1:
-            return self.keys.popitem(last=False)[0]
+            self.keys[idx] = True
+            return None
         else:
-            return len(self.keys)
+            self.keys[idx] = True
+            if len(self.keys) > self.capacity-1:
+                return self.keys.popitem(last=False)[0]
+            else:
+                return len(self.keys)
 
 
 class DND(object):
     def __init__(self, capacity=100000, key_size=128, cache_size=32, alpha=0.1):
-    	self.alpha = alpha
+        self.alpha = alpha
         self.capacity = capacity
         self.lru_cache = LRUCache(capacity)
         self.dup_cache = deque(maxlen=cache_size)
@@ -38,7 +40,9 @@ class DND(object):
             self.dup_cache.append(key)
             self.index.add_item(self.insert_idx, key)
             #advance insert position to least-recently-used key
-            self.insert_idx = self.lru_cache.update(self.insert_idx)
+            new_idx = self.lru_cache.update(self.insert_idx)
+            if new_idx:
+                self.insert_idx = new_idx
 
         self.insertions += 1
         #rebuilding the index is expensive so we don't want to do it too often

@@ -9,14 +9,23 @@ def flatten(_input):
 
 def apply_activation(out, name, activation):
     if activation == 'relu':
-        out = tf.nn.relu(out, name=name+'_relu')
+        return tf.nn.relu(out, name=name+'_relu')
     elif activation == 'softplus':
-        out = tf.nn.softplus(out, name=name+'_softplus')
+        return tf.nn.softplus(out, name=name+'_softplus')
     elif activation == 'tanh':
-        out = tf.nn.tanh(out, name=name+'_tanh')
-    #else assume linear
+        return tf.nn.tanh(out, name=name+'_tanh')
+    elif activation == 'selu':
+        return selu(out, name=name+'_selu')
+    elif activation == 'linear':
+        return out
+    else:
+        raise Exception('Invalid activation type \'{}\''.format(activation))
 
-    return out
+def selu(x, name):
+    alpha = 1.6732632423543772848170429916717
+    scale = 1.0507009873554804934193349852946
+    return tf.multiply(
+        scale, tf.where(x>0.0, x, alpha*tf.exp(x)-alpha), name=name)
 
 def conv2d(name, _input, filters, size, channels, stride, activation='relu', padding='VALID', data_format='NHWC'):
     if data_format == 'NHWC':
@@ -80,5 +89,3 @@ def softmax_and_log_softmax(name, _input, output_dim):
     log_out = tf.nn.log_softmax(xformed, name=name+'_log_policy')
 
     return w, b, out, log_out
-
-

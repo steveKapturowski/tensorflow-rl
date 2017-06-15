@@ -353,7 +353,7 @@ class ActorLearner(object):
     #             u = np.frombuffer(opt_st.vs, ctypes.c_float)
 
     #             apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, T)
-                    
+    
     #         else: #local or shared rmsprop/momentum
     #             lr = self.decay_lr()
     #             if (self.optimizer_mode == "local"):
