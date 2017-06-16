@@ -180,7 +180,7 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 bonus = self.density_model.update(current_frame)
                 bonuses.append(bonus)
 
-                if self.is_master() and (self.local_step % 200 == 0):
+                if self.is_master() and (self.local_step % 400 == 0):
                     bonus_array = np.array(bonuses)
                     logger.debug('π_a={:.4f} / V={:.4f} / Mean Bonus={:.4f} / Max Bonus={:.4f}'.format(
                         readout_pi_t[a.argmax()], readout_v_t, bonus_array.mean(), bonus_array.max()))

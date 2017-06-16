@@ -116,7 +116,7 @@ class BaseA3CLearner(ActorLearner):
                 while self.local_step - local_step_start < self.max_local_steps and not episode_over:
                     # Choose next action and execute it
                     a, readout_v_t, readout_pi_t = self.choose_next_action(s)
-                    if self.is_master() and (self.local_step % 100 == 0):
+                    if self.is_master() and (self.local_step % 400 == 0):
                         logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
                     
                     new_s, reward, episode_over = self.emulator.next(a)
