@@ -24,8 +24,7 @@ def apply_activation(out, name, activation):
 def selu(x, name):
     alpha = 1.6732632423543772848170429916717
     scale = 1.0507009873554804934193349852946
-    return tf.multiply(
-        scale, tf.where(x>0.0, x, alpha*tf.exp(x)-alpha), name=name)
+    return scale*tf.where(x>0.0, x, alpha*tf.exp(x)-alpha)
 
 def conv2d(name, _input, filters, size, channels, stride, activation='relu', padding='VALID', data_format='NHWC'):
     if data_format == 'NHWC':
