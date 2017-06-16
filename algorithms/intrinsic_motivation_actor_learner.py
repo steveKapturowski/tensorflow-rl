@@ -24,10 +24,10 @@ class PixelCNNDensityModel(object):
 
 
 class PerPixelDensityModel(object):
-    '''
+    """
     Calculates image probability according to per-pixel counts: P(X) = ∏ p(x_ij)
     Mostly here for debugging purposes as CTSDensityModel is much more expressive
-    '''
+    """
     def __init__(self, height=42, width=42, num_bins=8, beta=0.05):
         self.counts = np.zeros((width, height, num_bins))
         self.height = height
@@ -71,8 +71,6 @@ class PerPixelDensityModel(object):
         self.num_bins, self.height, self.width, self.beta, self.counts = state
 
 
-
-
 class DensityModelMixin(object):
     def _init_density_model(self, args):
         self.density_model_update_steps = 20*args.q_target_update_steps
@@ -109,13 +107,41 @@ class DensityModelMixin(object):
 
 @Experimental
 class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
-    '''
+    """
     Attempt at replicating the A3C+ model from the paper 'Unifying Count-Based Exploration and Intrinsic Motivation' (https://arxiv.org/abs/1606.01868)
-    Still in the process of verifying implementation
-    '''
+    Still in the process of verifying timplementation
+    """
     def __init__(self, args):
         super(PseudoCountA3CLearner, self).__init__(args)
         self._init_density_model(args)
+
+
+    def prepare_state(self, state, mean_entropy, mean_value, episode_start_step, total_episode_reward, 
+                      steps_at_last_reward, sel_actions, episode_over):
+        # Start a new game on reaching terminal state
+        if episode_over:
+            elapsed_time = time.time() - self.start_time
+            steps_per_sec = self.global_step.value() / elapsed_time
+            perf = "{:.0f}".format(steps_per_sec)
+            logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
+                self.actor_id,
+                self.local_episode,
+                self.global_step.value()/1000,
+                total_episode_reward,
+                perf))
+                
+            self.log_summary(total_episode_reward, mean_value, mean_entropy)
+
+            state = self.emulator.get_initial_state()
+            self.reset_hidden_state()
+            self.local_episode += 1
+            episode_start_step = self.local_step
+            steps_at_last_reward = self.local_step
+            total_episode_reward = 0.0
+            mean_entropy = 0.0
+            mean_value = 0.0
+
+        return state, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward
 
 
     def train(self):
@@ -135,8 +161,6 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
             self.save_vars()
 
             local_step_start = self.local_step 
-            
-            reset_game = False
             episode_over = False
 
             bonuses   = deque(maxlen=100)
@@ -181,14 +205,8 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 s = new_s
                 self.local_step += 1
 
-            # Calculate the value offered by critic in the new state.
-            if episode_over:
-                R = 0
-            else:
-                R = self.session.run(
-                    self.local_network.output_layer_v,
-                    feed_dict={self.local_network.input_ph:[new_s]})[0][0]
-                            
+            # Calculate the value offered by critic in the new state.            
+            R = self.bootstrap_value(new_s, episode_over)
             adv_batch = self.compute_gae(rewards, values, R)
 
             sel_actions = []
@@ -198,8 +216,6 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 y_batch.append(R)
                 a_batch.append(actions[i])
                 s_batch.append(states[i])
-                adv_batch.append(R - values[i])
-                
                 sel_actions.append(np.argmax(actions[i]))
 
             y_batch = list(reversed(y_batch))
@@ -229,10 +245,12 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
 
 
 class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
-    '''
-    Attempt at replicating the DQN+CTS model from the paper 'Unifying Count-Based Exploration and Intrinsic Motivation' (https://arxiv.org/abs/1606.01868)
-    Still in the process of verifying implementation
-    '''
+    """
+    Based on DQN+CTS model from the paper 'Unifying Count-Based Exploration and Intrinsic Motivation' (https://arxiv.org/abs/1606.01868)
+    Presently the implementation differs from the paper in that the novelty bonuses are computed online rather than by computing the
+    prediction gains after the model has been updated with all frames from the episode. Async training with different final epsilon values
+    tends to produce better results than just using a single actor-learner.
+    """
     def __init__(self, args):
         self.args = args
         super(PseudoCountQLearner, self).__init__(args)
@@ -275,9 +293,6 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
     #TODO: refactor to make this cleaner
     def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
                       ep_t, episode_ave_max_q, episode_over, bonuses, total_augmented_reward):
-
-        reset_game = episode_over
-
         # Start a new game on reaching terminal state
         if episode_over:
             T = self.global_step.value()
@@ -310,9 +325,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 total_augmented_reward,
             )
 
-            if reset_game or self.emulator.game in ONE_LIFE_GAMES:
-                state = self.emulator.get_initial_state()
-
+            state = self.emulator.get_initial_state()
             ep_t = 0
             total_episode_reward = 0
             episode_ave_max_q = 0
