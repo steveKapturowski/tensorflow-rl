@@ -205,6 +205,13 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 s = new_s
                 self.local_step += 1
 
+                global_step, _ = self.global_step.increment()
+                if global_step % self.density_model_update_steps == 0:
+                    self.write_density_model()
+                if self.density_model_update_flags.updated[self.actor_id] == 1:
+                    self.read_density_model()
+                    self.density_model_update_flags.updated[self.actor_id] = 0  
+
             # Calculate the value offered by critic in the new state.            
             R = self.bootstrap_value(new_s, episode_over)
             adv_batch = self.compute_gae(rewards, values, R)
@@ -234,7 +241,7 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 [self.local_network.get_gradients, self.local_network.entropy],
                 feed_dict=feed_dict)
 
-            self.apply_gradients_to_shared_memory_vars(grads)     
+            self.apply_gradients_to_shared_memory_vars(grads)
 
             delta_old = local_step_start - episode_start_step
             delta_new = self.local_step - local_step_start
