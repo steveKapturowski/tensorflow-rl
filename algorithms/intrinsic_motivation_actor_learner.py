@@ -430,7 +430,8 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 max_q = np.max(q_values)
 
                 current_frame = new_s[...,-1]
-                bonus = self.density_model.update(current_frame)
+                # bonus = self.density_model.update(current_frame)
+                bonus = 0
                 bonuses.append(bonus)
 
                 # Rescale or clip immediate reward
@@ -447,14 +448,12 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 self.local_step += 1
                 episode_ave_max_q += max_q
                 
-                _, global_step = self.session.run([self.increment_step, self.global_step])
-                # global_step, _ = self.global_step.increment()
+                global_step = self.session.run(self.global_step)
 
-                if global_step % self.q_target_update_steps == 0:
+                if self.is_master() and self.local_step % self.q_target_update_steps == 0:
                     self.update_target()
-                if global_step % self.density_model_update_steps == 0:
-                    self.write_density_model()
-
+                # if self.is_master() and self.local_step  % self.density_model_update_steps == 0:
+                #     self.write_density_model()
 
                 # Sync local tensorflow target network params with shared target network params
                 # if self.target_update_flags.updated[self.actor_id] == 1:

@@ -228,22 +228,22 @@ class ActorLearner(object):
 
         with tf.variable_scope('optimizer'):
             self.global_step = tf.Variable(0, trainable=False)
-            learning_rate = tf.train.polynomial_decay(
+            self.learning_rate = tf.train.polynomial_decay(
                 self.initial_lr,
                 self.global_step,
-                self.max_global_steps,
-                end_learning_rate=0.0)
+                self.max_global_steps//self.max_local_steps,
+                end_learning_rate=1e-6)
             optimizer = tf.train.RMSPropOptimizer(
-                learning_rate,
+                self.learning_rate,
                 decay=0.99,
                 momentum=self.momentum,
-                epsilon=1e-10,
+                epsilon=0.1,
                 use_locking=False,
                 centered=True,
                 name='RMSProp')
             optimizer = tf.train.SyncReplicasOptimizer(
                 optimizer,
-                replicas_to_aggregate=self.num_actor_learners,
+                replicas_to_aggregate=self.num_actor_learners*5,
                 total_num_replicas=self.num_actor_learners)
 
             self.get_gradients = optimizer.compute_gradients(

@@ -53,7 +53,7 @@ class ValueBasedLearner(ActorLearner):
         # Exploration epsilons 
         self.initial_epsilon = 1.0
         self.final_epsilon = self.generate_final_epsilon()
-        self.epsilon = self.final_epsilon if self.is_train else args.final_epsilon
+        self.epsilon = self.initial_epsilon if self.is_train else args.final_epsilon
         self.epsilon_annealing_steps = args.epsilon_annealing_steps
         self.exploration_strategy = args.exploration_strategy
         self.bolzmann_temperature = args.bolzmann_temperature
@@ -64,7 +64,7 @@ class ValueBasedLearner(ActorLearner):
         return values[self.actor_id % 4]
 
 
-    @only_on_train
+    @only_on_train()
     def reduce_thread_epsilon(self):
         """ Linear annealing """
         if self.epsilon > self.final_epsilon:
