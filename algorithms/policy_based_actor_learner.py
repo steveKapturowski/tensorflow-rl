@@ -32,21 +32,6 @@ class BaseA3CLearner(ActorLearner):
         return action_index
 
 
-    def compute_gae(self, rewards, values, next_val):
-        values = values + [next_val]
-        size = len(rewards)
-        adv_batch = list()
-        td_i = 0.0
-
-        for i in range(size):
-            j = size-i-1
-            td_i = self.td_lambda*self.gamma*td_i + rewards[j] + self.gamma*values[j+1] - values[j]
-            adv_batch.append(td_i)
-
-        adv_batch.reverse()
-        return adv_batch
-
-
     def bootstrap_value(self, state, episode_over):
         if episode_over:
             R = 0
@@ -58,21 +43,30 @@ class BaseA3CLearner(ActorLearner):
         return R
 
 
-    def compute_targets(self, rewards, values, state, episode_over):   
-        R = self.bootstrap_value(state, episode_over)
+    def compute_targets(self, rewards, values, R):
         size = len(rewards)
-        adv_batch = list()
         y_batch = list()
 
-        for i in xrange(size):
-            idx = size-i-1
-            R = rewards[idx] + self.gamma * R
+        for i in reversed(xrange(size)):
+            R = rewards[i] + self.gamma * R
             y_batch.append(R)
-            adv_batch.append(R - values[idx])
 
         y_batch.reverse()
+        return y_batch
+
+
+    def compute_gae(self, rewards, values, next_val):
+        values = values + [next_val]
+        size = len(rewards)
+        adv_batch = list()
+        td_i = 0.0
+
+        for i in reversed(xrange(size)):
+            td_i += rewards[i] + self.gamma*values[i+1] - values[i] + self.td_lambda*self.gamma*td_i 
+            adv_batch.append(td_i)
+
         adv_batch.reverse()
-        return y_batch, adv_batch
+        return adv_batch
 
 
     def set_local_lstm_state(self):
@@ -139,8 +133,10 @@ class BaseA3CLearner(ActorLearner):
                     self.local_step += 1
                     self.global_step.increment()
                 
-                advantages = self.compute_gae(rewards, values, self.bootstrap_value(new_s, episode_over))
-                targets, _ = self.compute_targets(rewards, values, new_s, episode_over)
+                next_val = self.bootstrap_value(new_s, episode_over)
+                advantages = self.compute_gae(rewards, values, next_val)
+                targets = self.compute_targets(rewards, values, next_val)
+                # Compute gradients on the local policy/V network and apply them to shared memory 
                 entropy = self.apply_update(states, actions, targets, advantages)
 
             elapsed_time = time.time() - self.start_time

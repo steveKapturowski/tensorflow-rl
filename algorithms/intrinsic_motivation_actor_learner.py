@@ -159,19 +159,14 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
             # Sync local learning net with shared mem
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
             self.save_vars()
-
-            local_step_start = self.local_step 
             episode_over = False
+            local_step_start = self.local_step
 
             bonuses   = deque(maxlen=100)
             rewards   = list()
             states    = list()
             actions   = list()
             values    = list()
-            s_batch   = list()
-            a_batch   = list()
-            y_batch   = list()
-            adv_batch = list()
             
             while not (episode_over 
                 or (self.local_step - local_step_start 
@@ -211,37 +206,12 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
                 if self.density_model_update_flags.updated[self.actor_id] == 1:
                     self.read_density_model()
                     self.density_model_update_flags.updated[self.actor_id] = 0  
-
-            # Calculate the value offered by critic in the new state.            
-            R = self.bootstrap_value(new_s, episode_over)
-            adv_batch = self.compute_gae(rewards, values, R)
-
-            sel_actions = []
-            for i in reversed(xrange(len(states))):
-                R = rewards[i] + self.gamma * R
-
-                y_batch.append(R)
-                a_batch.append(actions[i])
-                s_batch.append(states[i])
-                sel_actions.append(np.argmax(actions[i]))
-
-            y_batch = list(reversed(y_batch))
-            a_batch = list(reversed(a_batch))
-            s_batch = list(reversed(s_batch))
-
-
+          
+            next_val = self.bootstrap_value(new_s, episode_over)
+            advantages = self.compute_gae(rewards, values, next_val)
+            targets = self.compute_targets(rewards, values, next_val)
             # Compute gradients on the local policy/V network and apply them to shared memory  
-            feed_dict={
-                self.local_network.input_ph: s_batch, 
-                self.local_network.critic_target_ph: y_batch,
-                self.local_network.selected_action_ph: a_batch,
-                self.local_network.adv_actor_ph: adv_batch,
-            }
-            grads, entropy = self.session.run(
-                [self.local_network.get_gradients, self.local_network.entropy],
-                feed_dict=feed_dict)
-
-            self.apply_gradients_to_shared_memory_vars(grads)
+            self.apply_update(states, actions, targets, advantages)
 
             delta_old = local_step_start - episode_start_step
             delta_new = self.local_step - local_step_start
