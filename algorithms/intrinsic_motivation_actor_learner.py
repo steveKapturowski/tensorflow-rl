@@ -158,11 +158,11 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
             episode_over = False
             local_step_start = self.local_step
 
-            bonuses   = deque(maxlen=100)
-            rewards   = list()
-            states    = list()
-            actions   = list()
-            values    = list()
+            bonuses = deque(maxlen=100)
+            rewards = list()
+            states  = list()
+            actions = list()
+            values  = list()
             
             while not (episode_over 
                 or (self.local_step - local_step_start 
