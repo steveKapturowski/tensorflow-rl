@@ -116,32 +116,28 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
         self._init_density_model(args)
 
 
-    def prepare_state(self, state, mean_entropy, mean_value, episode_start_step, total_episode_reward, 
-                      steps_at_last_reward, sel_actions, episode_over):
+    def prepare_state(self, state, mean_entropy, mean_value, episode_start_step, total_episode_reward):
         # Start a new game on reaching terminal state
-        if episode_over:
-            elapsed_time = time.time() - self.start_time
-            steps_per_sec = self.global_step.value() / elapsed_time
-            perf = "{:.0f}".format(steps_per_sec)
-            logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
-                self.actor_id,
-                self.local_episode,
-                self.global_step.value()/1000,
-                total_episode_reward,
-                perf))
+        elapsed_time = time.time() - self.start_time
+        steps_per_sec = self.global_step.value() / elapsed_time
+        perf = "{:.0f}".format(steps_per_sec)
+        logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
+            self.actor_id,
+            self.local_episode,
+            self.global_step.value()/1000,
+            total_episode_reward,
+            perf))
                 
-            self.log_summary(total_episode_reward, mean_value, mean_entropy)
+        self.log_summary(total_episode_reward, mean_value, mean_entropy)
 
-            state = self.emulator.get_initial_state()
-            self.reset_hidden_state()
-            self.local_episode += 1
-            episode_start_step = self.local_step
-            steps_at_last_reward = self.local_step
-            total_episode_reward = 0.0
-            mean_entropy = 0.0
-            mean_value = 0.0
+        state = self.emulator.get_initial_state()
+        self.reset_hidden_state()
+        self.local_episode += 1
+        total_episode_reward = 0.0
+        mean_entropy = 0.0
+        mean_value = 0.0
 
-        return state, mean_entropy, mean_value, episode_start_step, total_episode_reward, steps_at_last_reward
+        return state, mean_entropy, mean_value, episode_start_step, total_episode_reward
 
 
     def train(self):
@@ -211,14 +207,15 @@ class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
             advantages = self.compute_gae(rewards, values, next_val)
             targets = self.compute_targets(rewards, values, next_val)
             # Compute gradients on the local policy/V network and apply them to shared memory  
-            self.apply_update(states, actions, targets, advantages)
+            entropy = self.apply_update(states, actions, targets, advantages)
 
             delta_old = local_step_start - episode_start_step
             delta_new = self.local_step - local_step_start
             mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
             
-            s, mean_entropy, mean_value, episode_start_step, total_episode_reward, _ = self.prepare_state(
-                s, mean_entropy, mean_value, episode_start_step, total_episode_reward, self.local_step, sel_actions, episode_over)
+            if episode_over:
+                s, mean_entropy, mean_value, episode_start_step, total_episode_reward = self.prepare_state(
+                    s, mean_entropy, mean_value, episode_start_step, total_episode_reward)
 
 
 class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
