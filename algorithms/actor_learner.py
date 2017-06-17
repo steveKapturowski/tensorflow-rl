@@ -144,13 +144,11 @@ class ActorLearner(Process):
 
         # Barrier to synchronize all actors after initialization is done
         self.barrier = args.barrier
-        
-        #Initizlize Tensorboard summaries
+        self.game = args.game
+
+        # Initizlize Tensorboard summaries
         self.summary_ph, self.update_ops, self.summary_ops = self.setup_summaries()
         self.summary_op = tf.summary.merge_all()
-        self.summary_writer = tf.summary.FileWriter(
-            '{}/{}'.format(self.summ_base_dir, self.actor_id), tf.get_default_graph()) 
-        self.game = args.game
 
 
     def reset_hidden_state(self):
@@ -242,7 +240,10 @@ class ActorLearner(Process):
         num_cpus = multiprocessing.cpu_count()
         self.supervisor = tf.train.Supervisor(
             init_op=tf.global_variables_initializer(),
-            logdir=self.summ_base_dir, saver=self.saver, summary_op=None)
+            local_init_op=tf.global_variables_initializer(),
+            logdir=self.summ_base_dir,
+            saver=self.saver,
+            summary_op=None)
         session_context = self.supervisor.managed_session(config=tf.ConfigProto(
             intra_op_parallelism_threads=num_cpus,
             inter_op_parallelism_threads=num_cpus,
@@ -341,12 +342,12 @@ class ActorLearner(Process):
 
     def rescale_reward(self, reward):
         if self.rescale_rewards:
-            """ Rescale immediate reward by max reward encountered thus far. """
+            # Rescale immediate reward by max reward encountered thus far
             if np.abs(reward) > self.thread_max_reward:
                 self.thread_max_reward = np.abs(reward)
             return reward/self.thread_max_reward
         else:
-            """ Clip immediate reward """
+            # Clip immediate reward
             return np.sign(reward) * np.minimum(self.reward_clip_val, np.abs(reward))
             
 
@@ -400,7 +401,7 @@ class ActorLearner(Process):
     def setup_summaries(self):
         summary_vars = self._get_summary_vars()
 
-        summary_placeholders = [tf.placeholder('float') for _ in range(len(summary_vars))]
+        summary_placeholders = [tf.placeholder(tf.float32) for _ in range(len(summary_vars))]
         update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
         with tf.control_dependencies(update_ops):
             summary_ops = tf.summary.merge_all()
@@ -413,6 +414,6 @@ class ActorLearner(Process):
         if self.is_master():
             feed_dict = {ph: val for ph, val in zip(self.summary_ph, args)}
             summaries = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)[-1]
-            self.supervisor.summary_computed(self.session, summaries)
+            self.supervisor.summary_computed(self.session, summaries, global_step=self.global_step.value())
     
 
