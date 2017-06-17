@@ -62,7 +62,7 @@ class BaseA3CLearner(ActorLearner):
         td_i = 0.0
 
         for i in reversed(xrange(size)):
-            td_i += rewards[i] + self.gamma*values[i+1] - values[i] + self.td_lambda*self.gamma*td_i 
+            td_i = rewards[i] + self.gamma*values[i+1] - values[i] + self.td_lambda*self.gamma*td_i 
             adv_batch.append(td_i)
 
         adv_batch.reverse()
