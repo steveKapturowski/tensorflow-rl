@@ -151,14 +151,6 @@ class ActorLearner(Process):
         self.summary_writer = tf.summary.FileWriter(
             '{}/{}'.format(self.summ_base_dir, self.actor_id), tf.get_default_graph()) 
         self.game = args.game
-        
-
-    def _build_graph(self):
-        parameter_servers = ['localhost:2048']
-        workers = ['localhost:{}'.format(4096+i) for i in range(self.num_actor_learners)]
-        cluster_spec = {'ps': parameter_servers, 'worker': workers}
-        with tf.device(tf.train.replica_device_setter(cluster=cluster_spec)):
-            pass
 
 
     def reset_hidden_state(self):
