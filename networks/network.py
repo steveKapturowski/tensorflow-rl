@@ -107,7 +107,7 @@ class Network(object):
         if self.clip_loss_delta > 0:
             # DEFINE HUBER LOSS
             return 0.5 * tf.reduce_sum(tf.where(
-                tf.abs(self.clip_loss_delta) < 1.0, tf.square(diff), tf.sqrt(2*self.clip_loss_delta)*tf.abs(diff)))
+                tf.abs(diff) < self.clip_loss_delta, tf.square(diff), tf.sqrt(2*self.clip_loss_delta)*tf.abs(diff)))
         else:
             return tf.nn.l2_loss(diff)
 
