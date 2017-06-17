@@ -75,7 +75,7 @@ class Network(object):
                 raise Exception('Invalid architecture `{}`'.format(self.arch))
 
             if self.use_recurrent:
-                with tf.variable_scope(self.name+'/lstm_layer') as vs:
+                with tf.variable_scope('lstm_layer') as vs:
                     self.lstm_cell = tf.contrib.rnn.BasicLSTMCell(
                         self.hidden_state_size, state_is_tuple=True, forget_bias=1.0)
                     
@@ -90,8 +90,7 @@ class Network(object):
                         self.ox_reshaped,
                         initial_state=state_tuple,
                         sequence_length=self.step_size,
-                        time_major=False,
-                        scope=vs)
+                        time_major=False)
 
                     self.lstm_state = tf.concat(self.lstm_state, 1)
                     self.ox = tf.reshape(self.lstm_outputs, [-1,self.hidden_state_size], name='reshaped_lstm_outputs')
