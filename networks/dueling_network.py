@@ -21,5 +21,5 @@ class DuelingNetwork(QNetwork):
 
         q_selected_action = tf.reduce_sum(self.output_layer * self.selected_action_ph, axis=1)
         diff = tf.subtract(self.target_ph, q_selected_action)
-        return self._huber_loss(diff)
+        return self._value_function_loss(diff)
 

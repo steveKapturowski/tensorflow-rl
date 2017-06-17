@@ -27,7 +27,7 @@ class PolicyValueNetwork(Network):
                     with tf.variable_scope('value_encoder'):
                         encoded_state = self._build_encoder()
 
-                self.loss += 0.5 * self._build_value_head(encoded_state)
+                self.loss += self._build_value_head(encoded_state)
             self.loss *= tf.cast(tf.shape(self.input_ph)[0], tf.float32) / self.max_local_steps
             self._build_gradient_ops(self.loss)
 
@@ -58,7 +58,7 @@ class PolicyValueNetwork(Network):
         # Advantage critic
         self.adv_critic = tf.subtract(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
         # Critic loss
-        self.critic_loss = self._huber_loss(self.adv_critic)
+        self.critic_loss = self._value_function_loss(self.adv_critic)
         return self.critic_loss
 
     def get_action(self, session, state, lstm_state=None):

@@ -138,7 +138,7 @@ class ActorLearner(Process):
         self.gamma = args.gamma
 
         self.rescale_rewards = args.rescale_rewards
-        self.max_achieved_reward = -1000000
+        self.max_achieved_reward = -float('inf')
         if self.rescale_rewards:
             self.thread_max_reward = 1.0
 

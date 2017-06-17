@@ -103,12 +103,11 @@ class Network(object):
             return self.ox
 
 
-    def _huber_loss(self, diff):
-        # DEFINE HUBER LOSS
+    def _value_function_loss(self, diff):
         if self.clip_loss_delta > 0:
-            quadratic_term = tf.minimum(tf.abs(diff), self.clip_loss_delta)
-            linear_term = tf.abs(diff) - quadratic_term
-            return tf.nn.l2_loss(quadratic_term) + self.clip_loss_delta*linear_term
+            # DEFINE HUBER LOSS
+            return 0.5 * tf.reduce_sum(tf.select(
+                tf.abs(self.clip_loss_delta) < 1.0, tf.square(diff), tf.sqrt(2*self.clip_loss_delta)*tf.abs(diff)))
         else:
             return tf.nn.l2_loss(diff)
 

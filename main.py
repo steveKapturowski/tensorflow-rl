@@ -105,7 +105,7 @@ def main(args):
     if args.alg_type in ['q', 'sarsa', 'dueling', 'dqn-cts']:
         args.target_vars = SharedVars(network.params)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
-    if args.alg_type in ['dqn-cts', 'a3c-cts']:
+    if args.alg_type == 'dqn-cts':
         args.density_model_update_flags = SharedFlags(args.num_actor_learners)
 
     tf.reset_default_graph()
@@ -241,7 +241,7 @@ def get_config():
     parser.add_argument('--cg_subsample', default=0.1, type=float, help='rate at which to subsample data for TRPO conjugate gradient iteration', dest='cg_subsample')
     parser.add_argument('--cg_damping', default=0.001, type=float, help='conjugate gradient damping weight', dest='cg_damping')   
     parser.add_argument('--max_kl', default=0.01, type=float, help='max kl divergence for TRPO updates', dest='max_kl')
-    parser.add_argument('--td_lambda', default=.97, type=float, help='lambda parameter for GAE', dest='td_lambda')
+    parser.add_argument('--td_lambda', default=1.0, type=float, help='lambda parameter for GAE', dest='td_lambda')
     
     #cts args
     parser.add_argument('--cts_bins', default=8, type=int, help='number of bins to assign pixel values', dest='cts_bins')

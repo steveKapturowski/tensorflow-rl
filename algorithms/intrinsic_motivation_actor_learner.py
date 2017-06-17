@@ -329,7 +329,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         self.y_target = self.one_step_reward + self.cts_eta*self.gamma*q_target_max \
             * (1 - tf.cast(self.is_terminal, tf.float32))
 
-        self.double_dqn_loss = self.local_network._huber_loss(
+        self.double_dqn_loss = self.local_network._value_function_loss(
             self.local_network.q_selected_action
             - tf.stop_gradient(self.y_target))
 

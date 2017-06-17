@@ -20,7 +20,7 @@ class NECNetwork(QNetwork):
 		self.q_selected_action = tf.reduce_sum(self.q_values * self.selected_action_ph, axis=1)
 
 		diff = tf.subtract(self.target_ph, self.q_selected_action)
-		return self._huber_loss(diff)
+		return self._value_function_loss(diff)
 
 
 	def q_value_lookup(self, key):
