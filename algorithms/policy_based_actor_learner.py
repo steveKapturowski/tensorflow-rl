@@ -69,26 +69,6 @@ class BaseA3CLearner(ActorLearner):
         return adv_batch
 
 
-    def compute_gae(self, rewards, values, state, episode_over):
-        R = self.bootstrap_value(state, episode_over)
-        values = values + [R]
-        size = len(rewards)
-        adv_batch = list()
-        y_batch = list()
-        td_i = 0.0
-
-        for i in xrange(size):
-            idx = size-i-1
-            td_i = self.td_lambda*self.gamma*td_i + rewards[idx] + self.gamma*values[idx+1] - values[idx]
-            R = rewards[idx] + self.gamma * R
-            y_batch.append(R)
-            adv_batch.append(td_i)
-
-        y_batch.reverse()
-        adv_batch.reverse()
-        return y_batch, adv_batch
-
-
     def set_local_lstm_state(self):
         pass
 
@@ -100,11 +80,10 @@ class BaseA3CLearner(ActorLearner):
             self.local_network.critic_target_ph: targets,
             self.local_network.adv_actor_ph: advantages,
         }
-        grads, entropy = self.session.run(
-            [self.local_network.get_gradients, self.local_network.entropy],
+        entropy, _ = self.session.run(
+            [self.local_network.entropy, self.local_network.get_gradients],
             feed_dict=feed_dict)
 
-        self.apply_gradients_to_shared_memory_vars(grads)
         return entropy
 
 
@@ -123,9 +102,6 @@ class BaseA3CLearner(ActorLearner):
             episode_start_step = self.local_step
             
             while not episode_over:
-                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-                self.save_vars()
-
                 rewards = list()
                 states  = list()
                 actions = list()
@@ -255,11 +231,10 @@ class A3CLSTMLearner(BaseA3CLearner):
             self.local_network.step_size : [len(states)],
             self.local_network.initial_lstm_state: self.local_lstm_state,
         }
-        grads, entropy = self.session.run(
-            [self.local_network.get_gradients, self.local_network.entropy],
+        entropy, _ = self.session.run(
+            [self.local_network.entropy, self.local_network.get_gradients],
             feed_dict=feed_dict)
 
-        self.apply_gradients_to_shared_memory_vars(grads)
         return entropy
 
 

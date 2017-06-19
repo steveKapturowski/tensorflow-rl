@@ -118,8 +118,6 @@ def main(args):
             learner.run(server.target)
 
 
-
-
 def get_validated_params(args):
     #validate param
     if args.env=='ALE' and args.rom_path is None:

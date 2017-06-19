@@ -199,25 +199,26 @@ class ActorLearner(object):
                 self.learning_rate,
                 decay=0.99,
                 momentum=self.momentum,
-                epsilon=0.1,
+                epsilon=1e-2,
                 use_locking=False,
                 centered=True,
                 name='RMSProp')
-            optimizer = tf.train.SyncReplicasOptimizer(
-                optimizer,
-                replicas_to_aggregate=self.num_actor_learners*5,
-                total_num_replicas=self.num_actor_learners)
+            # optimizer = tf.train.SyncReplicasOptimizer(
+            #     optimizer,
+            #     replicas_to_aggregate=self.num_actor_learners,
+            #     total_num_replicas=self.num_actor_learners)
 
             self.get_gradients = optimizer.compute_gradients(
                 self.local_network.loss, self.local_network.params)
-            self.local_network.get_gradients = optimizer.apply_gradients(self.get_gradients, global_step=self.global_step)
+            # self.get_gradients = self.local_network._clip_grads(self.get_gradients)
+            self.local_network.get_gradients = optimizer.apply_gradients(
+                self.get_gradients, global_step=self.global_step)
 
 
-        local_init_op = optimizer.chief_init_op if self.is_master() else optimizer.local_step_init_op
-        chief_queue_runner = optimizer.get_chief_queue_runner()
-        sync_init_op = optimizer.get_init_tokens_op()
+        # local_init_op = optimizer.chief_init_op if self.is_master() else optimizer.local_step_init_op
+        # chief_queue_runner = optimizer.get_chief_queue_runner()
+        # sync_init_op = optimizer.get_init_tokens_op()
 
-        # sync_replicas_hook = optimizer.make_session_run_hook(self.is_master())
         self.supervisor = tf.train.Supervisor(
             init_op=tf.global_variables_initializer(),
             local_init_op=tf.global_variables_initializer(),
@@ -236,9 +237,9 @@ class ActorLearner(object):
             allow_soft_placement=True))
 
         with self.monitored_environment(), session_context as self.session:
-            if self.is_master():
-                self.session.run(sync_init_op)
-                self.supervisor.start_queue_runners(self.session, [chief_queue_runner])
+            # if self.is_master():
+            #     self.session.run(sync_init_op)
+            #     self.supervisor.start_queue_runners(self.session, [chief_queue_runner])
 
             self.session.graph.finalize()
             self.start_time = time.time()
@@ -248,19 +249,6 @@ class ActorLearner(object):
             else:
                 self.test()
 
-
-    def update_shared_memory(self):
-        # Initialize shared memory with tensorflow var values
-        params = self.session.run(self.local_network.params)
-
-        # Merge all param matrices into a single 1-D array
-        params = np.hstack([p.reshape(-1) for p in params])
-        np.frombuffer(self.learning_vars.vars, ctypes.c_float)[:] = params
-        if hasattr(self, 'target_vars'):
-            np.frombuffer(self.target_vars.vars, ctypes.c_float)[:] = params
-        #memoryview(self.learning_vars.vars)[:] = params
-        #memoryview(self.target_vars.vars)[:] = memoryview(self.learning_vars.vars)
-                
     
     @only_on_train(return_val=0.0)
     def decay_lr(self):
@@ -333,6 +321,6 @@ class ActorLearner(object):
         if self.is_master():
             feed_dict = {ph: val for ph, val in zip(self.summary_ph, args)}
             summaries = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)[-1]
-            self.supervisor.summary_computed(self.session, summaries, global_step=self.global_step.value())
+            self.supervisor.summary_computed(self.session, summaries, global_step=self.global_step.eval(self.session))
     
 
