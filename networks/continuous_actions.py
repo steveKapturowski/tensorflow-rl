@@ -116,7 +116,7 @@ class NAFNetwork(QNetwork):
 
         q_selected_action = self.value + self.advantage
         diff = tf.subtract(self.target_ph, q_selected_action)
-        return self._huber_loss(diff)
+        return self._value_function_loss(diff)
 
 
 

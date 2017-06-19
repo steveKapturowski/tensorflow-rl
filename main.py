@@ -18,7 +18,7 @@ from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
 from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
 from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner, ARA3CLearner
 from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
-from algorithms.intrinsic_motivation_actor_learner import PseudoCountA3CLearner, PseudoCountQLearner
+from algorithms.intrinsic_motivation_actor_learner import PseudoCountA3CLearner, PseudoCountA3CLSTMLearner, PseudoCountQLearner
 from algorithms.trpo_actor_learner import TRPOLearner
 from algorithms.pgq_actor_learner import PGQLearner
 from algorithms.cem_actor_learner import CEMLearner
@@ -38,6 +38,7 @@ ALGORITHMS = {
     'cem': (CEMLearner, PolicyNetwork),
     'dqn-cts': (PseudoCountQLearner, QNetwork),
     'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
+    'a3c-lstm-cts': (PseudoCountA3CLSTMLearner, PolicyValueNetwork),
     'a3c-repeat': (ARA3CLearner, PolicyRepeatNetwork),
     'a3c-continuous': (A3CLearner, ContinuousPolicyValueNetwork),
     'a3c-lstm-continuous': (A3CLSTMLearner, ContinuousPolicyValueNetwork),
@@ -70,45 +71,10 @@ def main(args):
 
     Learner, Network = ALGORITHMS[args.alg_type]
     args.network = Network
-    # network = Network({
-    #     'name': 'shared_vars_network',
-    #     'input_shape': input_shape,
-    #     'num_act': num_actions,
-    #     'args': args
-    # })
-
-    #initialize shared variables
-    # args.learning_vars = SharedVars(network.params)
-    # args.opt_state = SharedVars(
-    #     network.params, opt_type=args.opt_type, lr=args.initial_lr
-    # ) if args.opt_mode == 'shared' else None
-    # args.batch_opt_state = SharedVars(
-    #     network.params, opt_type=args.opt_type, lr=args.initial_lr
-    # ) if args.opt_mode == 'shared' else None
-
-    #TODO: need to refactor so TRPO+GAE doesn't need special treatment
-    # if args.alg_type in ['trpo', 'trpo-continuous']:
-    #     if args.arch == 'FC': #add timestep feature
-    #         vf_input_shape = [input_shape[0]+1]
-    #     else:
-    #         vf_input_shape = input_shape
-
-    #     baseline_network = PolicyValueNetwork({
-    #         'name': 'shared_value_network',
-    #         'input_shape': vf_input_shape,
-    #         'num_act': num_actions,
-    #         'args': args
-    #     }, use_policy_head=False)
-    #     args.baseline_vars = SharedVars(baseline_network.params)
-    #     args.vf_input_shape = vf_input_shape
-        
-    # if args.alg_type in ['q', 'sarsa', 'dueling', 'dqn-cts']:
-    #     args.target_vars = SharedVars(network.params)
-    #     args.target_update_flags = SharedFlags(args.num_actor_learners)
-    # if args.alg_type == 'dqn-cts':
+    
+    # if args.alg_type.endswith('cts'):
     #     args.density_model_update_flags = SharedFlags(args.num_actor_learners)
 
-    # tf.reset_default_graph()
     args.barrier = Barrier(args.num_actor_learners)
     args.global_step = SharedCounter(0)
     args.num_actions = num_actions
@@ -242,7 +208,7 @@ def get_config():
     parser.add_argument('--cg_subsample', default=0.1, type=float, help='rate at which to subsample data for TRPO conjugate gradient iteration', dest='cg_subsample')
     parser.add_argument('--cg_damping', default=0.001, type=float, help='conjugate gradient damping weight', dest='cg_damping')   
     parser.add_argument('--max_kl', default=0.01, type=float, help='max kl divergence for TRPO updates', dest='max_kl')
-    parser.add_argument('--td_lambda', default=.97, type=float, help='lambda parameter for GAE', dest='td_lambda')
+    parser.add_argument('--td_lambda', default=1.0, type=float, help='lambda parameter for GAE', dest='td_lambda')
     
     #cts args
     parser.add_argument('--cts_bins', default=8, type=int, help='number of bins to assign pixel values', dest='cts_bins')

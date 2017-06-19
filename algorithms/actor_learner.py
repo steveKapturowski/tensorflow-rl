@@ -91,17 +91,6 @@ class ActorLearner(object):
         self.restore_checkpoint = args.restore_checkpoint
         self.random_seed = args.random_seed
         
-        # Shared mem vars
-        # self.learning_vars = args.learning_vars
-            
-        # if self.optimizer_mode == 'local':
-        #     if self.optimizer_type == 'rmsprop':
-        #         self.opt_st = np.ones(size, dtype=ctypes.c_float)
-        #     else:
-        #         self.opt_st = np.zeros(size, dtype=ctypes.c_float)
-        # elif self.optimizer_mode == 'shared':
-        #         self.opt_st = args.opt_state
-
         # rmsprop/momentum
         self.momentum = args.momentum
         # adam
@@ -124,19 +113,17 @@ class ActorLearner(object):
         self.gamma = args.gamma
 
         self.rescale_rewards = args.rescale_rewards
-        self.max_achieved_reward = -1000000
+        self.max_achieved_reward = -float('inf')
         if self.rescale_rewards:
             self.thread_max_reward = 1.0
 
         # Barrier to synchronize all actors after initialization is done
         self.barrier = args.barrier
-        
-        #Initizlize Tensorboard summaries
+        self.game = args.game
+
+        # Initizlize Tensorboard summaries
         self.summary_ph, self.update_ops, self.summary_ops = self.setup_summaries()
         self.summary_op = tf.summary.merge_all()
-        self.summary_writer = tf.summary.FileWriter(
-            '{}/{}'.format(self.summ_base_dir, self.actor_id), tf.get_default_graph()) 
-        self.game = args.game
 
 
     def reset_hidden_state(self):
@@ -179,31 +166,6 @@ class ActorLearner(object):
                     2*np.array(rewards).std(),
                     max(rewards),
                 ))
-
-
-    # def synchronize_workers(self):
-    #     if self.is_master():
-    #         # Initialize network parameters
-    #         g_step = checkpoint_utils.restore_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps, self.restore_checkpoint)
-    #         self.global_step.val.value = g_step
-    #         self.last_saving_step = g_step   
-    #         logger.debug("T{}: Initializing shared memory...".format(self.actor_id))
-    #         self.update_shared_memory()
-
-    #     # Wait until actor 0 finishes initializing shared memory
-    #     self.barrier.wait()
-
-    #     # if not self.is_master():
-    #     #     logger.debug("T{}: Syncing with shared memory...".format(self.actor_id))
-    #     #     self.sync_net_with_shared_memory(self.local_network, self.learning_vars)  
-    #     #     if hasattr(self, 'target_network'):
-    #     #         self.sync_net_with_shared_memory(self.target_network, self.learning_vars)
-    #     #     elif hasattr(self, 'batch_network'):
-    #     #         self.sync_net_with_shared_memory(self.batch_network, self.learning_vars)
-
-    #     # Ensure we don't add any more nodes to the graph
-    #     self.session.graph.finalize()
-    #     self.start_time = time.time()
 
 
     def get_gpu_options(self):
@@ -258,15 +220,15 @@ class ActorLearner(object):
         # sync_replicas_hook = optimizer.make_session_run_hook(self.is_master())
         self.supervisor = tf.train.Supervisor(
             init_op=tf.global_variables_initializer(),
-            local_init_op=local_init_op,
-            ready_for_local_init_op=optimizer.ready_for_local_init_op,
+            local_init_op=tf.global_variables_initializer(),
+            # local_init_op=local_init_op,
+            # ready_for_local_init_op=optimizer.ready_for_local_init_op,
             global_step=self.global_step,
             is_chief=self.is_master(),
             logdir=self.summ_base_dir,
             save_model_secs=3600,
             saver=self.saver,
             summary_op=None)
-        # session_context = self.supervisor.managed_session(
         session_context = self.supervisor.prepare_or_wait_for_session(target, config=tf.ConfigProto(
             intra_op_parallelism_threads=num_cpus,
             inter_op_parallelism_threads=num_cpus,
@@ -286,12 +248,6 @@ class ActorLearner(object):
             else:
                 self.test()
 
-
-    # def save_vars(self):
-    #     if self.is_master() and self.global_step.value()-self.last_saving_step >= CHECKPOINT_INTERVAL:
-    #         self.last_saving_step = self.global_step.value()
-    #         checkpoint_utils.save_vars(self.saver, self.session, self.game, self.alg_type, self.max_local_steps, self.last_saving_step) 
-    
 
     def update_shared_memory(self):
         # Initialize shared memory with tensorflow var values
@@ -318,65 +274,14 @@ class ActorLearner(object):
         # self._apply_gradients_to_shared_memory_vars(grads, self.learning_vars)
 
 
-    # @only_on_train()
-    # def _apply_gradients_to_shared_memory_vars(self, grads, shared_vars):
-    #         opt_st = self.opt_st
-    #         self.flat_grads = np.empty(shared_vars.size, dtype=ctypes.c_float)
-
-    #         #Flatten grads
-    #         offset = 0
-    #         for g in grads:
-    #             self.flat_grads[offset:offset + g.size] = g.reshape(-1)
-    #             offset += g.size
-    #         g = self.flat_grads
-
-    #         shared_vars.step.value += 1
-    #         T = shared_vars.step.value
-
-    #         if self.optimizer_type == "adam" and self.optimizer_mode == "shared":
-    #             p = np.frombuffer(shared_vars.vars, ctypes.c_float)
-    #             p_size = shared_vars.size
-    #             m = np.frombuffer(opt_st.ms, ctypes.c_float)
-    #             v = np.frombuffer(opt_st.vs, ctypes.c_float)
-    #             opt_st.lr.value =  1.0 * opt_st.lr.value * (1 - self.b2**T)**0.5 / (1 - self.b1**T) 
-                
-    #             apply_grads_adam(m, v, g, p, p_size, opt_st.lr.value, self.b1, self.b2, self.e)
-
-    #         elif self.optimizer_type == "adamax" and self.optimizer_mode == "shared":
-    #             beta_1 = .9
-    #             beta_2 = .999
-    #             lr = opt_st.lr.value
-
-    #             p = np.frombuffer(shared_vars.vars, ctypes.c_float)
-    #             p_size = shared_vars.size
-    #             m = np.frombuffer(opt_st.ms, ctypes.c_float)
-    #             u = np.frombuffer(opt_st.vs, ctypes.c_float)
-
-    #             apply_grads_adamax(m, u, g, p, p_size, lr, beta_1, beta_2, T)
-    
-    #         else: #local or shared rmsprop/momentum
-    #             lr = self.decay_lr()
-    #             if (self.optimizer_mode == "local"):
-    #                 m = opt_st
-    #             else: #shared 
-    #                 m = np.frombuffer(opt_st.vars, ctypes.c_float)
-                
-    #             p = np.frombuffer(shared_vars.vars, ctypes.c_float)
-    #             p_size = shared_vars.size
-    #             _type = 0 if self.optimizer_type == "momentum" else 1
-                
-    #             # print "BEFORE", "RMSPROP m", m[0], "p", p[0:5], "GRAD", g[0], 'lr', lr
-    #             apply_grads_mom_rmsprop(m, g, p, p_size, _type, lr, self.alpha, self.e)
-    #             # print "AFTER", "RMSPROP m", m[0], "p", p[0:5], "GRAD", g[0], 'lr', lr
-
     def rescale_reward(self, reward):
         if self.rescale_rewards:
-            """ Rescale immediate reward by max reward encountered thus far. """
+            # Rescale immediate reward by max reward encountered thus far
             if np.abs(reward) > self.thread_max_reward:
                 self.thread_max_reward = np.abs(reward)
             return reward/self.thread_max_reward
         else:
-            """ Clip immediate reward """
+            # Clip immediate reward
             return np.sign(reward) * np.minimum(self.reward_clip_val, np.abs(reward))
             
 
@@ -397,22 +302,6 @@ class ActorLearner(object):
         self.session.run(dest_net.sync_with_shared_memory, 
             feed_dict=feed_dict)
 
-
-    # def sync_net_with_shared_memory(self, dest_net, shared_mem_vars):
-    #     feed_dict = {}
-    #     offset = 0
-    #     params = np.frombuffer(shared_mem_vars.vars, 
-    #                               ctypes.c_float)
-    #     for i in xrange(len(dest_net.params)):
-    #         shape = shared_mem_vars.var_shapes[i]
-    #         size = np.prod(shape)
-    #         feed_dict[dest_net.params_ph[i]] = \
-    #                 params[offset:offset+size].reshape(shape)
-    #         offset += size
-        
-    #     self.session.run(dest_net.sync_with_shared_memory, 
-    #         feed_dict=feed_dict)
-
     
     def _get_summary_vars(self):
         episode_reward = tf.Variable(0., trainable=False, name='episode_reward')
@@ -430,7 +319,7 @@ class ActorLearner(object):
     def setup_summaries(self):
         with tf.variable_scope('summaries'):
             summary_vars = self._get_summary_vars()
-            summary_placeholders = [tf.placeholder('float') for _ in range(len(summary_vars))]
+            summary_placeholders = [tf.placeholder(tf.float32) for _ in range(len(summary_vars))]
             update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
             
             with tf.control_dependencies(update_ops):
@@ -444,6 +333,6 @@ class ActorLearner(object):
         if self.is_master():
             feed_dict = {ph: val for ph, val in zip(self.summary_ph, args)}
             summaries = self.session.run(self.update_ops + [self.summary_op], feed_dict=feed_dict)[-1]
-            self.supervisor.summary_computed(self.session, summaries)
+            self.supervisor.summary_computed(self.session, summaries, global_step=self.global_step.value())
     
 

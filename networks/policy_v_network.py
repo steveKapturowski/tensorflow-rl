@@ -58,7 +58,7 @@ class PolicyValueNetwork(Network):
         # Advantage critic
         self.adv_critic = tf.subtract(self.critic_target_ph, tf.reshape(self.output_layer_v, [-1]))
         # Critic loss
-        self.critic_loss = self._huber_loss(self.adv_critic)
+        self.critic_loss = self._value_function_loss(self.adv_critic)
         return self.critic_loss
 
     def get_action(self, session, state, lstm_state=None):

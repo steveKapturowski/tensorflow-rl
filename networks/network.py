@@ -75,7 +75,7 @@ class Network(object):
                 raise Exception('Invalid architecture `{}`'.format(self.arch))
 
             if self.use_recurrent:
-                with tf.variable_scope(self.name+'/lstm_layer') as vs:
+                with tf.variable_scope('lstm_layer') as vs:
                     self.lstm_cell = tf.contrib.rnn.BasicLSTMCell(
                         self.hidden_state_size, state_is_tuple=True, forget_bias=1.0)
                     
@@ -90,8 +90,7 @@ class Network(object):
                         self.ox_reshaped,
                         initial_state=state_tuple,
                         sequence_length=self.step_size,
-                        time_major=False,
-                        scope=vs)
+                        time_major=False)
 
                     self.lstm_state = tf.concat(self.lstm_state, 1)
                     self.ox = tf.reshape(self.lstm_outputs, [-1,self.hidden_state_size], name='reshaped_lstm_outputs')
@@ -103,12 +102,13 @@ class Network(object):
             return self.ox
 
 
-    def _huber_loss(self, diff):
-        # DEFINE HUBER LOSS
+    def _value_function_loss(self, diff):
         if self.clip_loss_delta > 0:
-            quadratic_term = tf.minimum(tf.abs(diff), self.clip_loss_delta)
-            linear_term = tf.abs(diff) - quadratic_term
-            return tf.nn.l2_loss(quadratic_term) + self.clip_loss_delta*linear_term
+            # DEFINE HUBER LOSS
+            return 0.5 * tf.reduce_sum(tf.where(
+                tf.abs(diff) < self.clip_loss_delta,
+                tf.square(diff),
+                tf.square(self.clip_loss_delta)*tf.abs(diff)))
         else:
             return tf.nn.l2_loss(diff)
 

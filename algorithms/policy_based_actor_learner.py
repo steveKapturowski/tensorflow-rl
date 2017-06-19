@@ -43,21 +43,30 @@ class BaseA3CLearner(ActorLearner):
         return R
 
 
-    def compute_targets(self, rewards, values, state, episode_over):   
-        R = self.bootstrap_value(state, episode_over)
+    def compute_targets(self, rewards, values, R):
         size = len(rewards)
-        adv_batch = list()
         y_batch = list()
 
-        for i in xrange(size):
-            idx = size-i-1
-            R = rewards[idx] + self.gamma * R
+        for i in reversed(xrange(size)):
+            R = rewards[i] + self.gamma * R
             y_batch.append(R)
-            adv_batch.append(R - values[idx])
 
         y_batch.reverse()
+        return y_batch
+
+
+    def compute_gae(self, rewards, values, next_val):
+        values = values + [next_val]
+        size = len(rewards)
+        adv_batch = list()
+        td_i = 0.0
+
+        for i in reversed(xrange(size)):
+            td_i = rewards[i] + self.gamma*values[i+1] - values[i] + self.td_lambda*self.gamma*td_i 
+            adv_batch.append(td_i)
+
         adv_batch.reverse()
-        return y_batch, adv_batch
+        return adv_batch
 
 
     def compute_gae(self, rewards, values, state, episode_over):
@@ -114,6 +123,9 @@ class BaseA3CLearner(ActorLearner):
             episode_start_step = self.local_step
             
             while not episode_over:
+                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+                self.save_vars()
+
                 rewards = list()
                 states  = list()
                 actions = list()
@@ -124,8 +136,8 @@ class BaseA3CLearner(ActorLearner):
                 while self.local_step - local_step_start < self.max_local_steps and not episode_over:
                     # Choose next action and execute it
                     a, readout_v_t, readout_pi_t = self.choose_next_action(s)
-                    if self.is_master() and (self.local_step % 200 == 0):
-                        logger.debug("pi={}, V={}".format(readout_pi_t, readout_v_t))
+                    if self.is_master() and (self.local_step % 400 == 0):
+                        logger.debug("π_a={:.4f} / V={:.4f}".format(readout_pi_t[a.argmax()], readout_v_t))
                     
                     new_s, reward, episode_over = self.emulator.next(a)
                     total_episode_reward += reward
@@ -140,9 +152,10 @@ class BaseA3CLearner(ActorLearner):
                     s = new_s
                     self.local_step += 1
                 
-                targets, advantages = self.compute_gae(rewards, values, new_s, episode_over)
-                # targets, advantages = self.compute_targets(rewards, values, new_s, episode_over)
-
+                next_val = self.bootstrap_value(new_s, episode_over)
+                advantages = self.compute_gae(rewards, values, next_val)
+                targets = self.compute_targets(rewards, values, next_val)
+                # Compute gradients on the local policy/V network and apply them to shared memory 
                 entropy = self.apply_update(states, actions, targets, advantages)
 
             global_step = self.global_step.eval(self.session)
