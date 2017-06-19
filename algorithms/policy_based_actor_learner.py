@@ -95,9 +95,6 @@ class BaseA3CLearner(ActorLearner):
         
         while (self.global_step.value() < self.max_global_steps):
             # Sync local learning net with shared mem
-            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            self.save_vars()
-
             s = self.emulator.get_initial_state()
             self.reset_hidden_state()
             self.local_episode += 1
@@ -106,6 +103,9 @@ class BaseA3CLearner(ActorLearner):
             episode_start_step = self.local_step
             
             while not episode_over:
+                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+                self.save_vars()
+
                 rewards = list()
                 states  = list()
                 actions = list()
