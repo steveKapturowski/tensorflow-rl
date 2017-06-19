@@ -166,9 +166,6 @@ class ActorLearner(Process):
         """
         Run test monitor for `num_episodes`
         """
-        target_params = self.session.run(self.target_network.params)
-        self.assign_vars(self.local_network, target_params)
-
         rewards = list()
         for episode in range(num_episodes):
             s = self.emulator.get_initial_state()
