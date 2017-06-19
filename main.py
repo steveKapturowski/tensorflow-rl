@@ -18,7 +18,7 @@ from utils.shared_memory import SharedCounter, SharedVars, SharedFlags, Barrier
 from algorithms.policy_based_actor_learner import A3CLearner, A3CLSTMLearner
 from algorithms.sequence_decoder_actor_learner import ActionSequenceA3CLearner, ARA3CLearner
 from algorithms.value_based_actor_learner import NStepQLearner, DuelingLearner, OneStepSARSALearner
-from algorithms.intrinsic_motivation_actor_learner import PseudoCountA3CLearner, PseudoCountQLearner
+from algorithms.intrinsic_motivation_actor_learner import PseudoCountA3CLearner, PseudoCountA3CLSTMLearner, PseudoCountQLearner
 from algorithms.trpo_actor_learner import TRPOLearner
 from algorithms.pgq_actor_learner import PGQLearner
 from algorithms.cem_actor_learner import CEMLearner
@@ -38,6 +38,7 @@ ALGORITHMS = {
     'cem': (CEMLearner, PolicyNetwork),
     'dqn-cts': (PseudoCountQLearner, QNetwork),
     'a3c-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
+    'a3c-lstm-cts': (PseudoCountA3CLearner, PolicyValueNetwork),
     'a3c-repeat': (ARA3CLearner, PolicyRepeatNetwork),
     'a3c-continuous': (A3CLearner, ContinuousPolicyValueNetwork),
     'a3c-lstm-continuous': (A3CLSTMLearner, ContinuousPolicyValueNetwork),
@@ -105,7 +106,7 @@ def main(args):
     if args.alg_type in ['q', 'sarsa', 'dueling', 'dqn-cts']:
         args.target_vars = SharedVars(network.params)
         args.target_update_flags = SharedFlags(args.num_actor_learners)
-    if args.alg_type in ['dqn-cts', 'a3c-cts']:
+    if args.alg_type in ['dqn-cts', 'a3c-cts', 'a3c-lstm-cts']:
         args.density_model_update_flags = SharedFlags(args.num_actor_learners)
 
     tf.reset_default_graph()

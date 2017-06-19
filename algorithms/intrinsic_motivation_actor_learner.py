@@ -12,7 +12,7 @@ from actor_learner import ONE_LIFE_GAMES
 from utils.decorators import Experimental
 from utils.fast_cts import CTSDensityModel
 from utils.replay_memory import ReplayMemory
-from policy_based_actor_learner import A3CLearner
+from policy_based_actor_learner import A3CLearner, A3CLSTMLearner
 from value_based_actor_learner import ValueBasedLearner
 
 
@@ -72,6 +72,9 @@ class PerPixelDensityModel(object):
 
 
 class DensityModelMixin(object):
+    """
+    Mixin to provide initialization and synchronization methods for density models
+    """
     def _init_density_model(self, args):
         self.density_model_update_steps = 20*args.q_target_update_steps
         self.density_model_update_flags = args.density_model_update_flags
@@ -105,117 +108,109 @@ class DensityModelMixin(object):
         self.density_model.set_state(cPickle.loads(raw_data))
 
 
+class A3CDensityModelMixin(DensityModelMixin):
+    """
+    Mixin to share _train method between A3C and A3C-LSTM models
+    """
+    def _train(self):
+        """ Main actor learner loop for advantage actor critic learning. """
+        logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
+            self.global_step.value()))
+        
+        bonuses = deque(maxlen=100)
+        while (self.global_step.value() < self.max_global_steps):
+            # Sync local learning net with shared mem
+            s = self.emulator.get_initial_state()
+            self.reset_hidden_state()
+            self.local_episode += 1
+            episode_over = False
+            total_episode_reward = 0.0
+            episode_start_step = self.local_step
+            
+            while not episode_over:
+                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
+                self.save_vars()
+
+                rewards = list()
+                states  = list()
+                actions = list()
+                values  = list()
+                local_step_start = self.local_step
+                self.set_local_lstm_state()
+
+                while self.local_step - local_step_start < self.max_local_steps and not episode_over:
+                    # Choose next action and execute it
+                    a, readout_v_t, readout_pi_t = self.choose_next_action(s)                    
+                    new_s, reward, episode_over = self.emulator.next(a)
+                    total_episode_reward += reward
+                    
+                    # Update density model
+                    current_frame = new_s[...,-1]
+                    bonus = self.density_model.update(current_frame)
+                    bonuses.append(bonus)
+
+                    if self.is_master() and (self.local_step % 400 == 0):
+                        bonus_array = np.array(bonuses)
+                        logger.debug('π_a={:.4f} / V={:.4f} / Mean Bonus={:.4f} / Max Bonus={:.4f}'.format(
+                            readout_pi_t[a.argmax()], readout_v_t, bonus_array.mean(), bonus_array.max()))
+
+                    # Rescale or clip immediate reward
+                    reward = self.rescale_reward(self.rescale_reward(reward) + bonus)
+                    rewards.append(reward)
+                    states.append(s)
+                    actions.append(a)
+                    values.append(readout_v_t)
+
+                    s = new_s
+                    self.local_step += 1
+
+                    global_step, _ = self.global_step.increment()
+                    if global_step % self.density_model_update_steps == 0:
+                        self.write_density_model()
+                    if self.density_model_update_flags.updated[self.actor_id] == 1:
+                        self.read_density_model()
+                        self.density_model_update_flags.updated[self.actor_id] = 0  
+                
+                next_val = self.bootstrap_value(new_s, episode_over)
+                advantages = self.compute_gae(rewards, values, next_val)
+                targets = self.compute_targets(rewards, values, next_val)
+                # Compute gradients on the local policy/V network and apply them to shared memory 
+                entropy = self.apply_update(states, actions, targets, advantages)
+
+            elapsed_time = time.time() - self.start_time
+            steps_per_sec = self.global_step.value() / elapsed_time
+            perf = "{:.0f}".format(steps_per_sec)
+            logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
+                self.actor_id,
+                self.local_episode,
+                self.global_step.value()/1000,
+                total_episode_reward,
+                perf))
+
+            self.log_summary(total_episode_reward, np.array(values).mean(), entropy)
+
+
 @Experimental
-class PseudoCountA3CLearner(A3CLearner, DensityModelMixin):
+class PseudoCountA3CLearner(A3CLearner, A3CDensityModelMixin):
     """
     Attempt at replicating the A3C+ model from the paper 'Unifying Count-Based Exploration and Intrinsic Motivation' (https://arxiv.org/abs/1606.01868)
-    Still in the process of verifying timplementation
     """
     def __init__(self, args):
         super(PseudoCountA3CLearner, self).__init__(args)
         self._init_density_model(args)
 
+    def train(self):
+        self._train()
 
-    def prepare_state(self, state, mean_entropy, mean_value, episode_start_step, total_episode_reward):
-        # Start a new game on reaching terminal state
-        elapsed_time = time.time() - self.start_time
-        steps_per_sec = self.global_step.value() / elapsed_time
-        perf = "{:.0f}".format(steps_per_sec)
-        logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
-            self.actor_id,
-            self.local_episode,
-            self.global_step.value()/1000,
-            total_episode_reward,
-            perf))
-                
-        self.log_summary(total_episode_reward, mean_value, mean_entropy)
 
-        state = self.emulator.get_initial_state()
-        self.reset_hidden_state()
-        self.local_episode += 1
-        total_episode_reward = 0.0
-        mean_entropy = 0.0
-        mean_value = 0.0
-
-        return state, mean_entropy, mean_value, episode_start_step, total_episode_reward
-
+@Experimental
+class PseudoCountA3CLSTMLearner(A3CLSTMLearner, A3CDensityModelMixin):
+    def __init__(self, args):
+        super(PseudoCountA3CLSTMLearner, self).__init__(args)
+        self._init_density_model(args)
 
     def train(self):
-        """ Main actor learner loop for advantage actor critic learning. """
-        logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
-            self.global_step.value()))
-
-        s = self.emulator.get_initial_state()
-        total_episode_reward = 0.0
-        mean_entropy = 0.0
-        mean_value = 0.0
-        episode_start_step = 0
-        
-        while (self.global_step.value() < self.max_global_steps):
-            # Sync local learning net with shared mem
-            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            self.save_vars()
-            episode_over = False
-            local_step_start = self.local_step
-
-            bonuses = deque(maxlen=100)
-            rewards = list()
-            states  = list()
-            actions = list()
-            values  = list()
-            
-            while not (episode_over 
-                or (self.local_step - local_step_start 
-                    == self.max_local_steps)):
-                
-                # Choose next action and execute it
-                a, readout_v_t, readout_pi_t = self.choose_next_action(s)
-                delta = self.local_step - episode_start_step
-                mean_value = (delta*mean_value + readout_v_t) / (1+delta)
-
-                new_s, reward, episode_over = self.emulator.next(a)
-                total_episode_reward += reward
-                
-                current_frame = new_s[...,-1]
-                bonus = self.density_model.update(current_frame)
-                bonuses.append(bonus)
-
-                if self.is_master() and (self.local_step % 400 == 0):
-                    bonus_array = np.array(bonuses)
-                    logger.debug('π_a={:.4f} / V={:.4f} / Mean Bonus={:.4f} / Max Bonus={:.4f}'.format(
-                        readout_pi_t[a.argmax()], readout_v_t, bonus_array.mean(), bonus_array.max()))
-
-                # Rescale or clip immediate reward
-                reward = self.rescale_reward(self.rescale_reward(reward) + bonus)
-                
-                rewards.append(reward)
-                states.append(s)
-                actions.append(a)
-                values.append(readout_v_t)
-                
-                s = new_s
-                self.local_step += 1
-
-                global_step, _ = self.global_step.increment()
-                if global_step % self.density_model_update_steps == 0:
-                    self.write_density_model()
-                if self.density_model_update_flags.updated[self.actor_id] == 1:
-                    self.read_density_model()
-                    self.density_model_update_flags.updated[self.actor_id] = 0  
-          
-            next_val = self.bootstrap_value(new_s, episode_over)
-            advantages = self.compute_gae(rewards, values, next_val)
-            targets = self.compute_targets(rewards, values, next_val)
-            # Compute gradients on the local policy/V network and apply them to shared memory  
-            entropy = self.apply_update(states, actions, targets, advantages)
-
-            delta_old = local_step_start - episode_start_step
-            delta_new = self.local_step - local_step_start
-            mean_entropy = (mean_entropy*delta_old + entropy*delta_new) / (delta_old + delta_new)
-            
-            if episode_over:
-                s, mean_entropy, mean_value, episode_start_step, total_episode_reward = self.prepare_state(
-                    s, mean_entropy, mean_value, episode_start_step, total_episode_reward)
+        self._train()
 
 
 class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
