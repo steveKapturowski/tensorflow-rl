@@ -124,6 +124,7 @@ class ActorLearner(object):
         # Initizlize Tensorboard summaries
         self.summary_ph, self.update_ops, self.summary_ops = self.setup_summaries()
         self.summary_op = tf.summary.merge_all()
+        self._build_optimizer()
 
 
     def reset_hidden_state(self):
@@ -165,6 +166,28 @@ class ActorLearner(object):
                 ))
 
 
+    def _build_optimizer(self):
+        with tf.variable_scope('optimizer'):
+            self.global_step = tf.Variable(0, trainable=False)
+            self.learning_rate = tf.train.polynomial_decay(
+                self.initial_lr,
+                self.global_step,
+                self.max_global_steps//self.max_local_steps,
+                end_learning_rate=1e-6)
+            self.optimizer = tf.train.RMSPropOptimizer(
+                self.learning_rate,
+                decay=self.alpha,
+                momentum=0.0,
+                epsilon=1e-1,
+                use_locking=False,
+                centered=False,
+                name='RMSProp')
+            # optimizer = tf.train.SyncReplicasOptimizer(
+            #     optimizer,
+            #     replicas_to_aggregate=self.num_actor_learners,
+            #     total_num_replicas=self.num_actor_learners)
+
+
     def get_gpu_options(self):
         return tf.GPUOptions(allow_growth=True)
 
@@ -185,42 +208,21 @@ class ActorLearner(object):
         tf.set_random_seed(self.random_seed)
         num_cpus = multiprocessing.cpu_count()
 
-        with tf.variable_scope('optimizer'):
-            self.global_step = tf.Variable(0, trainable=False)
-            self.learning_rate = tf.train.polynomial_decay(
-                self.initial_lr,
-                self.global_step,
-                self.max_global_steps//self.max_local_steps,
-                end_learning_rate=1e-6)
-            optimizer = tf.train.RMSPropOptimizer(
-                self.learning_rate,
-                decay=self.alpha,
-                momentum=0.0,
-                epsilon=1e-1,
-                use_locking=False,
-                centered=False,
-                name='RMSProp')
-            # optimizer = tf.train.SyncReplicasOptimizer(
-            #     optimizer,
-            #     replicas_to_aggregate=self.num_actor_learners,
-            #     total_num_replicas=self.num_actor_learners)
+        gradients = [e[0] for e in self.optimizer.compute_gradients(
+            self.local_network.loss, self.local_network.params)]
+        gradients = self.local_network._clip_grads(gradients)
+        self.local_network.get_gradients = self.optimizer.apply_gradients(
+            zip(gradients, self.local_network.params), global_step=self.global_step)
 
-            gradients = [e[0] for e in optimizer.compute_gradients(
-                self.local_network.loss, self.local_network.params)]
-            gradients = self.local_network._clip_grads(gradients)
-            self.local_network.get_gradients = optimizer.apply_gradients(
-                zip(gradients, self.local_network.params), global_step=self.global_step)
-
-
-        # local_init_op = optimizer.chief_init_op if self.is_master() else optimizer.local_step_init_op
-        # chief_queue_runner = optimizer.get_chief_queue_runner()
-        # sync_init_op = optimizer.get_init_tokens_op()
+        # local_init_op = self.optimizer.chief_init_op if self.is_master() else optimizer.local_step_init_op
+        # chief_queue_runner = self.optimizer.get_chief_queue_runner()
+        # sync_init_op = self.optimizer.get_init_tokens_op()
 
         self.supervisor = tf.train.Supervisor(
             init_op=tf.global_variables_initializer(),
             local_init_op=tf.global_variables_initializer(),
             # local_init_op=local_init_op,
-            # ready_for_local_init_op=optimizer.ready_for_local_init_op,
+            # ready_for_local_init_op=self.optimizer.ready_for_local_init_op,
             global_step=self.global_step,
             is_chief=self.is_master(),
             logdir=self.summ_base_dir,

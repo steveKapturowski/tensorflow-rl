@@ -34,6 +34,7 @@ class BasePGQLearner(BaseA3CLearner):
             self.local_network = PolicyValueNetwork(conf_learning)
         with tf.device('/gpu:0'), tf.variable_scope('', reuse=True):
             self.batch_network = PolicyValueNetwork(conf_learning)
+        with tf.device('/gpu:0'), tf.variable_scope('', reuse=False): 
             self._build_q_ops()
 
         self.reset_hidden_state()
@@ -69,8 +70,11 @@ class BasePGQLearner(BaseA3CLearner):
         self.q_objective = - self.pgq_fraction * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (0.5 * self.V[:, 0] + self.log_pi[:, 0]))
 
         self.V_params = self.batch_network.params
-        self.q_gradients = tf.gradients(self.q_objective, self.V_params)
-        self.q_gradients = self.batch_network._clip_grads(self.q_gradients)
+        q_gradients = [e[0] for e in self.optimizer.compute_gradients(
+            self.local_network.loss, self.V_params)]
+        q_gradients = self.batch_network._clip_grads(q_gradients)
+        self.apply_q_gradients = self.optimizer.apply_gradients(
+            zip(q_gradients, self.V_params), global_step=self.global_step)
 
 
     def batch_q_update(self):
@@ -79,8 +83,8 @@ class BasePGQLearner(BaseA3CLearner):
 
         s_i, a_i, r_i, s_f, is_terminal = self.replay_memory.sample_batch(self.batch_size)
 
-        batch_grads = self.session.run(
-            self.q_gradients,
+        self.session.run(
+            self.apply_q_gradients,
             feed_dict={
                 self.R: r_i,
                 self.batch_network.selected_action_ph: np.vstack([a_i, a_i]),
@@ -88,7 +92,6 @@ class BasePGQLearner(BaseA3CLearner):
                 self.terminal_indicator: is_terminal.astype(np.int),
             }
         )
-        self.apply_gradients_to_shared_memory_vars(batch_grads)
 
 
 class PGQLearner(BasePGQLearner):
