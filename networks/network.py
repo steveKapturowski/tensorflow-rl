@@ -113,11 +113,11 @@ class Network(object):
             return tf.nn.l2_loss(diff)
 
 
-    def _clip_grads(self, grads_and_vars):
+    def _clip_grads(self, grads):
         if self.clip_norm_type == 'ignore':
-            return grads_and_vars
+            return grads
         elif self.clip_norm_type == 'global':
-            return tf.clip_by_global_norm(grads_and_vars, self.clip_norm)[0]
+            return tf.clip_by_global_norm(grads, self.clip_norm)[0]
         elif self.clip_norm_type == 'avg':
             return tf.clip_by_average_norm(grads, self.clip_norm)[0]
         elif self.clip_norm_type == 'local':

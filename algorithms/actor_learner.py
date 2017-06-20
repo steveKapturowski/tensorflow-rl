@@ -92,7 +92,7 @@ class ActorLearner(object):
         self.random_seed = args.random_seed
         
         # rmsprop/momentum
-        self.momentum = args.momentum
+        self.alpha = args.alpha
         # adam
         self.b1 = args.b1
         self.b2 = args.b2
@@ -197,22 +197,22 @@ class ActorLearner(object):
                 end_learning_rate=1e-6)
             optimizer = tf.train.RMSPropOptimizer(
                 self.learning_rate,
-                decay=0.99,
-                momentum=self.momentum,
-                epsilon=1e-2,
+                decay=self.alpha,
+                momentum=0.0,
+                epsilon=1e-1,
                 use_locking=False,
-                centered=True,
+                centered=False,
                 name='RMSProp')
             # optimizer = tf.train.SyncReplicasOptimizer(
             #     optimizer,
             #     replicas_to_aggregate=self.num_actor_learners,
             #     total_num_replicas=self.num_actor_learners)
 
-            self.get_gradients = optimizer.compute_gradients(
-                self.local_network.loss, self.local_network.params)
-            # self.get_gradients = self.local_network._clip_grads(self.get_gradients)
+            gradients = [e[0] for e in optimizer.compute_gradients(
+                self.local_network.loss, self.local_network.params)]
+            gradients = self.local_network._clip_grads(gradients)
             self.local_network.get_gradients = optimizer.apply_gradients(
-                self.get_gradients, global_step=self.global_step)
+                zip(gradients, self.local_network.params), global_step=self.global_step)
 
 
         # local_init_op = optimizer.chief_init_op if self.is_master() else optimizer.local_step_init_op
