@@ -75,15 +75,10 @@ def main(args):
     # if args.alg_type.endswith('cts'):
     #     args.density_model_update_flags = SharedFlags(args.num_actor_learners)
 
-    args.barrier = Barrier(args.num_actor_learners)
-    args.global_step = SharedCounter(0)
-    args.num_actions = num_actions
-
     cuda_visible_devices = os.getenv('CUDA_VISIBLE_DEVICES')
     num_gpus = 0
     if cuda_visible_devices:
         num_gpus = len(cuda_visible_devices.split())
-
 
     seed = args.seed or np.random.randint(2**32)
     np.random.seed(seed)
@@ -93,7 +88,7 @@ def main(args):
     args.device = '/gpu:{}'.format(args.task_index % num_gpus) if num_gpus else '/cpu:0'
     args.random_seed = seed + args.task_index
     args.input_shape = input_shape
-
+    args.num_actions = num_actions
 
     cluster = tf.train.ClusterSpec({
         'ps': ['localhost:2048'],
