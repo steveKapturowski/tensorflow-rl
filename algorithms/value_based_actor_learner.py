@@ -58,7 +58,6 @@ class ValueBasedLearner(ActorLearner):
         return values[self.actor_id % 4]
 
 
-    @only_on_train
     def reduce_thread_epsilon(self):
         """ Linear annealing """
         if self.epsilon > self.final_epsilon:
