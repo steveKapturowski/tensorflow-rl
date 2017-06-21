@@ -68,7 +68,6 @@ class ActorLearner(object):
         self.summ_base_dir = args.summ_base_dir
         
         self.local_step = 0
-        self.global_step = args.global_step
         self.local_episode = 0
         self.last_saving_step = 0
 
@@ -90,6 +89,7 @@ class ActorLearner(object):
         self.q_update_interval = args.q_update_interval
         self.restore_checkpoint = args.restore_checkpoint
         self.random_seed = args.random_seed
+        self.game = args.game
         
         # rmsprop/momentum
         self.alpha = args.alpha
@@ -117,14 +117,9 @@ class ActorLearner(object):
         if self.rescale_rewards:
             self.thread_max_reward = 1.0
 
-        # Barrier to synchronize all actors after initialization is done
-        self.barrier = args.barrier
-        self.game = args.game
-
         # Initizlize Tensorboard summaries
         self.summary_ph, self.update_ops, self.summary_ops = self.setup_summaries()
         self.summary_op = tf.summary.merge_all()
-        self._build_optimizer()
 
 
     def reset_hidden_state(self):
@@ -187,6 +182,14 @@ class ActorLearner(object):
             #     replicas_to_aggregate=self.num_actor_learners,
             #     total_num_replicas=self.num_actor_learners)
 
+            gradients = [
+                e[0] for e in self.optimizer.compute_gradients(
+                self.local_network.loss, self.local_network.params)]
+            gradients = self.local_network._clip_grads(gradients)
+            
+            self.local_network.get_gradients = self.optimizer.apply_gradients(
+                zip(gradients, self.local_network.params), global_step=self.global_step)
+
 
     def get_gpu_options(self):
         return tf.GPUOptions(allow_growth=True)
@@ -208,12 +211,7 @@ class ActorLearner(object):
         tf.set_random_seed(self.random_seed)
         num_cpus = multiprocessing.cpu_count()
 
-        gradients = [e[0] for e in self.optimizer.compute_gradients(
-            self.local_network.loss, self.local_network.params)]
-        gradients = self.local_network._clip_grads(gradients)
-        self.local_network.get_gradients = self.optimizer.apply_gradients(
-            zip(gradients, self.local_network.params), global_step=self.global_step)
-
+        self._build_optimizer()
         # local_init_op = self.optimizer.chief_init_op if self.is_master() else optimizer.local_step_init_op
         # chief_queue_runner = self.optimizer.get_chief_queue_runner()
         # sync_init_op = self.optimizer.get_init_tokens_op()

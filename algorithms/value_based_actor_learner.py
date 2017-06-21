@@ -22,11 +22,7 @@ class ValueBasedLearner(ActorLearner):
         
         super(ValueBasedLearner, self).__init__(args)
         
-        # Shared mem vars
-        # self.target_vars = args.target_vars
-        # self.target_update_flags = args.target_update_flags
         self.q_target_update_steps = args.q_target_update_steps
-
         self.scores = list()
         
         conf_learning = {'name': "local_learning_{}".format(self.actor_id),

@@ -34,7 +34,6 @@ class BasePGQLearner(BaseA3CLearner):
             self.local_network = PolicyValueNetwork(conf_learning)
         with tf.device('/gpu:0'), tf.variable_scope('', reuse=True):
             self.batch_network = PolicyValueNetwork(conf_learning)
-        with tf.device('/gpu:0'), tf.variable_scope('', reuse=False): 
             self._build_q_ops()
 
         self.reset_hidden_state()
@@ -47,6 +46,19 @@ class BasePGQLearner(BaseA3CLearner):
             var_list = self.local_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3, 
                                         keep_checkpoint_every_n_hours=2)
+
+
+    def _build_optimizer(self):
+        super(BasePGQLearner, self)._build_optimizer()
+
+        with tf.variable_scope('optimizer', reuse=True):
+            q_gradients = [
+                e[0] for e in self.optimizer.compute_gradients(
+                self.local_network.loss, self.V_params)]
+            q_gradients = self.batch_network._clip_grads(q_gradients)
+
+            self.apply_q_gradients = self.optimizer.apply_gradients(
+                zip(q_gradients, self.V_params), global_step=self.global_step)
 
 
     def _build_q_ops(self):
@@ -68,13 +80,7 @@ class BasePGQLearner(BaseA3CLearner):
         self.Q_a = tf.reduce_sum(self.Qi * tf.split(axis=0, num_or_size_splits=2, value=self.batch_network.selected_action_ph)[0], 1)
 
         self.q_objective = - self.pgq_fraction * tf.reduce_mean(tf.stop_gradient(self.R + self.max_TQ - self.Q_a) * (0.5 * self.V[:, 0] + self.log_pi[:, 0]))
-
-        self.V_params = self.batch_network.params
-        q_gradients = [e[0] for e in self.optimizer.compute_gradients(
-            self.local_network.loss, self.V_params)]
-        q_gradients = self.batch_network._clip_grads(q_gradients)
-        self.apply_q_gradients = self.optimizer.apply_gradients(
-            zip(q_gradients, self.V_params), global_step=self.global_step)
+        self.V_params = self.local_network.params
 
 
     def batch_q_update(self):
