@@ -72,9 +72,6 @@ def main(args):
     Learner, Network = ALGORITHMS[args.alg_type]
     args.network = Network
     
-    # if args.alg_type.endswith('cts'):
-    #     args.density_model_update_flags = SharedFlags(args.num_actor_learners)
-
     cuda_visible_devices = os.getenv('CUDA_VISIBLE_DEVICES')
     num_gpus = 0
     if cuda_visible_devices:

@@ -77,7 +77,9 @@ class DensityModelMixin(object):
     """
     def _init_density_model(self, args):
         self.density_model_update_steps = 20*args.q_target_update_steps
-        # self.density_model_update_flags = args.density_model_update_flags
+
+        self.density_model_update_flags = tf.Variable(
+            args.num_actor_learners, dtype=tf.bool, trainable=False)
 
         model_args = {
             'height': args.cts_rescale_dim,
