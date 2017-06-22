@@ -43,18 +43,6 @@ class BaseA3CLearner(ActorLearner):
         return R
 
 
-    def compute_targets(self, rewards, values, R):
-        size = len(rewards)
-        y_batch = list()
-
-        for i in reversed(xrange(size)):
-            R = rewards[i] + self.gamma * R
-            y_batch.append(R)
-
-        y_batch.reverse()
-        return y_batch
-
-
     def compute_gae(self, rewards, values, next_val):
         values = values + [next_val]
         size = len(rewards)

@@ -110,6 +110,31 @@ class ValueBasedLearner(ActorLearner):
         return new_action, q_values
 
 
+    def bootstrap_value(self, state, episode_over):
+        if episode_over:
+            R = 0
+        else:
+            q_target_values = self.session.run(
+                self.target_network.output_layer,
+                feed_dict={self.target_network.input_ph: [state]})
+            R = np.max(q_target_values)
+
+        return R
+
+
+    def apply_update(self, states, actions, targets):
+        feed_dict={
+            self.local_network.input_ph: states,
+            self.local_network.target_ph: targets,
+            self.local_network.selected_action_ph: actions,
+        }
+        grads = self.session.run(
+            self.local_network.get_gradients,
+            feed_dict=feed_dict)
+
+        self.apply_gradients_to_shared_memory_vars(grads)
+
+
     def update_target(self):
         copy(np.frombuffer(self.target_vars.vars, ctypes.c_float),
               np.frombuffer(self.learning_vars.vars, ctypes.c_float))
@@ -163,12 +188,7 @@ class NStepQLearner(ValueBasedLearner):
         logger.debug("Actor {} resuming at Step {}, {}".format(self.actor_id, 
             self.global_step.value(), time.ctime()))
 
-        s = self.emulator.get_initial_state()
-        
-        s_batch = []
-        a_batch = []
-        y_batch = []
-        
+        s = self.emulator.get_initial_state()        
         steps_at_last_reward = self.local_step
         exec_update_target = False
         total_episode_reward = 0
@@ -189,9 +209,6 @@ class NStepQLearner(ValueBasedLearner):
             rewards = list()
             states =  list()
             actions = list()
-            s_batch = list()
-            a_batch = list()
-            y_batch = list()
             local_step_start = self.local_step
             
             while not (episode_over 
@@ -228,32 +245,10 @@ class NStepQLearner(ValueBasedLearner):
                 
                 self.local_network.global_step = global_step
 
-            if episode_over:
-                R = 0
-            else:
-                q_target_values_next_state = self.session.run(
-                    self.target_network.output_layer, 
-                    feed_dict={self.target_network.input_ph: 
-                        [new_s]})
-                R = np.max(q_target_values_next_state)
-                   
-            for i in reversed(xrange(len(states))):
-                R = rewards[i] + self.gamma * R
-                
-                y_batch.append(R)
-                a_batch.append(actions[i])
-                s_batch.append(states[i])
-                
-            # Compute gradients on the local Q network     
-            feed_dict={
-                self.local_network.input_ph: s_batch,
-                self.local_network.target_ph: y_batch,
-                self.local_network.selected_action_ph: a_batch
-            }
-
-            grads = self.session.run(self.local_network.get_gradients,
-                                     feed_dict=feed_dict)
-            self.apply_gradients_to_shared_memory_vars(grads)
+            R = bootstrap_value(s, episode_over)
+            targets = compute_targets(rewards, values, R) 
+            # Compute gradients on the local Q network 
+            self.apply_update(states, actions, targets)
             
             if exec_update_target:
                 self.update_target()
@@ -276,7 +271,7 @@ class DuelingLearner(NStepQLearner):
 class OneStepSARSALearner(ValueBasedLearner):
 
     def generate_final_epsilon(self):
-        return 0.05
+        return 0.1
 
     def train(self):
         """ Main actor learner loop for 1-step SARSA learning. """
@@ -285,9 +280,9 @@ class OneStepSARSALearner(ValueBasedLearner):
         
         s = self.emulator.get_initial_state()
 
-        s_batch = list()
-        a_batch = list()
-        y_batch = list()
+        states =  list()
+        actions = list()
+        targets = list()
         
         steps_at_last_reward = self.local_step
         exec_update_target = False
@@ -311,8 +306,8 @@ class OneStepSARSALearner(ValueBasedLearner):
             ep_t += 1
             episode_ave_max_q += np.max(readout_t)
 
-            a_batch.append(a)
-            s_batch.append(s)
+            actions.append(a)
+            states.append(s)
             s = s_prime
 
             total_episode_reward += reward
@@ -322,7 +317,6 @@ class OneStepSARSALearner(ValueBasedLearner):
             else:
                 # Choose action that we will execute in the next step 
                 a_prime, readout_t = self.choose_next_action(s_prime)
-
                 q_prime = readout_t[a_prime.argmax()]
                 # Q_target in the new state for the next step action 
                 q_prime = self.session.run(
@@ -333,7 +327,7 @@ class OneStepSARSALearner(ValueBasedLearner):
                 y = reward + self.gamma * q_prime
                 a = a_prime
 
-            y_batch.append(y)
+            targets.append(y)
             
             self.local_step += 1
             global_step, update_target = self.global_step.increment(
@@ -344,21 +338,13 @@ class OneStepSARSALearner(ValueBasedLearner):
                 or episode_over):
 
                 # Compute gradients on the local Q network     
-                feed_dict={self.local_network.input_ph: s_batch,
-                           self.local_network.target_ph: y_batch,
-                           self.local_network.selected_action_ph: a_batch}
-                           
-                grads = self.session.run(self.local_network.get_gradients,
-                                         feed_dict=feed_dict)
-                    
-                self.apply_gradients_to_shared_memory_vars(grads)
-
+                self.apply_update(states, actions, targets)
                 self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
                 self.save_vars()
 
-                s_batch = list()
-                a_batch = list()
-                y_batch = list()
+                states =  list()
+                actions = list()
+                targets = list()
 
             # Copy shared learning network params to shared target network params 
             if update_target:
