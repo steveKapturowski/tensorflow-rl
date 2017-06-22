@@ -245,8 +245,8 @@ class NStepQLearner(ValueBasedLearner):
                 
                 self.local_network.global_step = global_step
 
-            R = bootstrap_value(s, episode_over)
-            targets = compute_targets(rewards, values, R) 
+            R = self.bootstrap_value(s, episode_over)
+            targets = self.compute_targets(rewards, R)
             # Compute gradients on the local Q network 
             self.apply_update(states, actions, targets)
             

@@ -151,7 +151,7 @@ class ActorLearner(Process):
         self.summary_op = tf.summary.merge_all()
 
 
-    def compute_targets(self, rewards, values, R):
+    def compute_targets(self, rewards, R):
         size = len(rewards)
         y_batch = list()
 

@@ -123,7 +123,7 @@ class BaseA3CLearner(ActorLearner):
                 
                 next_val = self.bootstrap_value(new_s, episode_over)
                 advantages = self.compute_gae(rewards, values, next_val)
-                targets = self.compute_targets(rewards, values, next_val)
+                targets = self.compute_targets(rewards, next_val)
                 # Compute gradients on the local policy/V network and apply them to shared memory 
                 entropy = self.apply_update(states, actions, targets, advantages)
 
