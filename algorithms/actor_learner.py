@@ -283,8 +283,6 @@ class ActorLearner(Process):
         # if hasattr(self, 'target_vars'):
             # target_params = self.session.run(self.target_network.params)
             # np.frombuffer(self.target_vars.vars, ctypes.c_float)[:] = params
-        #memoryview(self.learning_vars.vars)[:] = params
-        #memoryview(self.target_vars.vars)[:] = memoryview(self.learning_vars.vars)
                 
     
     @only_on_train(return_val=0.0)
@@ -345,9 +343,7 @@ class ActorLearner(Process):
                 p_size = shared_vars.size
                 _type = 0 if self.optimizer_type == "momentum" else 1
                 
-                # print "BEFORE", "RMSPROP m", m[0], "p", p[0:5], "GRAD", g[0], 'lr', lr
                 apply_grads_mom_rmsprop(m, g, p, p_size, _type, lr, self.alpha, self.e)
-                # print "AFTER", "RMSPROP m", m[0], "p", p[0:5], "GRAD", g[0], 'lr', lr
 
     def rescale_reward(self, reward):
         if self.rescale_rewards:
