@@ -78,8 +78,9 @@ class DensityModelMixin(object):
     def _init_density_model(self, args):
         self.density_model_update_steps = 20*args.q_target_update_steps
 
-        self.density_model_update_flags = tf.Variable(
-            args.num_actor_learners, dtype=tf.bool, trainable=False)
+        self.density_model_update_flags = tf.Variable(args.num_actor_learners, dtype=tf.bool, trainable=False)
+        self.set_update_flags = self.density_model_update_flags.assign([True]*args.num_actor_learners)
+        self.unset_flag = tf.scatter_update(density_model_update_flags, [self.actor_id], [False])
 
         model_args = {
             'height': args.cts_rescale_dim,
@@ -99,8 +100,8 @@ class DensityModelMixin(object):
         with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'wb') as f:
             f.write(raw_data)
 
-        # for i in xrange(len(self.density_model_update_flags.updated)):
-        #     self.density_model_update_flags.updated[i] = 1
+        self.session.run(self.set_update_flags)
+
 
     def read_density_model(self):
         logger.info('T{} Synchronizing Density Model...'.format(self.actor_id))
@@ -169,13 +170,13 @@ class A3CDensityModelMixin(DensityModelMixin):
                     global_step, _ = self.global_step.increment()
                     if global_step % self.density_model_update_steps == 0:
                         self.write_density_model()
-                    if self.density_model_update_flags.updated[self.actor_id] == 1:
+                    if self.session.run(self.density_model_update_flags)[self.actor_id]:
                         self.read_density_model()
-                        self.density_model_update_flags.updated[self.actor_id] = 0  
+                        self.session.run(self.unset_flag)
                 
                 next_val = self.bootstrap_value(new_s, episode_over)
                 advantages = self.compute_gae(rewards, values, next_val)
-                targets = self.compute_targets(rewards, values, next_val)
+                targets = self.compute_targets(rewards, next_val)
                 # Compute gradients on the local policy/V network and apply them to shared memory 
                 entropy = self.apply_update(states, actions, targets, advantages)
 

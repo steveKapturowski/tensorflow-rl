@@ -122,6 +122,18 @@ class ActorLearner(object):
         self.summary_op = tf.summary.merge_all()
 
 
+    def compute_targets(self, rewards, R):
+        size = len(rewards)
+        y_batch = list()
+
+        for i in reversed(xrange(size)):
+            R = rewards[i] + self.gamma * R
+            y_batch.append(R)
+
+        y_batch.reverse()
+        return y_batch
+
+
     def reset_hidden_state(self):
         """
         Override in subclass if needed
@@ -253,6 +265,7 @@ class ActorLearner(object):
             return self.initial_lr - (self.global_step.value() * self.initial_lr / self.lr_annealing_steps)
         else:
             return 0.0
+
 
     def apply_gradients_to_shared_memory_vars(self, grads):
         pass

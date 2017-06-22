@@ -43,18 +43,6 @@ class BaseA3CLearner(ActorLearner):
         return R
 
 
-    def compute_targets(self, rewards, values, R):
-        size = len(rewards)
-        y_batch = list()
-
-        for i in reversed(xrange(size)):
-            R = rewards[i] + self.gamma * R
-            y_batch.append(R)
-
-        y_batch.reverse()
-        return y_batch
-
-
     def compute_gae(self, rewards, values, next_val):
         values = values + [next_val]
         size = len(rewards)
@@ -130,7 +118,7 @@ class BaseA3CLearner(ActorLearner):
                 
                 next_val = self.bootstrap_value(new_s, episode_over)
                 advantages = self.compute_gae(rewards, values, next_val)
-                targets = self.compute_targets(rewards, values, next_val)
+                targets = self.compute_targets(rewards, next_val)
                 # Compute gradients on the local policy/V network and apply them to shared memory 
                 entropy = self.apply_update(states, actions, targets, advantages)
 
