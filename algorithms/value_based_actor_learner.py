@@ -121,16 +121,6 @@ class ValueBasedLearner(ActorLearner):
 
     def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
                       ep_t, episode_ave_max_q, episode_over):
-        # prevent the agent from getting stuck
-        reset_game = False
-        if (self.local_step - steps_at_last_reward > 5000
-            or (self.emulator.get_lives() == 0
-                and self.emulator.game not in ONE_LIFE_GAMES)):
-            
-            steps_at_last_reward = self.local_step
-            episode_over = True
-            reset_game = True
-
         # Start a new game on reaching terminal state
         if episode_over:
             T = self.global_step.value()
@@ -152,23 +142,16 @@ class ValueBasedLearner(ActorLearner):
                 2*np.array(self.scores).std(),
                 max(self.scores),
             ))
-
-            if self.is_master() and self.is_train:
-                stats = [total_episode_reward, episode_ave_max_q, self.epsilon]
-                feed_dict = {}
-                for i in range(len(stats)):
-                    feed_dict[self.summary_ph[i]] = float(stats[i])
-                    
-                res = self.session.run(self.summary_op, feed_dict=feed_dict)
-                self.summary_writer.add_summary(res, self.global_step.value())
+            self.log_summary(
+                total_episode_reward,
+                episode_ave_max_q,
+                self.epsilon)
                 
-            if reset_game or self.emulator.game in ONE_LIFE_GAMES:
-                state = self.emulator.get_initial_state()
-
-            ep_t = 0
+            state = self.emulator.get_initial_state()
             total_episode_reward = 0
             episode_ave_max_q = 0
             episode_over = False
+            ep_t = 0
 
         return state, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over
         
@@ -203,9 +186,12 @@ class NStepQLearner(ValueBasedLearner):
             self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
             self.save_vars()
 
-            rewards = []
-            states = []
-            actions = []
+            rewards = list()
+            states =  list()
+            actions = list()
+            s_batch = list()
+            a_batch = list()
+            y_batch = list()
             local_step_start = self.local_step
             
             while not (episode_over 
@@ -269,10 +255,6 @@ class NStepQLearner(ValueBasedLearner):
                                      feed_dict=feed_dict)
             self.apply_gradients_to_shared_memory_vars(grads)
             
-            s_batch = []
-            a_batch = []
-            y_batch = []
-            
             if exec_update_target:
                 self.update_target()
                 exec_update_target = False
@@ -303,9 +285,9 @@ class OneStepSARSALearner(ValueBasedLearner):
         
         s = self.emulator.get_initial_state()
 
-        s_batch = []
-        a_batch = []
-        y_batch = []
+        s_batch = list()
+        a_batch = list()
+        y_batch = list()
         
         steps_at_last_reward = self.local_step
         exec_update_target = False
@@ -374,9 +356,9 @@ class OneStepSARSALearner(ValueBasedLearner):
                 self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
                 self.save_vars()
 
-                s_batch = []
-                a_batch = []
-                y_batch = []
+                s_batch = list()
+                a_batch = list()
+                y_batch = list()
 
             # Copy shared learning network params to shared target network params 
             if update_target:
