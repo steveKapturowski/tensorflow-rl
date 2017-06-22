@@ -193,7 +193,7 @@ class ActorLearner(Process):
 
             else:
                 rewards.append(total_episode_reward)
-                logger.info("EPISODE {0} -- REWARD: {1}, RUNNING AVG: {2:.0f}±{3:.0f}, BEST: {4}".format(
+                logger.info("EPISODE {0} -- REWARD: {1}, RUNNING AVG: {2:.1f}±{3:.1f}, BEST: {4}".format(
                     episode,
                     total_episode_reward,
                     np.array(rewards).mean(),
