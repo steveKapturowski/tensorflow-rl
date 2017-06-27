@@ -1,7 +1,7 @@
 alg_type: "dqn-cts"
 #dqn
 learning_rate:           0.00025
-momentum:                0.95
+alpha:                   0.95
 q_target_update_steps:   10000
 batch_update_steps:      4
 batch_update_size:       32
@@ -12,3 +12,5 @@ arch:                    "NATURE"
 #cts-specific
 cts_bins:        8
 cts_rescale_dim: 42
+cts_beta:        0.05
+cts_eta:         0.9

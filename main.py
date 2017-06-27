@@ -203,8 +203,8 @@ def get_config():
     #cts args
     parser.add_argument('--cts_bins', default=8, type=int, help='number of bins to assign pixel values', dest='cts_bins')
     parser.add_argument('--cts_rescale_dim', default=42, type=int, help='rescaled image size to use with cts density model', dest='cts_rescale_dim')
-    parser.add_argument('--cts_beta', default=.05, type=float, help='weight by which to scale novelty bonuses', dest='cts_beta')
-    parser.add_argument('--cts_eta', default=.9, type=float, help='mixing param between 1-step TD-Error and Monte-Carlo Error', dest='cts_eta')
+    parser.add_argument('--cts_beta', default=0.05, type=float, help='weight by which to scale novelty bonuses', dest='cts_beta')
+    parser.add_argument('--cts_eta', default=0.9, type=float, help='mixing param between 1-step TD-Error and Monte-Carlo Error', dest='cts_eta')
     parser.add_argument('--density_model', default='cts', type=str, help='density model to use for generating novelty bonuses: cts, or pixel-counts', dest='density_model')
     parser.add_argument('--q_update_interval', default=4, type=int, help='Number of steps between successive batch q-learning updates', dest='q_update_interval')
 

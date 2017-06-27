@@ -30,7 +30,6 @@ def launch_cluster(spec, arg_string, daemonize=False):
 				p.wait()
 		except KeyboardInterrupt:
 			for p in procs:
-				# p.send_signal(signal.SIGINT)
 				p.kill()
 
 
