@@ -115,6 +115,8 @@ class BaseA3CLearner(ActorLearner):
 
                     s = new_s
                     self.local_step += 1
+
+                global_step = self.session.run(self.global_step_increment)
                 
                 next_val = self.bootstrap_value(new_s, episode_over)
                 advantages = self.compute_gae(rewards, values, next_val)
@@ -122,15 +124,14 @@ class BaseA3CLearner(ActorLearner):
                 # Compute gradients on the local policy/V network and apply them to shared memory 
                 entropy = self.apply_update(states, actions, targets, advantages)
 
-            global_step = self.global_step.eval(self.session)
             elapsed_time = time.time() - episode_start_time
             steps_per_sec = (self.local_step - episode_start_step) * self.num_actor_learners / elapsed_time
             perf = "{:.0f}".format(steps_per_sec)
             print 'lr={}'.format(self.session.run(self.learning_rate))
-            logger.info("T{} / EPISODE {} / STEP {:.3f}k / REWARD {} / {} STEPS/s".format(
+            logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
                 self.task_index,
                 self.local_episode,
-                global_step*self.max_local_steps*self.num_actor_learners*5/1e3,
+                global_step/1000,
                 total_episode_reward,
                 perf))
 
