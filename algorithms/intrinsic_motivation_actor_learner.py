@@ -98,7 +98,7 @@ class DensityModelMixin(object):
     def write_density_model(self):
         logger.info('T{} Writing Pickled Density Model to File...'.format(self.actor_id))
         raw_data = cPickle.dumps(self.density_model.get_state(), protocol=2)
-        with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'wb') as f:
+        with open('/tmp/density_model.pkl', 'wb') as f:
             f.write(raw_data)
 
         self.session.run(self.set_update_flags)
@@ -106,10 +106,11 @@ class DensityModelMixin(object):
 
     def read_density_model(self):
         logger.info('T{} Synchronizing Density Model...'.format(self.actor_id))
-        with self.barrier.counter.lock, open('/tmp/density_model.pkl', 'rb') as f:
+        with open('/tmp/density_model.pkl', 'rb') as f:
             raw_data = f.read()
 
         self.density_model.set_state(cPickle.loads(raw_data))
+        self.session.run(self.unset_flag)
 
 
 class A3CDensityModelMixin(DensityModelMixin):
@@ -122,7 +123,7 @@ class A3CDensityModelMixin(DensityModelMixin):
             self.global_step.value()))
         
         bonuses = deque(maxlen=100)
-        while (self.global_step.value() < self.max_global_steps):
+        while not self.supervisor.should_stop():
             # Sync local learning net with shared mem
             s = self.emulator.get_initial_state()
             self.reset_hidden_state()
@@ -132,9 +133,6 @@ class A3CDensityModelMixin(DensityModelMixin):
             episode_start_step = self.local_step
             
             while not episode_over:
-                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-                self.save_vars()
-
                 rewards = list()
                 states  = list()
                 actions = list()
@@ -168,12 +166,11 @@ class A3CDensityModelMixin(DensityModelMixin):
                     s = new_s
                     self.local_step += 1
 
-                    global_step, _ = self.global_step.increment()
+                    global_step = self.session.run(self.global_step_increment)
                     if global_step % self.density_model_update_steps == 0:
                         self.write_density_model()
                     if self.session.run(self.density_model_update_flags)[self.actor_id]:
                         self.read_density_model()
-                        self.session.run(self.unset_flag)
                 
                 next_val = self.bootstrap_value(new_s, episode_over)
                 advantages = self.compute_gae(rewards, values, next_val)
@@ -182,12 +179,12 @@ class A3CDensityModelMixin(DensityModelMixin):
                 entropy = self.apply_update(states, actions, targets, advantages)
 
             elapsed_time = time.time() - self.start_time
-            steps_per_sec = self.global_step.value() / elapsed_time
+            steps_per_sec = global_step / elapsed_time
             perf = "{:.0f}".format(steps_per_sec)
             logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
                 self.actor_id,
                 self.local_episode,
-                self.global_step.value()/1000,
+                global_step/1000,
                 total_episode_reward,
                 perf))
 
@@ -405,9 +402,6 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
             ep_t = 0
 
             while not episode_over:
-                # self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-                # self.save_vars()
-
                 # Choose next action and execute it
                 a, q_values = self.choose_next_action(s)
 
@@ -416,8 +410,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 max_q = np.max(q_values)
 
                 current_frame = new_s[...,-1]
-                # bonus = self.density_model.update(current_frame)
-                bonus = 0
+                bonus = self.density_model.update(current_frame)
                 bonuses.append(bonus)
 
                 # Rescale or clip immediate reward
@@ -433,21 +426,14 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                 s = new_s
                 self.local_step += 1
                 episode_ave_max_q += max_q
-                
-                global_step = self.session.run(self.global_step)
+                global_step = self.session.run(self.global_step_increment)
 
-                if self.is_master() and self.local_step % self.q_target_update_steps == 0:
+                if global_step % self.q_target_update_steps == 0:
                     self.update_target()
-                # if self.is_master() and self.local_step  % self.density_model_update_steps == 0:
-                #     self.write_density_model()
-
-                # Sync local tensorflow target network params with shared target network params
-                # if self.target_update_flags.updated[self.actor_id] == 1:
-                #     self.sync_net_with_shared_memory(self.target_network, self.target_vars)
-                #     self.target_update_flags.updated[self.actor_id] = 0
-                # if self.density_model_update_flags.updated[self.actor_id] == 1:
-                #     self.read_density_model()
-                #     self.density_model_update_flags.updated[self.actor_id] = 0
+                if global_step % self.density_model_update_steps == 0:
+                    self.write_density_model()
+                if self.session.run(self.density_model_update_flags)[self.actor_id]:
+                    self.read_density_model()
 
                 if self.local_step % self.q_update_interval == 0:
                     self.batch_update()

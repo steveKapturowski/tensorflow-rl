@@ -176,10 +176,11 @@ class ActorLearner(object):
     def _build_optimizer(self):
         with tf.variable_scope('optimizer'):
             self.global_step = tf.Variable(0, trainable=False)
+            self.global_step_increment = self.global_step.assign_add(1, use_locking=True)
             self.learning_rate = tf.train.polynomial_decay(
                 self.initial_lr,
                 self.global_step,
-                self.max_global_steps//self.max_local_steps,
+                self.max_global_steps,
                 end_learning_rate=1e-6)
             self.optimizer = tf.train.RMSPropOptimizer(
                 self.learning_rate,
@@ -200,7 +201,7 @@ class ActorLearner(object):
             gradients = self.local_network._clip_grads(gradients)
             
             self.local_network.get_gradients = self.optimizer.apply_gradients(
-                zip(gradients, self.local_network.params), global_step=self.global_step)
+                zip(gradients, self.local_network.params))
 
 
     def get_gpu_options(self):
@@ -257,14 +258,6 @@ class ActorLearner(object):
                 self.train()
             else:
                 self.test()
-
-    
-    @only_on_train(return_val=0.0)
-    def decay_lr(self):
-        if self.global_step.value() <= self.lr_annealing_steps:            
-            return self.initial_lr - (self.global_step.value() * self.initial_lr / self.lr_annealing_steps)
-        else:
-            return 0.0
 
 
     def apply_gradients_to_shared_memory_vars(self, grads):

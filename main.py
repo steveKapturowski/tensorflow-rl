@@ -81,7 +81,7 @@ def main(args):
     np.random.seed(seed)
     tf.set_random_seed(seed)
 
-    args.actor_id = 0
+    args.actor_id = args.task_index
     args.device = '/gpu:{}'.format(args.task_index % num_gpus) if num_gpus else '/cpu:0'
     args.random_seed = seed + args.task_index
     args.input_shape = input_shape
