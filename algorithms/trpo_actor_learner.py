@@ -39,6 +39,7 @@ class TRPOLearner(BaseA3CLearner):
 		self.baseline_vars = args.baseline_vars
 		self.experience_queue = args.experience_queue
 		self.task_queue = args.task_queue
+		self.history_length = args.history_length
 		self.append_timestep = args.arch == 'FC'
 
 
@@ -218,7 +219,7 @@ class TRPOLearner(BaseA3CLearner):
 
 	def preprocess_value_state(self, data):
 		if self.append_timestep: #this is particularly helpful on MuJoCo environments
-			return np.hstack([data['state'], data['timestep'].reshape(-1, 1, 1)])
+			return np.hstack([data['state'], np.tile(data['timestep'].reshape(-1, 1, 1), self.history_length)])
 		else:
 			return data['state']
 
