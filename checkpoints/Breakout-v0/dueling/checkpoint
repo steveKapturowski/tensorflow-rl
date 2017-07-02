@@ -1,0 +1,3 @@
+model_checkpoint_path: "model-100555"
+all_model_checkpoint_paths: "/tmp/summary_logs/Breakout-v0/07.02/15.15/model.ckpt"
+all_model_checkpoint_paths: "model-100555"
