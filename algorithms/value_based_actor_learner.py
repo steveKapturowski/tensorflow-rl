@@ -265,7 +265,7 @@ class NStepQLearner(ValueBasedLearner):
 
 class DuelingLearner(NStepQLearner):
     def __init__(self, args):
-        super(DuelingLearner, self).init(args, network_type=DuelingNetwork)
+        super(DuelingLearner, self).__init__(args, network_type=DuelingNetwork)
 
 
 class OneStepSARSALearner(ValueBasedLearner):
