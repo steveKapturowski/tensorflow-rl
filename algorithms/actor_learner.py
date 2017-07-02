@@ -96,9 +96,9 @@ class ActorLearner(Process):
             
         if self.optimizer_mode == 'local':
             if self.optimizer_type == 'rmsprop':
-                self.opt_st = np.ones(size, dtype=ctypes.c_float)
+                self.opt_st = np.ones(self.learning_vars.size, dtype=ctypes.c_float)
             else:
-                self.opt_st = np.zeros(size, dtype=ctypes.c_float)
+                self.opt_st = np.zeros(self.learning_vars.size, dtype=ctypes.c_float)
         elif self.optimizer_mode == 'shared':
                 self.opt_st = args.opt_state
 
