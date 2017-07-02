@@ -197,11 +197,11 @@ class ActorLearner(object):
 
             gradients = [
                 e[0] for e in self.optimizer.compute_gradients(
-                self.local_network.loss, self.local_network.params)]
-            gradients = self.local_network._clip_grads(gradients)
+                self.global_network.loss, self.global_network.params)]
+            gradients = self.global_network._clip_grads(gradients)
             
-            self.local_network.get_gradients = self.optimizer.apply_gradients(
-                zip(gradients, self.local_network.params))
+            self.global_network.get_gradients = self.optimizer.apply_gradients(
+                zip(gradients, self.global_network.params))
 
 
     def get_gpu_options(self):
