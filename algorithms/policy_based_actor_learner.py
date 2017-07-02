@@ -3,7 +3,7 @@ import time
 import numpy as np
 import utils.logger
 import tensorflow as tf
-from gym.spaces import Discrete
+from collections import deque
 from utils import checkpoint_utils
 from utils.decorators import only_on_train
 from actor_learner import ActorLearner, ONE_LIFE_GAMES
@@ -80,6 +80,7 @@ class BaseA3CLearner(ActorLearner):
         last_global_step = self.global_step.eval(self.session)
         logger.debug("Actor {} resuming at Step {}".format(self.task_index, last_global_step))
         
+        episode_rewards = deque(maxlen=1000)
         while not self.supervisor.should_stop():
             s = self.emulator.get_initial_state()
             self.reset_hidden_state()
@@ -124,15 +125,15 @@ class BaseA3CLearner(ActorLearner):
                 # Compute gradients on the local policy/V network and apply them to shared memory 
                 entropy = self.apply_update(states, actions, targets, advantages)
 
+            episode_rewards.append(total_episode_reward)
             elapsed_time = time.time() - episode_start_time
             steps_per_sec = (self.local_step - episode_start_step) * self.num_actor_learners / elapsed_time
             perf = "{:.0f}".format(steps_per_sec)
-            print 'lr={}'.format(self.session.run(self.learning_rate))
-            logger.info("T{} / EPISODE {} / STEP {}k / REWARD {} / {} STEPS/s".format(
-                self.task_index,
+            logger.info("T{} / EPISODE {} / STEP {}k / MEAN REWARD {:.1f} / {} STEPS/s".format(
+                self.actor_id,
                 self.local_episode,
                 global_step/1000,
-                total_episode_reward,
+                np.array(episode_rewards).mean(),
                 perf))
 
             self.log_summary(total_episode_reward, np.array(values).mean(), entropy)
