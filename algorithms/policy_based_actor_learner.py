@@ -170,6 +170,29 @@ class A3CLearner(BaseA3CLearner):
 
 
 class A3CLSTMLearner(BaseA3CLearner):
+    def __init__(self, args):
+        super(A3CLSTMLearner, self).__init__(args)
+
+        conf_local = {'name': 'local_network_{}'.format(self.actor_id),
+                      'input_shape': self.input_shape,
+                      'num_act': self.num_actions,
+                      'args': args}
+        conf_global = conf_local.copy()
+        conf_global['name'] = 'global_network'
+        self.local_network = args.network(conf_local)
+        self.global_network = args.network(conf_global)
+
+        self.sync_local_network = tf.group(*[
+            l.assign(g) for l, g in zip(self.local_network.params, self.global_network.params)
+        ])
+        self.reset_hidden_state()
+
+        if self.is_master():
+            var_list = self.local_network.params + self.global_network.params
+            self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
+                                        keep_checkpoint_every_n_hours=2)
+
+
     def reset_hidden_state(self):
         self.lstm_state_out = np.zeros([1, 2*self.local_network.hidden_state_size])
         # self.lstm_state_out = tf.contrib.rnn.LSTMStateTuple(np.zeros([1, 256]),
