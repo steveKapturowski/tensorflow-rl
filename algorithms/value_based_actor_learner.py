@@ -25,14 +25,17 @@ class ValueBasedLearner(ActorLearner):
         self.q_target_update_steps = args.q_target_update_steps
         self.scores = list()
         
-        conf_learning = {'name': "local_learning_{}".format(self.actor_id),
-                         'input_shape': self.input_shape,
-                         'num_act': self.num_actions,
-                         'args': args}
-        conf_target = conf_learning.copy()
-        conf_target['name'] = 'local_target_{}'.format(self.actor_id)
+        conf_local = {'name': "local_network_{}".format(self.actor_id),
+                      'input_shape': self.input_shape,
+                      'num_act': self.num_actions,
+                      'args': args}
+        conf_target = conf_local.copy()
+        conf_target['name'] = 'target_network_{}'.format(self.actor_id)
+        conf_global = conf_local.copy()
+        conf_global['name'] = 'global_network'
         
-        self.local_network = network_type(conf_learning)
+        self.global_network = network_type(conf_global)
+        self.local_network = network_type(conf_local)
         self.target_network = network_type(conf_target)
 
         if self.is_master():

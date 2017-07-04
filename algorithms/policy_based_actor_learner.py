@@ -19,7 +19,6 @@ class BaseA3CLearner(ActorLearner):
 
         self.td_lambda = args.td_lambda
         self.action_space = args.action_space
-        # self.learning_vars = args.learning_vars
         self.beta = args.entropy_regularisation_strength
         self.q_target_update_steps = args.q_target_update_steps
 
@@ -63,13 +62,13 @@ class BaseA3CLearner(ActorLearner):
 
     def apply_update(self, states, actions, targets, advantages):
         feed_dict={
-            self.global_network.input_ph: states,
-            self.global_network.selected_action_ph: actions,
-            self.global_network.critic_target_ph: targets,
-            self.global_network.adv_actor_ph: advantages,
+            self.local_network.input_ph: states,
+            self.local_network.selected_action_ph: actions,
+            self.local_network.critic_target_ph: targets,
+            self.local_network.adv_actor_ph: advantages,
         }
         entropy, _ = self.session.run(
-            [self.global_network.entropy, self.global_network.get_gradients],
+            [self.local_network.entropy, self.local_network.get_gradients],
             feed_dict=feed_dict)
 
         return entropy
