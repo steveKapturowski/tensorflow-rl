@@ -68,7 +68,7 @@ class BaseA3CLearner(ActorLearner):
             self.local_network.adv_actor_ph: advantages,
         }
         entropy, _ = self.session.run(
-            [self.local_network.entropy, self.local_network.get_gradients],
+            [self.local_network.entropy, self.apply_gradients],
             feed_dict=feed_dict)
 
         return entropy
@@ -234,7 +234,7 @@ class A3CLSTMLearner(BaseA3CLearner):
             self.local_network.initial_lstm_state: self.local_lstm_state,
         }
         entropy, _ = self.session.run(
-            [self.local_network.entropy, self.local_network.get_gradients],
+            [self.local_network.entropy, self.apply_gradients],
             feed_dict=feed_dict)
 
         return entropy

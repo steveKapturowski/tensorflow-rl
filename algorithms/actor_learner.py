@@ -175,7 +175,7 @@ class ActorLearner(object):
 
     def _build_optimizer(self):
         with tf.variable_scope('optimizer'):
-            self.global_step = tf.Variable(0, trainable=False)
+            self.global_step = tf.Variable(0, trainable=False, name='global_variable')
             self.global_step_increment = self.global_step.assign_add(1, use_locking=True)
             self.learning_rate = tf.train.polynomial_decay(
                 self.initial_lr,
@@ -200,12 +200,12 @@ class ActorLearner(object):
                 self.local_network.loss, self.local_network.params)]
             gradients = self.local_network._clip_grads(gradients)
 
-            self.local_network.get_gradients = tf.group(*[
-                g.assign_add(l, use_locking=False)
-                for g, l in zip(self.global_network.params, self.local_network.params)
-            ])
-            # self.local_network.get_gradients = self.optimizer.apply_gradients(
-            #     zip(gradients, self.local_network.params))
+            # self.apply_gradients = tf.group(*[
+            #     var.assign_add(grad, use_locking=False)
+            #     for var, grad in zip(self.global_network.params, gradients)
+            # ])
+            self.apply_gradients = self.optimizer.apply_gradients(
+                zip(gradients, self.global_network.params))
 
 
     def get_gpu_options(self):
