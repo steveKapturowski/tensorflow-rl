@@ -302,10 +302,10 @@ cdef class CTSDensityModel:
 
         for i in range(self.height):
             for j in range(self.width):
-                context[0] = obs[i, j-1] if j > 0 else 0
-                context[1] = obs[i-1, j] if i > 0 else 0
-                context[2] = obs[i-1, j-1] if i > 0 and j > 0 else 0
-                context[3] = obs[i-1, j+1] if i > 0 and j < self.width-1 else 0
+                context[3] = obs[i, j-1] if j > 0 else 0
+                context[2] = obs[i-1, j] if i > 0 else 0
+                context[1] = obs[i-1, j-1] if i > 0 and j > 0 else 0
+                context[0] = obs[i-1, j+1] if i > 0 and j < self.width-1 else 0
 
                 log_prob += cts_update(&self.cts_factors[i][j], context, obs[i, j])
                 log_recoding_prob += cts_log_prob(&self.cts_factors[i][j], context, obs[i, j])
