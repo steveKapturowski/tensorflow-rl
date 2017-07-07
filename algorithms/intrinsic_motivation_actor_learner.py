@@ -271,10 +271,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
             s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
             s2 = "EPS {0:.4f}".format(self.epsilon)
 
-            self.scores.insert(0, total_episode_reward)
-            if len(self.scores) > 100:
-                self.scores.pop()
-
+            self.scores.append(total_episode_reward)
             logger.info('T{0} / STEP {1} / REWARD {2} / {3} / {4}'.format(
                 self.actor_id, T, total_episode_reward, s1, s2))
             logger.info('ID: {0} -- RUNNING AVG: {1:.0f} ± {2:.0f} -- BEST: {3:.0f}'.format(
@@ -389,8 +386,8 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         global_steps_at_last_record = self.global_step.eval(self.session)
         while not self.supervisor.should_stop():
             # # Sync local learning net with shared mem
-            # self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            # self.save_vars()
+            self.session.run(self.sync_local_network)
+
             rewards =      list()
             states =       list()
             actions =      list()

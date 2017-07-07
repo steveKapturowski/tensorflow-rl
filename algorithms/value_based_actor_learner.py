@@ -1,16 +1,17 @@
 # -*- encoding: utf-8 -*-
 import tensorflow as tf
 import numpy as np
+import collections
 import ctypes
 import utils
 import time
 import sys
 
-from utils.decorators import only_on_train
-from utils.hogupdatemv import copy
+from actor_learner import ActorLearner
 from networks.q_network import QNetwork
 from networks.dueling_network import DuelingNetwork
-from actor_learner import ActorLearner, ONE_LIFE_GAMES
+from utils.decorators import only_on_train
+from utils.hogupdatemv import copy
 
 
 logger = utils.logger.getLogger('value_based_actor_learner')
@@ -23,7 +24,7 @@ class ValueBasedLearner(ActorLearner):
         super(ValueBasedLearner, self).__init__(args)
         
         self.q_target_update_steps = args.q_target_update_steps
-        self.scores = list()
+        self.scores = collections.deque(maxlen=1000)
         
         conf_local = {'name': "local_network_{}".format(self.actor_id),
                       'input_shape': self.input_shape,
@@ -45,9 +46,13 @@ class ValueBasedLearner(ActorLearner):
 
         # build assign ops for target network
         self.update_target_network = tf.group(
-            *[tf.assign(t, v) for t, v in zip(
+            *[t.assign(v) for t, v in zip(
                 self.target_network.params,
                 self.local_network.params)])
+        self.sync_local_network = tf.group(
+            *[l.assign(g) for l, g in zip(
+                self.local_network.params,
+                self.global_network.params)])
 
         # Exploration epsilons 
         self.initial_epsilon = 1.0
@@ -142,29 +147,20 @@ class ValueBasedLearner(ActorLearner):
 
     def update_target(self):
         self.session.run(self.update_target_network)
-        # copy(np.frombuffer(self.target_vars.vars, ctypes.c_float),
-        #       np.frombuffer(self.learning_vars.vars, ctypes.c_float))
-        
-        # # Set shared flags
-        # for i in xrange(len(self.target_update_flags.updated)):
-        #     self.target_update_flags.updated[i] = 1
 
 
     def prepare_state(self, state, total_episode_reward, steps_at_last_reward,
                       ep_t, episode_ave_max_q, episode_over):
         # Start a new game on reaching terminal state
         if episode_over:
-            T = self.global_step.value()
+            T = self.global_step.eval(self.session)
             t = self.local_step
             e_prog = float(t)/self.epsilon_annealing_steps
             episode_ave_max_q = episode_ave_max_q/float(ep_t)
             s1 = "Q_MAX {0:.4f}".format(episode_ave_max_q)
             s2 = "EPS {0:.4f}".format(self.epsilon)
 
-            self.scores.insert(0, total_episode_reward)
-            if len(self.scores) > 100:
-                self.scores.pop()
-
+            self.scores.append(total_episode_reward)
             logger.info('T{0} / STEP {1} / REWARD {2} / {3} / {4}'.format(
                 self.actor_id, T, total_episode_reward, s1, s2))
             logger.info('ID: {0} -- RUNNING AVG: {1:.0f} ± {2:.0f} -- BEST: {3:.0f}'.format(
@@ -192,7 +188,7 @@ class NStepQLearner(ValueBasedLearner):
     def train(self):
         """ Main actor learner loop for n-step Q learning. """
         logger.debug("Actor {} resuming at Step {}, {}".format(self.actor_id, 
-            self.global_step.value(), time.ctime()))
+            self.global_step.eval(self.session), time.ctime()))
 
         s = self.emulator.get_initial_state()        
         steps_at_last_reward = self.local_step
@@ -206,11 +202,9 @@ class NStepQLearner(ValueBasedLearner):
         low_qmax = 0
         ep_t = 0
         
-        while (self.global_step.value() < self.max_global_steps):
-
+        while not self.supervisor.should_stop():
             # Sync local learning net with shared mem
-            self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-            self.save_vars()
+            self.session.run(self.sync_local_network)
 
             rewards = list()
             states =  list()
@@ -242,28 +236,14 @@ class NStepQLearner(ValueBasedLearner):
                 self.local_step += 1
                 episode_ave_max_q += np.max(readout_t)
                 
-                global_step, update_target = self.global_step.increment(
-                    self.q_target_update_steps)
-
-                if update_target:
-                    update_target = False
-                    exec_update_target = True
-                
-                self.local_network.global_step = global_step
+                global_step = self.session.run(self.global_step_increment)
+                if global_step % self.q_target_update_steps == 0:
+                    self.update_target()
 
             R = self.bootstrap_value(s, episode_over)
             targets = self.compute_targets(rewards, R)
             # Compute gradients on the local Q network 
             self.apply_update(states, actions, targets)
-            
-            if exec_update_target:
-                self.update_target()
-                exec_update_target = False
-
-            # Sync local tensorflow target network params with shared target network params
-            if self.target_update_flags.updated[self.actor_id] == 1:
-                self.sync_net_with_shared_memory(self.target_network, self.target_vars)
-                self.target_update_flags.updated[self.actor_id] = 0
 
             s, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over = \
                 self.prepare_state(s, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over)
@@ -282,7 +262,7 @@ class OneStepSARSALearner(ValueBasedLearner):
     def train(self):
         """ Main actor learner loop for 1-step SARSA learning. """
         logger.debug("Actor {} resuming at Step {}, {}".format(self.actor_id, 
-            self.global_step.value(), time.ctime()))
+            self.global_step.eval(self.session), time.ctime()))
         
         s = self.emulator.get_initial_state()
 
@@ -304,7 +284,7 @@ class OneStepSARSALearner(ValueBasedLearner):
         # Choose initial action
         a, readout_t = self.choose_next_action(s)
         
-        while (self.global_step.value() < self.max_global_steps):
+        while not self.supervisor.should_stop():
             s_prime, reward, episode_over = self.emulator.next(a)
             if reward != 0.0:
                 steps_at_last_reward = self.local_step
@@ -336,8 +316,7 @@ class OneStepSARSALearner(ValueBasedLearner):
             targets.append(y)
             
             self.local_step += 1
-            global_step, update_target = self.global_step.increment(
-                self.q_target_update_steps)
+            global_step = self.session.run(self.global_step_increment)
             
             # Compute grads and asynchronously apply them to shared memory
             if ((self.local_step % self.grads_update_steps == 0) 
@@ -345,21 +324,15 @@ class OneStepSARSALearner(ValueBasedLearner):
 
                 # Compute gradients on the local Q network     
                 self.apply_update(states, actions, targets)
-                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-                self.save_vars()
+                self.session.run(self.sync_local_network)
 
                 states =  list()
                 actions = list()
                 targets = list()
 
             # Copy shared learning network params to shared target network params 
-            if update_target:
+            if global_step % self.q_target_update_steps == 0:
                 self.update_target()
-
-            # Sync local tensorflow target network params with shared target network params
-            if self.target_update_flags.updated[self.actor_id] == 1:
-                self.sync_net_with_shared_memory(self.target_network, self.target_vars)
-                self.target_update_flags.updated[self.actor_id] = 0
 
             s, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over = \
                 self.prepare_state(s, total_episode_reward, steps_at_last_reward, ep_t, episode_ave_max_q, episode_over)
