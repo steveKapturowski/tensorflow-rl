@@ -119,7 +119,7 @@ class A3CDensityModelMixin(DensityModelMixin):
     def _train(self):
         """ Main actor learner loop for advantage actor critic learning. """
         logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
-            self.global_step.value()))
+            self.global_step.eval(self.session)))
         
         bonuses = deque(maxlen=100)
         while not self.supervisor.should_stop():
@@ -264,7 +264,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
                       ep_t, episode_ave_max_q, episode_over, bonuses, total_augmented_reward):
         # Start a new game on reaching terminal state
         if episode_over:
-            T = self.global_step.value() * self.max_local_steps
+            T = self.global_step.eval(self.session) * self.max_local_steps
             t = self.local_step
             e_prog = float(t)/self.epsilon_annealing_steps
             episode_ave_max_q = episode_ave_max_q/float(ep_t)
@@ -375,7 +375,7 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
     def train(self):
         """ Main actor learner loop for n-step Q learning. """
         logger.debug("Actor {} resuming at Step {}, {}".format(self.actor_id, 
-            self.global_step.value(), time.ctime()))
+            self.global_step.eval(self.session), time.ctime()))
 
         s = self.emulator.get_initial_state()
         
@@ -386,8 +386,8 @@ class PseudoCountQLearner(ValueBasedLearner, DensityModelMixin):
         episode_over = False
         
         t0 = time.time()
-        global_steps_at_last_record = self.global_step.value()
-        while (self.global_step.value() < self.max_global_steps):
+        global_steps_at_last_record = self.global_step.eval(self.session)
+        while not self.supervisor.should_stop():
             # # Sync local learning net with shared mem
             # self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
             # self.save_vars()
