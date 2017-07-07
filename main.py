@@ -70,90 +70,44 @@ def main(args):
     logger.info('logging summaries to {}'.format(args.summ_base_dir))
 
     Learner, Network = ALGORITHMS[args.alg_type]
-    network = Network({
-        'name': 'shared_vars_network',
-        'input_shape': input_shape,
-        'num_act': num_actions,
-        'args': args
-    })
     args.network = Network
-
-    #initialize shared variables
-    args.learning_vars = SharedVars(network.params)
-    args.opt_state = SharedVars(
-        network.params, opt_type=args.opt_type, lr=args.initial_lr
-    ) if args.opt_mode == 'shared' else None
-    args.batch_opt_state = SharedVars(
-        network.params, opt_type=args.opt_type, lr=args.initial_lr
-    ) if args.opt_mode == 'shared' else None
-
-    #TODO: need to refactor so TRPO+GAE doesn't need special treatment
-    if args.alg_type in ['trpo', 'trpo-continuous']:
-        if args.arch == 'FC': #add timestep feature
-            vf_input_shape = [input_shape[0]+1]
-        else:
-            vf_input_shape = input_shape
-
-        baseline_network = PolicyValueNetwork({
-            'name': 'shared_value_network',
-            'input_shape': vf_input_shape,
-            'num_act': num_actions,
-            'args': args
-        }, use_policy_head=False)
-        args.baseline_vars = SharedVars(baseline_network.params)
-        args.vf_input_shape = vf_input_shape
-        
-    if args.alg_type in ['q', 'sarsa', 'dueling', 'dqn-cts']:
-        args.target_vars = SharedVars(network.params)
-        args.target_update_flags = SharedFlags(args.num_actor_learners)
-    if args.alg_type in ['dqn-cts', 'a3c-cts', 'a3c-lstm-cts']:
-        args.density_model_update_flags = SharedFlags(args.num_actor_learners)
-
-    tf.reset_default_graph()
-    args.barrier = Barrier(args.num_actor_learners)
-    args.global_step = SharedCounter(0)
-    args.num_actions = num_actions
-
+    
     cuda_visible_devices = os.getenv('CUDA_VISIBLE_DEVICES')
     num_gpus = 0
     if cuda_visible_devices:
         num_gpus = len(cuda_visible_devices.split())
 
-    #spin up processes and block
-    if (args.visualize == 2): args.visualize = 0        
-    actor_learners = []
-    task_queue = Queue()
-    experience_queue = Queue()
     seed = args.seed or np.random.randint(2**32)
     np.random.seed(seed)
     tf.set_random_seed(seed)
-    for i in xrange(args.num_actor_learners):
-        if (args.visualize == 2) and (i == args.num_actor_learners - 1):
-            args.args.visualize = 1
 
-        args.actor_id = i
-        args.device = '/gpu:{}'.format(i % num_gpus) if num_gpus else '/cpu:0'
-        
-        args.random_seed = seed + i
-            
-        #only used by TRPO
-        args.task_queue = task_queue
-        args.experience_queue = experience_queue
+    args.actor_id = args.task_index
+    args.device = '/gpu:{}'.format(args.task_index % num_gpus) if num_gpus else '/cpu:0'
+    args.random_seed = seed + args.task_index
+    args.input_shape = input_shape
+    args.num_actions = num_actions
 
-        args.input_shape = input_shape
-        actor_learners.append(Learner(args))
-        actor_learners[-1].start()
+    cluster = tf.train.ClusterSpec({
+        'ps': ['localhost:2048'],
+        'worker': ['localhost:{}'.format(4096+i)
+            for i in range(args.num_actor_learners)]})
+    server = tf.train.Server(
+        cluster,
+        job_name=args.job_name,
+        task_index=args.task_index)
 
-    try:
-        for t in actor_learners:
-            t.join()
-    except KeyboardInterrupt:
-        #Terminate with extreme prejudice
-        for t in actor_learners:
-            t.terminate()
-    
-    logger.info('All training threads finished!')
-    logger.info('Use seed={} to reproduce'.format(seed))
+
+    if args.job_name == 'ps':
+        server.join()
+    elif args.job_name == 'worker':
+
+        with tf.device(tf.train.replica_device_setter(
+            worker_device='/job:worker/task:{}'.format(args.task_index),
+            # ps_device='/job:localhost/task:0',
+            cluster=cluster)):
+
+            learner = Learner(args)
+            learner.run(server.target)
 
 
 def get_validated_params(args):
@@ -201,6 +155,8 @@ def get_config():
     parser.add_argument('--no_share_weights', action='store_false', help='If set don\'t share parameters between policy and value function', dest='share_encoder_weights')
     parser.add_argument('--fc_layer_sizes', default=[60, 60], type=int, nargs='+', help='width of layers in fully connected architecture', dest='fc_layer_sizes')
     parser.add_argument('--seed', default=None, type=int, help='Specify random seed. Each process will get its own unique seed computed as seed+actor_id. Due to race conditions only 1 worker process should be used to get deterministic results', dest='seed')
+    parser.add_argument('--job_name', default='ps', type=str, help='job name in cluster spec', dest='job_name')
+    parser.add_argument('--task_index', default=0, type=int, help='index of task in cluster spec', dest='task_index')
 
     #optimizer args
     parser.add_argument('--opt_type', default='rmsprop', help='Type of optimizer: rmsprop, momentum, adam, adamax', dest='opt_type')
@@ -208,7 +164,7 @@ def get_config():
     parser.add_argument('--b1', default=0.9, type=float, help='Beta1 for the Adam optimizer', dest='b1')
     parser.add_argument('--b2', default=0.999, type=float, help='Beta2 for the Adam optimizer', dest='b2')
     parser.add_argument('--e', default=0.1, type=float, help='Epsilon for the Rmsprop and Adam optimizers', dest='e')
-    parser.add_argument('--momentum', default=0.99, type=float, help='Discount factor for the history/coming gradient, for the Rmsprop optimizer', dest='momentum')
+    parser.add_argument('--alpha', default=0.99, type=float, help='Discount factor for the history/coming gradient, for the Rmsprop optimizer', dest='alpha')
     parser.add_argument('-lr', '--initial_lr', default=0.001, type=float, help='Initial value for the learning rate. Default = LogUniform(10**-4, 10**-2)', dest='initial_lr')
     parser.add_argument('-lra', '--lr_annealing_steps', default=200000000, type=int, help='Nr. of global steps during which the learning rate will be linearly annealed towards zero', dest='lr_annealing_steps')
     parser.add_argument('--max_episode_steps', default=None, type=int, help='max rollout steps per trpo episode', dest='max_episode_steps')
@@ -247,8 +203,8 @@ def get_config():
     #cts args
     parser.add_argument('--cts_bins', default=8, type=int, help='number of bins to assign pixel values', dest='cts_bins')
     parser.add_argument('--cts_rescale_dim', default=42, type=int, help='rescaled image size to use with cts density model', dest='cts_rescale_dim')
-    parser.add_argument('--cts_beta', default=.05, type=float, help='weight by which to scale novelty bonuses', dest='cts_beta')
-    parser.add_argument('--cts_eta', default=.9, type=float, help='mixing param between 1-step TD-Error and Monte-Carlo Error', dest='cts_eta')
+    parser.add_argument('--cts_beta', default=0.05, type=float, help='weight by which to scale novelty bonuses', dest='cts_beta')
+    parser.add_argument('--cts_eta', default=0.9, type=float, help='mixing param between 1-step TD-Error and Monte-Carlo Error', dest='cts_eta')
     parser.add_argument('--density_model', default='cts', type=str, help='density model to use for generating novelty bonuses: cts, or pixel-counts', dest='density_model')
     parser.add_argument('--q_update_interval', default=4, type=int, help='Number of steps between successive batch q-learning updates', dest='q_update_interval')
 
@@ -262,5 +218,7 @@ def get_config():
 
 if __name__ == '__main__':
     main(get_config())
+
+
 
  

@@ -3,17 +3,25 @@ import subprocess
 import argparse
 import signal
 import yaml
+import os
 
 
-def launch_proc(proc_type, args):
+def launch_proc(proc_type, num_workers, task_index, args):
+	env = os.environ.copy()
+	if proc_type == 'ps':
+		env['CUDA_VISIBLE_DEVICES'] = ''
+
 	cmd = ['python', 'main.py'] + args \
-		+ ['--job_name', proc_type, '--task_index', str(i)]
-	return subprocess.Popen(cmd)
+		+ ['--job_name', proc_type, '--task_index', str(task_index), '-n', str(num_workers)]
+	return subprocess.Popen(cmd, env=env)
 
 
 def launch_cluster(spec, arg_string, daemonize=False):
-	parameter_servers = [launch_proc('ps', arg_string) for i in spec['ps']]
-	workers = [launch_proc('worker', arg_string) for i in spec['worker']]
+	num_workers = len(spec['worker'])
+	parameter_servers = [launch_proc('ps', num_workers, i, arg_string)
+		for i, _ in enumerate(spec['ps'])]
+	workers = [launch_proc('worker', num_workers, i, arg_string)
+		for i, _ in enumerate(spec['worker'])]
 
 	if not daemonize:
 		procs = parameter_servers + workers
@@ -21,8 +29,8 @@ def launch_cluster(spec, arg_string, daemonize=False):
 			for p in procs:
 				p.wait()
 		except KeyboardInterrupt:
-			for p in streams:
-				p.send_signal(signal.SIGINT)
+			for p in procs:
+				p.kill()
 
 
 if __name__ == '__main__':

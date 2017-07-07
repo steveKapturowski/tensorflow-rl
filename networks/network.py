@@ -121,7 +121,7 @@ class Network(object):
         elif self.clip_norm_type == 'avg':
             return tf.clip_by_average_norm(grads, self.clip_norm)[0]
         elif self.clip_norm_type == 'local':
-            return [tf.clip_by_norm(g, self.clip_norm)
+            return [tf.clip_by_norm(g, self.clip_norm)[0]
                     for g in grads]
 
 
@@ -142,7 +142,7 @@ class Network(object):
 
 
     def _build_gradient_ops(self, loss):
-        self.params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
+        self.params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.name)
         self.flat_vars = utils.ops.flatten_vars(self.params)
 
         grads = tf.gradients(loss, self.params)

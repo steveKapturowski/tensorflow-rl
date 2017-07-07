@@ -32,3 +32,8 @@ class NECNetwork(QNetwork):
 			values[i] = kernel * values
 
 		return values
+
+
+	def insert(self, action, key, value):
+		idx = action.argmax()
+		self.action_dnds[idx].add(key, value)

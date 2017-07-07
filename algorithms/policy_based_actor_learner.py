@@ -19,7 +19,6 @@ class BaseA3CLearner(ActorLearner):
 
         self.td_lambda = args.td_lambda
         self.action_space = args.action_space
-        self.learning_vars = args.learning_vars
         self.beta = args.entropy_regularisation_strength
         self.q_target_update_steps = args.q_target_update_steps
 
@@ -68,38 +67,35 @@ class BaseA3CLearner(ActorLearner):
             self.local_network.critic_target_ph: targets,
             self.local_network.adv_actor_ph: advantages,
         }
-        grads, entropy = self.session.run(
-            [self.local_network.get_gradients, self.local_network.entropy],
+        entropy, _ = self.session.run(
+            [self.local_network.entropy, self.apply_gradients],
             feed_dict=feed_dict)
 
-        self.apply_gradients_to_shared_memory_vars(grads)
         return entropy
 
 
     def train(self):
         """ Main actor learner loop for advantage actor critic learning. """
-        logger.debug("Actor {} resuming at Step {}".format(self.actor_id, 
-            self.global_step.value()))
+        last_global_step = self.global_step.eval(self.session)
+        logger.debug("Actor {} resuming at Step {}".format(self.task_index, last_global_step))
         
         episode_rewards = deque(maxlen=1000)
-        while (self.global_step.value() < self.max_global_steps):
-            # Sync local learning net with shared mem
+        while not self.supervisor.should_stop():
             s = self.emulator.get_initial_state()
             self.reset_hidden_state()
             self.local_episode += 1
             episode_over = False
             total_episode_reward = 0.0
+            episode_start_time = time.time()
             episode_start_step = self.local_step
             
             while not episode_over:
-                self.sync_net_with_shared_memory(self.local_network, self.learning_vars)
-                self.save_vars()
-
                 rewards = list()
                 states  = list()
                 actions = list()
                 values  = list()
                 local_step_start = self.local_step
+                self.session.run(self.sync_local_network)
                 self.set_local_lstm_state()
 
                 while self.local_step - local_step_start < self.max_local_steps and not episode_over:
@@ -120,7 +116,8 @@ class BaseA3CLearner(ActorLearner):
 
                     s = new_s
                     self.local_step += 1
-                    self.global_step.increment()
+
+                global_step = self.session.run(self.global_step_increment)
                 
                 next_val = self.bootstrap_value(new_s, episode_over)
                 advantages = self.compute_gae(rewards, values, next_val)
@@ -128,35 +125,41 @@ class BaseA3CLearner(ActorLearner):
                 # Compute gradients on the local policy/V network and apply them to shared memory 
                 entropy = self.apply_update(states, actions, targets, advantages)
 
-
             episode_rewards.append(total_episode_reward)
-            elapsed_time = time.time() - self.start_time
-            steps_per_sec = self.global_step.value() / elapsed_time
+            elapsed_time = time.time() - episode_start_time
+            steps_per_sec = (self.local_step - episode_start_step) * self.num_actor_learners / elapsed_time
             perf = "{:.0f}".format(steps_per_sec)
             logger.info("T{} / EPISODE {} / STEP {}k / MEAN REWARD {:.1f} / {} STEPS/s".format(
                 self.actor_id,
                 self.local_episode,
-                self.global_step.value()/1000,
+                global_step/1000,
                 np.array(episode_rewards).mean(),
                 perf))
 
             self.log_summary(total_episode_reward, np.array(values).mean(), entropy)
+            last_global_step = global_step
 
 
 class A3CLearner(BaseA3CLearner):
     def __init__(self, args):
         super(A3CLearner, self).__init__(args)
 
-        conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
-                         'input_shape': self.input_shape,
-                         'num_act': self.num_actions,
-                         'args': args}
+        conf_local = {'name': 'local_network_{}'.format(self.actor_id),
+                      'input_shape': self.input_shape,
+                      'num_act': self.num_actions,
+                      'args': args}
+        conf_global = conf_local.copy()
+        conf_global['name'] = 'global_network'
+        self.local_network = args.network(conf_local)
+        self.global_network = args.network(conf_global)
 
-        self.local_network = args.network(conf_learning)
+        self.sync_local_network = tf.group(*[
+            l.assign(g) for l, g in zip(self.local_network.params, self.global_network.params)
+        ])
         self.reset_hidden_state()
 
         if self.is_master():
-            var_list = self.local_network.params
+            var_list = self.local_network.params + self.global_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
 
@@ -169,16 +172,22 @@ class A3CLSTMLearner(BaseA3CLearner):
     def __init__(self, args):
         super(A3CLSTMLearner, self).__init__(args)
 
-        conf_learning = {'name': 'local_learning_{}'.format(self.actor_id),
-                         'input_shape': self.input_shape,
-                         'num_act': self.num_actions,
-                         'args': args}
+        conf_local = {'name': 'local_network_{}'.format(self.actor_id),
+                      'input_shape': self.input_shape,
+                      'num_act': self.num_actions,
+                      'args': args}
+        conf_global = conf_local.copy()
+        conf_global['name'] = 'global_network'
+        self.local_network = args.network(conf_local)
+        self.global_network = args.network(conf_global)
 
-        self.local_network = args.network(conf_learning)
+        self.sync_local_network = tf.group(*[
+            l.assign(g) for l, g in zip(self.local_network.params, self.global_network.params)
+        ])
         self.reset_hidden_state()
 
         if self.is_master():
-            var_list = self.local_network.params
+            var_list = self.local_network.params + self.global_network.params
             self.saver = tf.train.Saver(var_list=var_list, max_to_keep=3,
                                         keep_checkpoint_every_n_hours=2)
 
@@ -224,11 +233,10 @@ class A3CLSTMLearner(BaseA3CLearner):
             self.local_network.step_size : [len(states)],
             self.local_network.initial_lstm_state: self.local_lstm_state,
         }
-        grads, entropy = self.session.run(
-            [self.local_network.get_gradients, self.local_network.entropy],
+        entropy, _ = self.session.run(
+            [self.local_network.entropy, self.apply_gradients],
             feed_dict=feed_dict)
 
-        self.apply_gradients_to_shared_memory_vars(grads)
         return entropy
 
 
