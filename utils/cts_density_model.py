@@ -11,13 +11,15 @@ class CTSDensityModel(object):
 
 	Note that the cython version in fast_cts.pyx is significantly faster
 	"""
-	def __init__(self, height=21, width=21, beta=0.05):
+	def __init__(self, height=21, width=21, num_bins=8, beta=0.05):
 		self.beta = beta
+		self.num_bins = num_bins
 		self.factors = np.array([[CTS(4) for _ in range(width)] for _ in range(height)])
 
 
 	def update(self, obs):
-		obs = resize(obs, self.factors.shape)
+		obs = resize(obs, self.factors.shape, preserve_range=True)
+		obs = np.floor((obs*self.num_bins)).astype(np.int32)
 
 		context = [0, 0, 0, 0]
 		log_prob = 0.0

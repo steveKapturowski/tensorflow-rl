@@ -316,9 +316,9 @@ class ActorLearner(Process):
                 p_size = shared_vars.size
                 m = np.frombuffer(opt_st.ms, ctypes.c_float)
                 v = np.frombuffer(opt_st.vs, ctypes.c_float)
-                opt_st.lr.value =  1.0 * opt_st.lr.value * (1 - self.b2**T)**0.5 / (1 - self.b1**T) 
+                lr =  1.0 * opt_st.lr.value * (1 - self.b2**T)**0.5 / (1 - self.b1**T) 
                 
-                apply_grads_adam(m, v, g, p, p_size, opt_st.lr.value, self.b1, self.b2, self.e)
+                apply_grads_adam(m, v, g, p, p_size, lr, self.b1, self.b2, self.e)
 
             elif self.optimizer_type == "adamax" and self.optimizer_mode == "shared":
                 beta_1 = .9
