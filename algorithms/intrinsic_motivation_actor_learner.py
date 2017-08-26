@@ -10,8 +10,7 @@ from collections import deque
 from utils import checkpoint_utils
 from actor_learner import ONE_LIFE_GAMES
 from utils.decorators import Experimental
-# from utils.fast_cts import CTSDensityModel
-from utils.cts_density_model import CTSDensityModel
+from utils.fast_cts import CTSDensityModel
 from utils.replay_memory import ReplayMemory
 from policy_based_actor_learner import A3CLearner, A3CLSTMLearner
 from value_based_actor_learner import ValueBasedLearner
