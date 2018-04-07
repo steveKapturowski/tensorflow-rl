@@ -19,13 +19,6 @@ class ReplayMemory(object):
 		self.position = 0
 		self.full = False
 
-	# def _get_states(batch):
-	# 	s = list()
-	# 	for i in xrange(-3, 2):
-	# 		s.append(self.screens[batch+i])
-			
-	# 	return np.vstack(s[:-1]), np.vstack(s[1:])
-
 	def sample_batch(self, batch_size):
 		batch = np.zeros((batch_size,), dtype=np.int32)
 		idx = 0
